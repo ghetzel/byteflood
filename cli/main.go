@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/ghetzel/byteflood"
+	"github.com/ghetzel/byteflood/scanner"
 	"github.com/ghetzel/cli"
 	"github.com/op/go-logging"
 	"os"
@@ -40,11 +42,6 @@ func main() {
 			Usage: `Start serving the BitTorrent tracker and management application`,
 			Flags: []cli.Flag{
 				cli.StringFlag{
-					Name:  `protocol, P`,
-					Usage: `The protocol the tracker should use (one of: http, udp)`,
-					Value: `http`,
-				},
-				cli.StringFlag{
 					Name:  `address, a`,
 					Usage: `The address the tracker should listen on`,
 					Value: `127.0.0.1`,
@@ -54,38 +51,15 @@ func main() {
 					Usage: `The port the server should listen on`,
 					Value: 6969,
 				},
-				cli.StringFlag{
-					Name:  `app-address`,
-					Usage: `The address the management application should listen on (if different from the tracker address)`,
-					Value: `127.0.0.1`,
-				},
-				cli.IntFlag{
-					Name:  `app-port`,
-					Usage: `The port the management application should listen on (if different from the tracker port)`,
-					Value: 6969,
-				},
 			},
 			Action: func(c *cli.Context) {
-				trackerAddress := c.String(`address`)
-				trackerPort := c.Int(`port`)
-				trackerProto := c.String(`protocol`)
-				appAddress := trackerAddress
-				appPort := trackerPort
+				address := c.String(`address`)
+				port := c.Int(`port`)
 
-				switch trackerProto {
-				case `http`, `udp`:
-					break
-				default:
-					log.Fatalf("Unrecognized tracker protocol %q", trackerProto)
-					return
-				}
+				server := byteflood.NewServer(address, port)
 
-				if v := c.String(`app-address`); v != appAddress {
-					appAddress = v
-				}
-
-				if v := c.Int(`app-port`); v != appPort {
-					appPort = v
+				if err := server.ListenAndServe(); err != nil {
+					log.Fatal(err)
 				}
 			},
 		}, {
@@ -96,8 +70,22 @@ func main() {
 					Name:  `only, o`,
 					Usage: `Only scan these directories, ignoring the configuration file`,
 				},
+				cli.StringFlag{
+					Name:  `pattern, p`,
+					Usage: `A Perl-compatible regular expression that filenames must match to be included in the scan`,
+				},
 			},
 			Action: func(c *cli.Context) {
+				paths := c.StringSlice(`only`)
+
+				for _, p := range paths {
+					s := scanner.NewScanner(p, c.String(`pattern`))
+
+					if err := s.Scan(); err != nil {
+						log.Errorf("Failed to scan path %q: %v", p, err)
+						continue
+					}
+				}
 			},
 		},
 	}

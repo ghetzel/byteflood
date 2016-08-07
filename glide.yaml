@@ -2,3 +2,4 @@ package: github.com/ghetzel/byteflood
 import:
 - package: github.com/ghetzel/cli
 - package: github.com/op/go-logging
+- package: github.com/urfave/negroni
