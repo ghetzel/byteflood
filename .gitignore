@@ -2,3 +2,5 @@
 /vendor
 /public
 /test.yml
+/test
+/*.torrent

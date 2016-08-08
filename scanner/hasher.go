@@ -1,0 +1,184 @@
+package scanner
+
+import (
+	"crypto/sha1"
+	"fmt"
+	"github.com/jackpal/bencode-go"
+	"io"
+	"math"
+	"os"
+	"path"
+	"strings"
+	"time"
+)
+
+const DEFAULT_BF_CREATOR = `byteflood`
+
+type Epoch int
+
+func (self Epoch) Time() time.Time {
+	return time.Unix(int64(self), 0)
+}
+
+type TorrentFile struct {
+	Path   []string `bencode:"path"`
+	Length int      `bencode:"length"`
+	MD5Sum string   `bencode:"md5sum,omitempty"`
+}
+
+type TorrentInfo struct {
+	PieceLength int           `bencode:"piece length"`
+	Pieces      []byte        `bencode:"pieces"`
+	Private     int           `bencode:"private"`
+	Name        string        `bencode:"name,omitempty"`
+	Length      int           `bencode:"length,omitempty"`
+	MD5Sum      string        `bencode:"md5sum,omitempty"`
+	Files       []TorrentFile `bencode:"files,omitempty"`
+}
+
+type Torrent struct {
+	Announce      string      `bencode:"announce"`
+	AnnounceList  []string    `bencode:"announce-list,omitempty"`
+	CreationEpoch Epoch       `bencode:"creation date,omitempty"`
+	CreatedBy     string      `bencode:"created by,omitempty"`
+	Info          TorrentInfo `bencode:"info"`
+	hasOneFile    bool        `bencode:"-"`
+}
+
+func NewTorrent() *Torrent {
+	return &Torrent{
+		Info: TorrentInfo{
+			Pieces: make([]byte, 0),
+		},
+	}
+}
+
+func (self *Torrent) AddPiece(data []byte) {
+	self.Info.Pieces = append(self.Info.Pieces, data...)
+}
+
+func (self *Torrent) AddFile(name string, length int64) {
+	// first file gets placed in the top-level of the info struct
+	if !self.hasOneFile {
+		self.hasOneFile = true
+		self.Info.Name = name
+		self.Info.Length = int(length)
+	} else {
+		if self.Info.Files == nil {
+			self.Info.Files = []TorrentFile{
+				{
+					Path:   strings.Split(self.Info.Name, `/`),
+					Length: self.Info.Length,
+					MD5Sum: self.Info.MD5Sum,
+				},
+			}
+
+			self.Info.Name = ``
+			self.Info.Length = 0
+			self.Info.MD5Sum = ``
+		}
+
+		self.Info.Files = append(self.Info.Files, TorrentFile{
+			Path:   strings.Split(name, `/`),
+			Length: int(length),
+		})
+	}
+}
+
+func (self *Torrent) Validate() error {
+	var chunks int
+
+	if self.Announce == `` {
+		return fmt.Errorf("Torrent Infohash must specify at least one announce URL")
+	}
+
+	if self.Info.PieceLength == 0 {
+		return fmt.Errorf("Torrent must specify a piece length")
+	}
+
+	if self.Info.Name == `` && (self.Info.Files == nil || len(self.Info.Files) == 0) {
+		return fmt.Errorf("Torrent must contain at least one file")
+	}
+
+	// single-file validation
+	if self.Info.Name != `` {
+		chunks = int(math.Ceil(float64(self.Info.Length) / float64(self.Info.PieceLength)))
+	} else {
+		// multi-file validation
+		for _, torrentFile := range self.Info.Files {
+			chunks += int(math.Ceil(float64(torrentFile.Length) / float64(self.Info.PieceLength)))
+		}
+	}
+
+	if shouldHave := (chunks * sha1.Size); shouldHave != len(self.Info.Pieces) {
+		return fmt.Errorf("Invalid piece length: %d %d-byte chunks should produce %d pieces, have: %d", chunks, self.Info.PieceLength, shouldHave, len(self.Info.Pieces))
+	}
+
+	return nil
+}
+
+func (self *Torrent) SetPrivate(isPrivate bool) {
+	if isPrivate {
+		self.Info.Private = 1
+	} else {
+		self.Info.Private = 0
+	}
+}
+
+func (self *Torrent) WriteTo(w io.Writer) error {
+	if err := self.Validate(); err == nil {
+		return bencode.Marshal(w, *self)
+	} else {
+		return err
+	}
+}
+
+func LoadTorrent(name string) (*Torrent, error) {
+	if file, err := os.Open(name); err == nil {
+		hash := &Torrent{}
+
+		if err := bencode.Unmarshal(file, hash); err == nil {
+			return hash, nil
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
+}
+
+func CreateTorrent(name string, pieceLength int) (*Torrent, error) {
+	if file, err := os.Open(name); err == nil {
+		if stat, err := file.Stat(); err == nil {
+			torrent := NewTorrent()
+			buffer := make([]byte, pieceLength)
+			i := 0
+
+			torrent.Info.PieceLength = pieceLength
+			torrent.CreationEpoch = Epoch(time.Now().Unix())
+			torrent.CreatedBy = DEFAULT_BF_CREATOR
+
+			torrent.AddFile(path.Base(file.Name()), stat.Size())
+
+			for {
+				if n, err := file.Read(buffer); err == nil {
+					sum := sha1.Sum(buffer[0:n])
+					torrent.AddPiece(sum[:])
+					i += 1
+
+					if n < pieceLength {
+						break
+					}
+				} else if err != io.EOF {
+					return nil, err
+				}
+			}
+
+			return torrent, nil
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
+}

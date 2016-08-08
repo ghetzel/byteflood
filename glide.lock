@@ -1,10 +1,12 @@
-hash: 1bb61e1c48c3fafa2702ae15c354912b570b6b6149a2bd6c15b93c9707444508
-updated: 2016-08-07T19:31:33.119582022-04:00
+hash: 8e29d5bdf8a9cb107780f566ba55ff55b9ae270d45f026e46f06f307c4005e37
+updated: 2016-08-08T15:58:54.345652298-04:00
 imports:
 - name: github.com/ghetzel/cli
-  version: 4733699ce30faa633c4db36ebfbe427963593d7d
+  version: 2722fdf57f5da6e83cfdc768826700289dbb3e32
+- name: github.com/jackpal/bencode-go
+  version: 8b8d9a9b37fcd43f365439810d725081b114af68
 - name: github.com/op/go-logging
-  version: 970db520ece77730c7e4724c61121037378659d9
+  version: 2722fdf57f5da6e83cfdc768826700289dbb3e32
 - name: github.com/urfave/negroni
-  version: 6edff56736fa7bd546812f149e8cdaae61e5a38f
+  version: 2722fdf57f5da6e83cfdc768826700289dbb3e32
 devImports: []

@@ -85,16 +85,12 @@ func (self *Directory) Scan() error {
 				file := NewFile(absPath)
 				log.Debugf("ADD:      file %s", file.Name)
 
-				if _, err := file.GetAlternatePath(`.nfo`); err == nil {
-					log.Debugf("ADD:        + NFO: Media Metadata")
-				}
-
-				if _, err := file.GetAlternatePath(`-thumb.jpg`); err == nil {
-					log.Debugf("ADD:        + JPG: Preview Image")
-				}
-
-				if _, err := file.GetAlternatePath(`.torrent`); err == nil {
-					log.Debugf("ADD:        + torrent: BitTorrent InfoHash")
+				if name, err := file.GetAlternatePath(`.torrent`); err == nil {
+					if torrent, err := LoadTorrent(name); err == nil {
+						log.Debugf("ADD:        torrent: %+v", torrent)
+					} else {
+						log.Errorf("ADD:        torrent: %v", err)
+					}
 				}
 
 				self.Files = append(self.Files, file)
