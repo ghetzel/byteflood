@@ -70,11 +70,17 @@ func (self *Torrent) AddPiece(data []byte) {
 }
 
 func (self *Torrent) AddFile(name string, length int64) error {
+	log.Debugf("Adding %s (%d bytes)", name, length)
+
 	// first file gets placed in the top-level of the info struct
 	if !self.hasOneFile {
-		self.hasOneFile = true
-		self.Info.Name = name
-		self.Info.Length = int(length)
+		if path, err := self.PreparePath(name); err == nil {
+			self.hasOneFile = true
+			self.Info.Name = path[len(path)-1]
+			self.Info.Length = int(length)
+		} else {
+			return err
+		}
 	} else {
 		if self.Info.Files == nil {
 			if path, err := self.PreparePath(self.Info.Name); err == nil {

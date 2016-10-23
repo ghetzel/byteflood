@@ -21,6 +21,10 @@ func (self *File) Base() string {
 	return strings.TrimSuffix(path.Base(self.Name), path.Ext(self.Name))
 }
 
+func (self *File) Ext() string {
+	return path.Ext(self.Name)
+}
+
 func (self *File) GetAlternatePath(extension string) (string, error) {
 	altPath := path.Join(path.Dir(self.Name), fmt.Sprintf("%s%s",
 		self.Base(), extension))
@@ -97,40 +101,43 @@ func (self *Directory) ScanFile(name string, tags ...string) (*File, error) {
 	}
 
 	file := NewFile(name)
-	log.Debugf("ADD:      file %s", file.Name)
 
-	if !sliceutil.ContainsString(tags, `no-torrent`) {
-		if torrentFilePath, err := file.GetAlternatePath(`.torrent`); err != nil || sliceutil.ContainsString(tags, `rehash`) {
-			relPath := self.GetTorrentPath(file.Name)
-			log.Debugf("ADD:        creating torrent %s from %s", torrentFilePath, relPath)
+	if file.Ext() != `.torrent` {
+		log.Debugf("ADD:      file %s", file.Name)
 
-			if torrent, err := CreateTorrent(relPath, self.GetPieceLength()); err == nil {
-				if announces := self.GetAnnounceUrls(); len(announces) > 0 {
-					torrent.Announce = announces[0]
+		if !sliceutil.ContainsString(tags, `no-torrent`) {
+			if torrentFilePath, err := file.GetAlternatePath(`.torrent`); err != nil || sliceutil.ContainsString(tags, `rehash`) {
+				relPath := self.GetTorrentPath(file.Name)
+				log.Debugf("ADD:        creating torrent %s from %s", torrentFilePath, relPath)
 
-					if len(announces) > 1 {
-						torrent.AnnounceList = announces[1:]
+				if torrent, err := CreateTorrent(relPath, self.GetPieceLength()); err == nil {
+					if announces := self.GetAnnounceUrls(); len(announces) > 0 {
+						torrent.Announce = announces[0]
+
+						if len(announces) > 1 {
+							torrent.AnnounceList = announces[1:]
+						}
+
+						if sliceutil.ContainsString(tags, `public`) {
+							torrent.SetPrivate(false)
+						} else {
+							torrent.SetPrivate(true)
+						}
 					}
 
-					if sliceutil.ContainsString(tags, `public`) {
-						torrent.SetPrivate(false)
-					} else {
-						torrent.SetPrivate(true)
+					if torrentFile, err := os.Create(torrentFilePath); err == nil {
+						err := torrent.WriteTo(torrentFile)
+						torrentFile.Close()
+
+						if err == nil {
+							log.Debugf("ADD:        wrote torrent %s", torrentFilePath)
+						} else {
+							return nil, err
+						}
 					}
+				} else {
+					return nil, err
 				}
-
-				if torrentFile, err := os.Create(torrentFilePath); err == nil {
-					err := torrent.WriteTo(torrentFile)
-					torrentFile.Close()
-
-					if err == nil {
-						log.Debugf("ADD:        wrote torrent %s", torrentFilePath)
-					} else {
-						return nil, err
-					}
-				}
-			} else {
-				return nil, err
 			}
 		}
 	}

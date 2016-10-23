@@ -10,6 +10,7 @@ import (
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"os"
+	"strings"
 )
 
 var log = logging.MustGetLogger(`main`)
@@ -104,7 +105,7 @@ func main() {
 				paths := c.Args()
 
 				for _, path := range paths {
-					if err := scanPath(path, &config); err != nil {
+					if err := scanPath(path, &config, c.StringSlice(`tag`)...); err != nil {
 						log.Error(err)
 						continue
 					}
@@ -203,19 +204,29 @@ func scanPath(path string, config *byteflood.Configuration, tags ...string) erro
 }
 
 func applyFlagsToConfig(c *cli.Context, config *byteflood.Configuration) {
-	if c.IsSet(`piece-length`) {
-		config.PieceLength = c.Int(`piece-length`)
+	if v := c.Int(`piece-length`); v != 0 {
+		config.PieceLength = v
 	}
 
-	if c.IsSet(`announce`) {
-		config.AnnounceList = c.StringSlice(`announce`)
+	if v := c.StringSlice(`announce`); len(v) > 0 {
+		config.AnnounceList = v
 	}
 
-	if c.IsSet(`pattern`) {
-		config.ScanPattern = c.String(`pattern`)
+	if v := c.String(`pattern`); v != `` {
+		config.ScanPattern = v
 	}
 
-	if c.IsSet(`tag`) {
-		config.ScanTags = c.StringSlice(`tag`)
+	if v := c.StringSlice(`tag`); len(v) > 0 {
+		config.ScanTags = v
 	}
+
+	log.Infof("Tags: %s", strings.Join(config.ScanTags, `,`))
+	log.Infof("Piece Length: %d", config.PieceLength)
+	log.Infof("Announce: %s", strings.Join(config.AnnounceList, `,`))
+
+	if config.ScanPattern != `` {
+		log.Infof("Scan Pattern: '%s'", config.ScanPattern)
+	}
+
+	log.Infof("================================================================================")
 }
