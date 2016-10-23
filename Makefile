@@ -23,6 +23,10 @@ test:
 	# go test -v .
 	go test -v ./scanner
 
+hashtest:
+	./bin/byteflood -c test-config.yml scan -t rehash peer1
+	cp -v peer1/*.torrent peer2/
+
 bundle: clean-bundle
 	@echo "Bundling static resources under ./public/"
 	@test -d public && rm -rf public || true

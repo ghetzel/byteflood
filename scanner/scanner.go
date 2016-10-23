@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-var log = logging.MustGetLogger(`scanner`)
+var log = logging.MustGetLogger(`byteflood.scanner`)
 
 type File struct {
 	Name string

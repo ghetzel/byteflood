@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/byteflood"
+	"github.com/ghetzel/byteflood/client"
 	"github.com/ghetzel/byteflood/scanner"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/sliceutil"
@@ -13,7 +14,7 @@ import (
 	"strings"
 )
 
-var log = logging.MustGetLogger(`main`)
+var log = logging.MustGetLogger(`byteflood.cli`)
 
 func main() {
 	app := cli.NewApp()
@@ -23,12 +24,13 @@ func main() {
 	app.EnableBashCompletion = false
 
 	var config byteflood.Configuration
+	var btClient *client.Client
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:   `log-level, L`,
 			Usage:  `Level of log output verbosity`,
-			Value:  `info`,
+			Value:  `debug`,
 			EnvVar: `LOGLEVEL`,
 		},
 		cli.StringFlag{
@@ -51,8 +53,59 @@ func main() {
 		return nil
 	}
 
+	app.After = func(c *cli.Context) error {
+		if btClient != nil {
+			btClient.Close()
+		}
+
+		return nil
+	}
+
 	app.Commands = []cli.Command{
 		{
+			Name:      `seed`,
+			Usage:     `Continuously seeds the torrents that are found in a given directory and all subdirectories`,
+			ArgsUsage: `PATH`,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  `address, a`,
+					Usage: `The address the client should listen on`,
+				},
+				cli.IntFlag{
+					Name:  `port, p`,
+					Usage: `The port the client should listen on`,
+				},
+				cli.StringFlag{
+					Name:  `stats-file, S`,
+					Usage: `The name of a file to periodically log client stats information to`,
+				},
+			},
+			Action: func(c *cli.Context) {
+				if c.NArg() == 0 {
+					log.Fatalf("Must specify a directory to seed.")
+				}
+
+				listenAddr := c.String(`address`)
+
+				if port := c.Int(`port`); port != 0 {
+					listenAddr = fmt.Sprintf("%s:%d", listenAddr, port)
+				}
+
+				if dirClient, err := client.CreateClient(c.Args().First(), listenAddr); err == nil {
+					btClient = dirClient
+
+					if v := c.String(`stats-file`); v != `` {
+						btClient.StatsFile = v
+					}
+
+					if err := btClient.Run(); err != nil {
+						log.Fatalf("Client error: %v", err)
+					}
+				} else {
+					log.Fatalf("Failed to initialize client: %v", err)
+				}
+			},
+		}, {
 			Name:  `serve`,
 			Usage: `Start serving the BitTorrent tracker and management application`,
 			Flags: []cli.Flag{

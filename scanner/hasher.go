@@ -24,16 +24,14 @@ func (self Epoch) Time() time.Time {
 type TorrentFile struct {
 	Path   []string `bencode:"path"`
 	Length int      `bencode:"length"`
-	MD5Sum string   `bencode:"md5sum,omitempty"`
 }
 
 type TorrentInfo struct {
 	PieceLength int           `bencode:"piece length"`
 	Pieces      []byte        `bencode:"pieces"`
-	Private     int           `bencode:"private"`
+	Private     int           `bencode:"private,omitempty"`
 	Name        string        `bencode:"name,omitempty"`
 	Length      int           `bencode:"length,omitempty"`
-	MD5Sum      string        `bencode:"md5sum,omitempty"`
 	Files       []TorrentFile `bencode:"files,omitempty"`
 }
 
@@ -50,8 +48,8 @@ func NewTorrent() *Torrent {
 	return &Torrent{
 		Info: TorrentInfo{
 			PieceLength: DEFAULT_BF_HASH_PIECELENGTH,
-			Pieces: make([]byte, 0),
-			Private: 1,
+			Pieces:      make([]byte, 0),
+			Private:     1,
 		},
 	}
 }
@@ -76,7 +74,7 @@ func (self *Torrent) PieceCount() (int, error) {
 
 	if chunks == float64(int(chunks)) {
 		return int(chunks), nil
-	}else{
+	} else {
 		return -1, fmt.Errorf("Invalid chunk count: %f", chunks)
 	}
 }
@@ -85,7 +83,7 @@ func (self *Torrent) GetPieceSum(index int) ([]byte, bool) {
 	offset := (index * sha1.Size)
 
 	if (offset + sha1.Size) <= len(self.Info.Pieces) {
-		return self.Info.Pieces[offset:(offset+sha1.Size)], true
+		return self.Info.Pieces[offset:(offset + sha1.Size)], true
 	}
 
 	return nil, false
@@ -110,13 +108,11 @@ func (self *Torrent) AddFile(name string, length int64) error {
 					{
 						Path:   path,
 						Length: self.Info.Length,
-						MD5Sum: self.Info.MD5Sum,
 					},
 				}
 
 				self.Info.Name = ``
 				self.Info.Length = 0
-				self.Info.MD5Sum = ``
 			} else {
 				return err
 			}
