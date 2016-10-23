@@ -49,7 +49,9 @@ type Torrent struct {
 func NewTorrent() *Torrent {
 	return &Torrent{
 		Info: TorrentInfo{
+			PieceLength: DEFAULT_BF_HASH_PIECELENGTH,
 			Pieces: make([]byte, 0),
+			Private: 1,
 		},
 	}
 }
@@ -67,6 +69,26 @@ func ReadTorrent(data []byte) (Torrent, error) {
 
 func (self *Torrent) AddPiece(data []byte) {
 	self.Info.Pieces = append(self.Info.Pieces, data...)
+}
+
+func (self *Torrent) PieceCount() (int, error) {
+	chunks := float64(len(self.Info.Pieces) / sha1.Size)
+
+	if chunks == float64(int(chunks)) {
+		return int(chunks), nil
+	}else{
+		return -1, fmt.Errorf("Invalid chunk count: %f", chunks)
+	}
+}
+
+func (self *Torrent) GetPieceSum(index int) ([]byte, bool) {
+	offset := (index * sha1.Size)
+
+	if (offset + sha1.Size) <= len(self.Info.Pieces) {
+		return self.Info.Pieces[offset:(offset+sha1.Size)], true
+	}
+
+	return nil, false
 }
 
 func (self *Torrent) AddFile(name string, length int64) error {
@@ -187,10 +209,14 @@ func CreateTorrent(name string, pieceLength int) (*Torrent, error) {
 	if file, err := os.Open(name); err == nil {
 		if stat, err := file.Stat(); err == nil {
 			torrent := NewTorrent()
-			buffer := make([]byte, pieceLength)
+
+			if pieceLength > 0 {
+				torrent.Info.PieceLength = pieceLength
+			}
+
+			buffer := make([]byte, torrent.Info.PieceLength)
 			i := 0
 
-			torrent.Info.PieceLength = pieceLength
 			torrent.CreationEpoch = Epoch(time.Now().Unix())
 			torrent.CreatedBy = DEFAULT_BF_CREATOR
 
@@ -206,7 +232,7 @@ func CreateTorrent(name string, pieceLength int) (*Torrent, error) {
 
 					i += 1
 
-					if n < pieceLength {
+					if n < torrent.Info.PieceLength {
 						break
 					}
 				} else if err != io.EOF {

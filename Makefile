@@ -20,7 +20,8 @@ fmt:
 	gofmt -w .
 
 test:
-	go test -v .
+	# go test -v .
+	go test -v ./scanner
 
 bundle: clean-bundle
 	@echo "Bundling static resources under ./public/"
