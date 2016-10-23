@@ -1,10 +1,14 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/ghetzel/byteflood"
 	"github.com/ghetzel/byteflood/scanner"
 	"github.com/ghetzel/cli"
+	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/op/go-logging"
+	"io/ioutil"
 	"os"
 )
 
@@ -16,6 +20,8 @@ func main() {
 	app.Usage = `Manages the automatic creation and serving of files via the BitTorrent protocol`
 	app.Version = `0.0.1`
 	app.EnableBashCompletion = false
+
+	var config byteflood.Configuration
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
@@ -33,6 +39,14 @@ func main() {
 
 	app.Before = func(c *cli.Context) error {
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
+		log.Infof("Loading configuration from %s", c.String(`config`))
+
+		if c, err := byteflood.LoadConfig(c.String(`config`)); err == nil {
+			config = c
+		} else {
+			return err
+		}
+
 		return nil
 	}
 
@@ -63,26 +77,35 @@ func main() {
 				}
 			},
 		}, {
-			Name:  `scan`,
-			Usage: `Scans all configured source directories for changes and automatically manages infohash (.torrent) files`,
+			Name:      `scan`,
+			Usage:     `Scans all configured source directories for changes and automatically manages infohash (.torrent) files`,
+			ArgsUsage: `PATH [.. PATH]`,
 			Flags: []cli.Flag{
 				cli.StringSliceFlag{
-					Name:  `only, o`,
-					Usage: `Only scan these directories, ignoring the configuration file`,
+					Name:  `tag, t`,
+					Usage: `Tags to pass to the scanner process`,
 				},
 				cli.StringFlag{
 					Name:  `pattern, p`,
 					Usage: `A Perl-compatible regular expression that filenames must match to be included in the scan`,
 				},
+				cli.IntFlag{
+					Name:  `piece-length, l`,
+					Usage: `The size of each piece in the generated infohashes`,
+					Value: scanner.DEFAULT_BF_HASH_PIECELENGTH,
+				},
+				cli.StringSliceFlag{
+					Name:  `announce, a`,
+					Usage: `The URL for the tracker to contact for peer discovery (can be specified multiple times)`,
+				},
 			},
 			Action: func(c *cli.Context) {
-				paths := c.StringSlice(`only`)
+				applyFlagsToConfig(c, &config)
+				paths := c.Args()
 
-				for _, p := range paths {
-					s := scanner.NewScanner(p, c.String(`pattern`))
-
-					if err := s.Scan(); err != nil {
-						log.Errorf("Failed to scan path %q: %v", p, err)
+				for _, path := range paths {
+					if err := scanPath(path, &config); err != nil {
+						log.Error(err)
 						continue
 					}
 				}
@@ -95,42 +118,104 @@ func main() {
 				cli.IntFlag{
 					Name:  `piece-length, l`,
 					Usage: `The size of each piece in the infohash.`,
-					Value: 262144,
+					Value: scanner.DEFAULT_BF_HASH_PIECELENGTH,
 				},
 				cli.StringSliceFlag{
 					Name:  `announce, a`,
 					Usage: `The URL for the tracker to contact for peer discovery (can be specified multiple times)`,
 				},
-				cli.BoolTFlag{
-					Name:  `private, P`,
-					Usage: `Whether the created torrent is private or not.`,
-				},
 			},
 			Action: func(c *cli.Context) {
+				applyFlagsToConfig(c, &config)
+
 				if c.NArg() == 1 {
-					if torrent, err := scanner.CreateTorrent(c.Args().First(), c.Int(`piece-length`)); err == nil {
-						if announces := c.StringSlice(`announce`); len(announces) > 0 {
-							torrent.Announce = announces[0]
-
-							if len(announces) > 1 {
-								torrent.AnnounceList = announces[1:]
-							}
-
-							torrent.SetPrivate(c.Bool(`private`))
-						}
-
-						if err := torrent.WriteTo(os.Stdout); err != nil {
-							log.Fatal(err)
-						}
-					} else {
+					if err := scanPath(c.Args().First(), &config, `rehash`, `oneshot`); err != nil {
 						log.Fatal(err)
 					}
 				} else {
 					log.Fatalf("Must specify one path to generate a .torrent for")
 				}
 			},
+		}, {
+			Name:      `dump`,
+			Usage:     `Reads and prints a .torrent file to standard out`,
+			ArgsUsage: `PATH [.. PATH]`,
+			Action: func(c *cli.Context) {
+				if c.NArg() == 0 {
+					log.Fatalf("Must specify at least one torrent file to dump")
+				}
+
+				torrents := make([]scanner.Torrent, 0)
+
+				for _, path := range c.Args() {
+					if data, err := ioutil.ReadFile(path); err == nil {
+						if torrent, err := scanner.ReadTorrent(data); err == nil {
+							torrents = append(torrents, torrent)
+						} else {
+							log.Fatalf("Failed to parse torrent %s: %v", path, err)
+						}
+					} else {
+						log.Fatalf("Failed to read %s: %v", path, err)
+					}
+				}
+
+				if data, err := json.MarshalIndent(torrents, ``, `  `); err == nil {
+					fmt.Println(string(data[:]))
+				} else {
+					log.Fatalf("Failed to print torrents: %v", err)
+				}
+			},
 		},
 	}
 
 	app.Run(os.Args)
+}
+
+func scanPath(path string, config *byteflood.Configuration, tags ...string) error {
+	s := scanner.NewScanner(path, config.ScanPattern)
+
+	s.PieceLength = config.PieceLength
+	s.AnnounceList = config.AnnounceList
+
+	if config.DirectoryPrefix != `` {
+		s.DirectoryPrefix = config.DirectoryPrefix
+	} else {
+		if cwd, err := os.Getwd(); err == nil {
+			s.DirectoryPrefix = cwd
+		} else {
+			return err
+		}
+	}
+
+	t := append(config.ScanTags, tags...)
+
+	if sliceutil.ContainsString(t, `oneshot`) {
+		if _, err := s.ScanFile(path, t...); err != nil {
+			return fmt.Errorf("Failed to scan file %q: %v", path, err)
+		}
+	} else {
+		if err := s.Scan(t...); err != nil {
+			return fmt.Errorf("Failed to scan path %q: %v", path, err)
+		}
+	}
+
+	return nil
+}
+
+func applyFlagsToConfig(c *cli.Context, config *byteflood.Configuration) {
+	if c.IsSet(`piece-length`) {
+		config.PieceLength = c.Int(`piece-length`)
+	}
+
+	if c.IsSet(`announce`) {
+		config.AnnounceList = c.StringSlice(`announce`)
+	}
+
+	if c.IsSet(`pattern`) {
+		config.ScanPattern = c.String(`pattern`)
+	}
+
+	if c.IsSet(`tag`) {
+		config.ScanTags = c.StringSlice(`tag`)
+	}
 }

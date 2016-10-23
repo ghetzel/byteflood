@@ -1,12 +1,20 @@
-hash: 8e29d5bdf8a9cb107780f566ba55ff55b9ae270d45f026e46f06f307c4005e37
-updated: 2016-08-08T15:58:54.345652298-04:00
+hash: 76d3d519ec64eb70a2b5497cab2a7a6a0650a978c0e04954dfb5340552d1ebb5
+updated: 2016-10-22T19:54:51.326555806-04:00
 imports:
 - name: github.com/ghetzel/cli
-  version: 2722fdf57f5da6e83cfdc768826700289dbb3e32
+  version: 4733699ce30faa633c4db36ebfbe427963593d7d
+- name: github.com/ghetzel/go-stockutil
+  version: 196121ff70cbadd8b87f9c9a00f1fc78909cdb80
+  subpackages:
+  - sliceutil
+- name: github.com/ghodss/yaml
+  version: bea76d6a4713e18b7f5321a2b020738552def3ea
 - name: github.com/jackpal/bencode-go
   version: 8b8d9a9b37fcd43f365439810d725081b114af68
 - name: github.com/op/go-logging
-  version: 2722fdf57f5da6e83cfdc768826700289dbb3e32
+  version: 970db520ece77730c7e4724c61121037378659d9
 - name: github.com/urfave/negroni
-  version: 2722fdf57f5da6e83cfdc768826700289dbb3e32
-devImports: []
+  version: 65de9fa027ca75ff3964c5410774ac45692ce94c
+- name: gopkg.in/yaml.v2
+  version: a5b47d31c556af34a302ce5d659e6fea44d90de0
+testImports: []

@@ -4,3 +4,5 @@ import:
 - package: github.com/op/go-logging
 - package: github.com/urfave/negroni
 - package: github.com/jackpal/bencode-go
+- package: github.com/ghetzel/go-stockutil
+- package: github.com/ghodss/yaml

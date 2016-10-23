@@ -1,18 +1,19 @@
 package scanner
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"fmt"
 	"github.com/jackpal/bencode-go"
 	"io"
 	"math"
 	"os"
-	"path"
 	"strings"
 	"time"
 )
 
 const DEFAULT_BF_CREATOR = `byteflood`
+const DEFAULT_BF_HASH_PIECELENGTH = 262144
 
 type Epoch int
 
@@ -53,11 +54,22 @@ func NewTorrent() *Torrent {
 	}
 }
 
+func ReadTorrent(data []byte) (Torrent, error) {
+	torrent := Torrent{}
+	buffer := bytes.NewBuffer(data)
+
+	if err := bencode.Unmarshal(buffer, &torrent); err == nil {
+		return torrent, nil
+	} else {
+		return torrent, err
+	}
+}
+
 func (self *Torrent) AddPiece(data []byte) {
 	self.Info.Pieces = append(self.Info.Pieces, data...)
 }
 
-func (self *Torrent) AddFile(name string, length int64) {
+func (self *Torrent) AddFile(name string, length int64) error {
 	// first file gets placed in the top-level of the info struct
 	if !self.hasOneFile {
 		self.hasOneFile = true
@@ -65,24 +77,34 @@ func (self *Torrent) AddFile(name string, length int64) {
 		self.Info.Length = int(length)
 	} else {
 		if self.Info.Files == nil {
-			self.Info.Files = []TorrentFile{
-				{
-					Path:   strings.Split(self.Info.Name, `/`),
-					Length: self.Info.Length,
-					MD5Sum: self.Info.MD5Sum,
-				},
-			}
+			if path, err := self.PreparePath(self.Info.Name); err == nil {
+				self.Info.Files = []TorrentFile{
+					{
+						Path:   path,
+						Length: self.Info.Length,
+						MD5Sum: self.Info.MD5Sum,
+					},
+				}
 
-			self.Info.Name = ``
-			self.Info.Length = 0
-			self.Info.MD5Sum = ``
+				self.Info.Name = ``
+				self.Info.Length = 0
+				self.Info.MD5Sum = ``
+			} else {
+				return err
+			}
 		}
 
-		self.Info.Files = append(self.Info.Files, TorrentFile{
-			Path:   strings.Split(name, `/`),
-			Length: int(length),
-		})
+		if path, err := self.PreparePath(name); err == nil {
+			self.Info.Files = append(self.Info.Files, TorrentFile{
+				Path:   path,
+				Length: int(length),
+			})
+		} else {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func (self *Torrent) Validate() error {
@@ -133,6 +155,14 @@ func (self *Torrent) WriteTo(w io.Writer) error {
 	}
 }
 
+func (self *Torrent) PreparePath(path string) ([]string, error) {
+	if strings.Contains(path, `..`) || strings.HasPrefix(path, `.`) {
+		return nil, fmt.Errorf("Error with file '%s': paths cannot contain relative path components")
+	}
+
+	return strings.Split(path, `/`), nil
+}
+
 func LoadTorrent(name string) (*Torrent, error) {
 	if file, err := os.Open(name); err == nil {
 		hash := &Torrent{}
@@ -158,12 +188,16 @@ func CreateTorrent(name string, pieceLength int) (*Torrent, error) {
 			torrent.CreationEpoch = Epoch(time.Now().Unix())
 			torrent.CreatedBy = DEFAULT_BF_CREATOR
 
-			torrent.AddFile(path.Base(file.Name()), stat.Size())
+			if err := torrent.AddFile(name, stat.Size()); err != nil {
+				return nil, err
+			}
 
 			for {
 				if n, err := file.Read(buffer); err == nil {
 					sum := sha1.Sum(buffer[0:n])
 					torrent.AddPiece(sum[:])
+					// log.Debugf("Add Piece %d: %d bytes, hash: %x", i, n, sum)
+
 					i += 1
 
 					if n < pieceLength {
