@@ -1,8 +1,8 @@
-hash: 6b69f65d7d5c4c8f98fa18a7f48f7fa45f709feeb8ae06a7ddfb35a156fc1ede
-updated: 2016-10-23T14:48:15.166206764-04:00
+hash: ac4d2cff311d4bcd2dc9cb0bde4e5ecc309872cdecabef0f1406d74bf88f8bab
+updated: 2016-11-11T18:30:46.096425977-05:00
 imports:
 - name: github.com/anacrolix/missinggo
-  version: 03b41562f79c09a2bccb139f2a6282dcd14d6ce6
+  version: e02c444f6f318fa2fa5e5feffa320c217cb28486
   subpackages:
   - bitmap
   - httptoo
@@ -18,7 +18,7 @@ imports:
 - name: github.com/anacrolix/sync
   version: 812602587b72df6a2a4f6e30536adc75394a374b
 - name: github.com/anacrolix/torrent
-  version: 0e221dbdcda0300899e3ce9a3fa593251cb38273
+  version: 04dedcef9fc1990fb8e2beded1e549e79330c044
   subpackages:
   - bencode
   - dht
@@ -35,7 +35,7 @@ imports:
 - name: github.com/anacrolix/utp
   version: 83bf7c81b0e1f917f18ac31b7a27b91c33737df9
 - name: github.com/boltdb/bolt
-  version: 074dffcc83e9f421e261526d297cd93f22a34080
+  version: 315c65d4cf4f5278c73477a35fb1f9b08365d340
 - name: github.com/bradfitz/iter
   version: 454541ec3da2a73fc34fd049b19ee5777bf19345
 - name: github.com/dustin/go-humanize
@@ -45,9 +45,10 @@ imports:
 - name: github.com/ghetzel/cli
   version: 4733699ce30faa633c4db36ebfbe427963593d7d
 - name: github.com/ghetzel/go-stockutil
-  version: 196121ff70cbadd8b87f9c9a00f1fc78909cdb80
+  version: f4bbde8ee10d00371e2880f7d7268e21a3cb662e
   subpackages:
-  - sliceutil
+  - pathutil
+  - stringutil
 - name: github.com/ghodss/yaml
   version: bea76d6a4713e18b7f5321a2b020738552def3ea
 - name: github.com/google/btree
@@ -55,7 +56,7 @@ imports:
 - name: github.com/jackpal/bencode-go
   version: 8b8d9a9b37fcd43f365439810d725081b114af68
 - name: github.com/mattn/go-sqlite3
-  version: e5a3c16c5c1d80b24f633e68aecd6b0702786d3d
+  version: fba66eb11643069e747022997e9be3b502b2c6fb
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/op/go-logging
@@ -76,21 +77,21 @@ imports:
 - name: github.com/tylertreat/BoomFilters
   version: ae0b9585d4b87b2fe0b49ee09270abae7aaad179
 - name: github.com/urfave/negroni
-  version: 65de9fa027ca75ff3964c5410774ac45692ce94c
+  version: e0e50f7dc431c043cb33f91b09c3419d48b7cff5
 - name: github.com/willf/bitset
-  version: 24b253213c7bdcdd6cde7d6c73760eb16d98551c
+  version: 85301ea3894aa6d640cbc2afccc0994239444300
 - name: github.com/willf/bloom
   version: c358096ae52229d900ad0c8e4e2634a1115c87f4
 - name: golang.org/x/net
-  version: f4b625ec9b21d620bb5ce57f2dfc3e08ca97fce6
+  version: e36fcd2311066d2dd958b37045679be1d8a4b483
   subpackages:
   - context
 - name: golang.org/x/sys
-  version: c200b10b5d5e122be351b67af224adc6128af5bf
+  version: b699b7032584f0953262cb2788a0ca19bb494703
   subpackages:
   - unix
 - name: golang.org/x/time
-  version: 711ca1cb87636abec28122ef3bc6a77269d433f3
+  version: f51c12702a4d776e4c1fa9b0fabab841babae631
   subpackages:
   - rate
 - name: gopkg.in/yaml.v2
