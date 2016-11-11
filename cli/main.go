@@ -47,7 +47,7 @@ func main() {
 		if c, err := byteflood.LoadConfig(c.String(`config`)); err == nil {
 			config = c
 		} else {
-			return err
+			log.Fatal(err)
 		}
 
 		return nil
@@ -70,6 +70,11 @@ func main() {
 				cli.StringFlag{
 					Name:  `address, a`,
 					Usage: `The address the client should listen on`,
+				},
+				cli.StringFlag{
+					Name:  `transfer-db`,
+					Usage: `The location of the persistent database file used to track transfer progress`,
+					Value: peer.DEFAULT_TRANSFER_DB_PATH,
 				},
 				cli.IntFlag{
 					Name:  `port, p`,
@@ -102,6 +107,8 @@ func main() {
 					if v := c.String(`stats-file`); v != `` {
 						btPeer.StatsFile = v
 					}
+
+					btPeer.DatabasePath = c.String(`transfer-db`)
 
 					if v := c.Duration(`import-interval`); v > 0 {
 						btPeer.ImportInterval = v

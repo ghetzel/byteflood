@@ -1,10 +1,13 @@
 package peer
 
 import (
+	"fmt"
 	"github.com/anacrolix/missinggo/slices"
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/metainfo"
+	"github.com/anacrolix/torrent/storage"
 	"github.com/ghetzel/byteflood/util"
+	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/op/go-logging"
 	"github.com/prestonTao/upnp"
@@ -17,8 +20,9 @@ import (
 )
 
 const (
-	DEFAULT_STATS_INTERVAL  = (3 * time.Second)
-	DEFAULT_IMPORT_INTERVAL = (30 * time.Second)
+	DEFAULT_STATS_INTERVAL   = (3 * time.Second)
+	DEFAULT_IMPORT_INTERVAL  = (30 * time.Second)
+	DEFAULT_TRANSFER_DB_PATH = `~/.config/byteflood/transfers`
 )
 
 var log = logging.MustGetLogger(`byteflood.client`)
@@ -26,9 +30,12 @@ var logproxy = util.NewLogProxy(`byteflood.client`, `info`)
 
 type Peer struct {
 	EnableUPnP     bool
+	Address        string
+	RootDirectory  string
 	StatsFile      string
 	StatsInterval  time.Duration
 	ImportInterval time.Duration
+	DatabasePath   string
 	client         *torrent.Client
 	config         *torrent.Config
 	activeTorrents map[string]*torrent.Torrent
@@ -48,31 +55,15 @@ func CreatePeer(rootDir string, listenAddr string) (*Peer, error) {
 		}
 	}
 
-	torrentConfig := &torrent.Config{
-		DataDir:    rootDir,
-		Seed:       true,
-		ListenAddr: listenAddr,
-	}
-
-	if torrentClient, err := torrent.NewClient(torrentConfig); err == nil {
-		peer := &Peer{
-			client:         torrentClient,
-			config:         torrentConfig,
-			activeTorrents: make(map[string]*torrent.Torrent),
-			EnableUPnP:     true,
-			StatsInterval:  DEFAULT_STATS_INTERVAL,
-			ImportInterval: DEFAULT_IMPORT_INTERVAL,
-		}
-
-		// import the directory that was specified
-		if err := peer.ImportDirectory(peer.config.DataDir); err != nil {
-			return nil, err
-		}
-
-		return peer, nil
-	} else {
-		return nil, err
-	}
+	return &Peer{
+		Address:        listenAddr,
+		RootDirectory:  rootDir,
+		EnableUPnP:     true,
+		StatsInterval:  DEFAULT_STATS_INTERVAL,
+		ImportInterval: DEFAULT_IMPORT_INTERVAL,
+		DatabasePath:   DEFAULT_TRANSFER_DB_PATH,
+		activeTorrents: make(map[string]*torrent.Torrent),
+	}, nil
 }
 
 func (self *Peer) ImportDirectory(name string) error {
@@ -103,6 +94,10 @@ func (self *Peer) ImportDirectory(name string) error {
 }
 
 func (self *Peer) Run() error {
+	if err := self.setupTorrentClient(); err != nil {
+		return err
+	}
+
 	if self.EnableUPnP {
 		parts := strings.Split(self.config.ListenAddr, `:`)
 
@@ -204,4 +199,35 @@ func (self *Peer) startPeriodicImport() {
 			}
 		}
 	}
+}
+
+func (self *Peer) setupTorrentClient() error {
+	if dbPath, err := pathutil.ExpandUser(self.DatabasePath); err == nil {
+		if stat, err := os.Stat(dbPath); err != nil || !stat.IsDir() {
+			return fmt.Errorf("Directory %q must exist to store transfer data", dbPath)
+		}
+
+		torrentConfig := &torrent.Config{
+			DataDir:        self.RootDirectory,
+			Seed:           true,
+			ListenAddr:     self.Address,
+			DefaultStorage: storage.NewBoltDB(dbPath),
+		}
+
+		if torrentClient, err := torrent.NewClient(torrentConfig); err == nil {
+			self.client = torrentClient
+			self.config = torrentConfig
+
+			// import the directory that was specified
+			if err := self.ImportDirectory(self.RootDirectory); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	} else {
+		return err
+	}
+
+	return nil
 }
