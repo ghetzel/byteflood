@@ -6,4 +6,4 @@
 /*.torrent
 /test*.*
 /*.log
-/peer*/
+/tests
