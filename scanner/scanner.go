@@ -37,6 +37,10 @@ func (self *File) Ext() string {
 	return path.Ext(self.Name)
 }
 
+func (self *File) AddExtension(extension string) (string, error) {
+	return self.GetAlternatePath(self.Ext() + extension)
+}
+
 func (self *File) GetAlternatePath(extension string) (string, error) {
 	altPath := path.Join(path.Dir(self.Name), fmt.Sprintf("%s%s",
 		self.Base(), extension))
@@ -118,7 +122,7 @@ func (self *Directory) ScanFile(name string, options *ScannerOptions) (*File, er
 		log.Debugf("ADD:      file %s", file.Name)
 
 		if !options.SkipTorrentGeneration {
-			if torrentFilePath, err := file.GetAlternatePath(`.torrent`); err != nil || options.ForceTorrentRehash {
+			if torrentFilePath, err := file.AddExtension(`.torrent`); err != nil || options.ForceTorrentRehash {
 				relPath := self.GetTorrentPath(file.Name)
 				log.Debugf("ADD:        creating torrent %s from %s", torrentFilePath, relPath)
 

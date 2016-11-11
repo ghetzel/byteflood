@@ -169,6 +169,10 @@ func main() {
 					Name:  `announce, a`,
 					Usage: `The URL for the tracker to contact for peer discovery (can be specified multiple times)`,
 				},
+				cli.BoolFlag{
+					Name:  `force, F`,
+					Usage: `Forces the regeneration of torrent infohashes, even if they already exist.`,
+				},
 			},
 			Action: func(c *cli.Context) {
 				applyFlagsToConfig(c, &config)
@@ -288,6 +292,10 @@ func applyFlagsToConfig(c *cli.Context, config *byteflood.Configuration) {
 
 	if config.ScanOptions == nil {
 		config.ScanOptions = scanner.DefaultScannerOptions()
+	}
+
+	if c.Bool(`force`) {
+		config.ScanOptions.ForceTorrentRehash = true
 	}
 
 	log.Infof("Options: %+v", config.ScanOptions)
