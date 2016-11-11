@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/byteflood"
-	"github.com/ghetzel/byteflood/client"
+	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/scanner"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"os"
+	"os/signal"
 	"strings"
 )
 
@@ -24,7 +25,7 @@ func main() {
 	app.EnableBashCompletion = false
 
 	var config byteflood.Configuration
-	var btClient *client.Client
+	var btPeer *peer.Peer
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
@@ -54,8 +55,8 @@ func main() {
 	}
 
 	app.After = func(c *cli.Context) error {
-		if btClient != nil {
-			btClient.Close()
+		if btPeer != nil {
+			btPeer.Close()
 		}
 
 		return nil
@@ -79,6 +80,11 @@ func main() {
 					Name:  `stats-file, S`,
 					Usage: `The name of a file to periodically log client stats information to`,
 				},
+				cli.DurationFlag{
+					Name:  `import-interval, I`,
+					Usage: `How often the directory should be rechecked for new torrents to seed`,
+					Value: peer.DEFAULT_IMPORT_INTERVAL,
+				},
 			},
 			Action: func(c *cli.Context) {
 				if c.NArg() == 0 {
@@ -91,14 +97,30 @@ func main() {
 					listenAddr = fmt.Sprintf("%s:%d", listenAddr, port)
 				}
 
-				if dirClient, err := client.CreateClient(c.Args().First(), listenAddr); err == nil {
-					btClient = dirClient
+				if dirClient, err := peer.CreatePeer(c.Args().First(), listenAddr); err == nil {
+					btPeer = dirClient
 
 					if v := c.String(`stats-file`); v != `` {
-						btClient.StatsFile = v
+						btPeer.StatsFile = v
 					}
 
-					if err := btClient.Run(); err != nil {
+					if v := c.Duration(`import-interval`); v > 0 {
+						btPeer.ImportInterval = v
+					}
+
+					signalChan := make(chan os.Signal, 1)
+					signal.Notify(signalChan, os.Interrupt)
+
+					go func(p *peer.Peer) {
+						for _ = range signalChan {
+							p.Close()
+							break
+						}
+
+						os.Exit(0)
+					}(btPeer)
+
+					if err := btPeer.Run(); err != nil {
 						log.Fatalf("Client error: %v", err)
 					}
 				} else {
