@@ -7,7 +7,6 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/scanner"
 	"github.com/ghetzel/cli"
-	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"os"
@@ -157,10 +156,6 @@ func main() {
 			Usage:     `Scans all configured source directories for changes and automatically manages infohash (.torrent) files`,
 			ArgsUsage: `PATH [.. PATH]`,
 			Flags: []cli.Flag{
-				cli.StringSliceFlag{
-					Name:  `tag, t`,
-					Usage: `Tags to pass to the scanner process`,
-				},
 				cli.StringFlag{
 					Name:  `pattern, p`,
 					Usage: `A Perl-compatible regular expression that filenames must match to be included in the scan`,
@@ -180,7 +175,7 @@ func main() {
 				paths := c.Args()
 
 				for _, path := range paths {
-					if err := scanPath(path, &config, c.StringSlice(`tag`)...); err != nil {
+					if err := scanPath(path, &config, false, config.ScanOptions); err != nil {
 						log.Error(err)
 						continue
 					}
@@ -205,7 +200,9 @@ func main() {
 				applyFlagsToConfig(c, &config)
 
 				if c.NArg() == 1 {
-					if err := scanPath(c.Args().First(), &config, `rehash`, `oneshot`); err != nil {
+					if err := scanPath(c.Args().First(), &config, true, &scanner.ScannerOptions{
+						ForceTorrentRehash: true,
+					}); err != nil {
 						log.Fatal(err)
 					}
 				} else {
@@ -247,7 +244,7 @@ func main() {
 	app.Run(os.Args)
 }
 
-func scanPath(path string, config *byteflood.Configuration, tags ...string) error {
+func scanPath(path string, config *byteflood.Configuration, oneShot bool, options *scanner.ScannerOptions) error {
 	s := scanner.NewScanner(path, config.ScanPattern)
 
 	s.PieceLength = config.PieceLength
@@ -263,14 +260,12 @@ func scanPath(path string, config *byteflood.Configuration, tags ...string) erro
 		}
 	}
 
-	t := append(config.ScanTags, tags...)
-
-	if sliceutil.ContainsString(t, `oneshot`) {
-		if _, err := s.ScanFile(path, t...); err != nil {
+	if oneShot {
+		if _, err := s.ScanFile(path, options); err != nil {
 			return fmt.Errorf("Failed to scan file %q: %v", path, err)
 		}
 	} else {
-		if err := s.Scan(t...); err != nil {
+		if err := s.Scan(options); err != nil {
 			return fmt.Errorf("Failed to scan path %q: %v", path, err)
 		}
 	}
@@ -291,11 +286,11 @@ func applyFlagsToConfig(c *cli.Context, config *byteflood.Configuration) {
 		config.ScanPattern = v
 	}
 
-	if v := c.StringSlice(`tag`); len(v) > 0 {
-		config.ScanTags = v
+	if config.ScanOptions == nil {
+		config.ScanOptions = scanner.DefaultScannerOptions()
 	}
 
-	log.Infof("Tags: %s", strings.Join(config.ScanTags, `,`))
+	log.Infof("Options: %+v", config.ScanOptions)
 	log.Infof("Piece Length: %d", config.PieceLength)
 	log.Infof("Announce: %s", strings.Join(config.AnnounceList, `,`))
 

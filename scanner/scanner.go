@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"fmt"
-	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"os"
@@ -15,6 +14,19 @@ var log = logging.MustGetLogger(`byteflood.scanner`)
 
 type File struct {
 	Name string
+}
+
+type ScannerOptions struct {
+	RecurseDirectories    bool `json:"recurse,omitempty"`
+	SkipTorrentGeneration bool `json:"skip_hashing,omitempty"`
+	ForceTorrentRehash    bool `json:"force_hashing,omitempty"`
+	MakePublicTorrent     bool `json:"public,omitempty"`
+}
+
+func DefaultScannerOptions() *ScannerOptions {
+	return &ScannerOptions{
+		RecurseDirectories: true,
+	}
 }
 
 func (self *File) Base() string {
@@ -88,7 +100,7 @@ func (self *Directory) GetTorrentPath(in string) string {
 	return strings.TrimPrefix(in, `./`)
 }
 
-func (self *Directory) ScanFile(name string, tags ...string) (*File, error) {
+func (self *Directory) ScanFile(name string, options *ScannerOptions) (*File, error) {
 	// file pattern matching
 	if self.FilePattern != `` {
 		if rx, err := regexp.Compile(self.FilePattern); err == nil {
@@ -105,8 +117,8 @@ func (self *Directory) ScanFile(name string, tags ...string) (*File, error) {
 	if file.Ext() != `.torrent` {
 		log.Debugf("ADD:      file %s", file.Name)
 
-		if !sliceutil.ContainsString(tags, `no-torrent`) {
-			if torrentFilePath, err := file.GetAlternatePath(`.torrent`); err != nil || sliceutil.ContainsString(tags, `rehash`) {
+		if !options.SkipTorrentGeneration {
+			if torrentFilePath, err := file.GetAlternatePath(`.torrent`); err != nil || options.ForceTorrentRehash {
 				relPath := self.GetTorrentPath(file.Name)
 				log.Debugf("ADD:        creating torrent %s from %s", torrentFilePath, relPath)
 
@@ -118,7 +130,7 @@ func (self *Directory) ScanFile(name string, tags ...string) (*File, error) {
 							torrent.AnnounceList = announces[1:]
 						}
 
-						if sliceutil.ContainsString(tags, `public`) {
+						if options.MakePublicTorrent {
 							torrent.SetPrivate(false)
 						} else {
 							torrent.SetPrivate(true)
@@ -145,17 +157,17 @@ func (self *Directory) ScanFile(name string, tags ...string) (*File, error) {
 	return file, nil
 }
 
-func (self *Directory) Scan(tags ...string) error {
+func (self *Directory) Scan(options *ScannerOptions) error {
 	if entries, err := ioutil.ReadDir(self.Name); err == nil {
 		for _, entry := range entries {
 			absPath := path.Join(self.Name, entry.Name())
 
 			// recursive directory handling
 			if entry.IsDir() {
-				if !sliceutil.ContainsString(tags, `no-recurse`) {
+				if options.RecurseDirectories {
 					subdirectory := NewDirectory(self.Scanner, absPath, self.FilePattern)
 
-					if err := subdirectory.Scan(tags...); err != nil {
+					if err := subdirectory.Scan(options); err != nil {
 						return err
 					} else {
 						log.Debugf("ADD: directory %s", subdirectory.Name)
@@ -163,7 +175,7 @@ func (self *Directory) Scan(tags ...string) error {
 					}
 				}
 			} else {
-				if file, err := self.ScanFile(absPath, tags...); err == nil {
+				if file, err := self.ScanFile(absPath, options); err == nil {
 					if file != nil {
 						self.Files = append(self.Files, file)
 					}
@@ -196,10 +208,10 @@ func NewScanner(rootDirectory string, filePattern string) *Scanner {
 	return scanner
 }
 
-func (self *Scanner) ScanFile(name string, tags ...string) (*File, error) {
-	return self.RootDirectory.ScanFile(name, tags...)
+func (self *Scanner) ScanFile(name string, options *ScannerOptions) (*File, error) {
+	return self.RootDirectory.ScanFile(name, options)
 }
 
-func (self *Scanner) Scan(tags ...string) error {
-	return self.RootDirectory.Scan(tags...)
+func (self *Scanner) Scan(options *ScannerOptions) error {
+	return self.RootDirectory.Scan(options)
 }
