@@ -1,7 +1,6 @@
 package peer
 
 import (
-	"fmt"
 	"github.com/anacrolix/missinggo/slices"
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/metainfo"
@@ -10,7 +9,8 @@ import (
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/op/go-logging"
-	"github.com/prestonTao/upnp"
+	"github.com/syncthing/syncthing/lib/nat"
+	"github.com/syncthing/syncthing/lib/upnp"
 	"net"
 	"os"
 	"path"
@@ -20,26 +20,33 @@ import (
 )
 
 const (
-	DEFAULT_STATS_INTERVAL   = (3 * time.Second)
-	DEFAULT_IMPORT_INTERVAL  = (30 * time.Second)
-	DEFAULT_TRANSFER_DB_PATH = `~/.config/byteflood/transfers`
+	DEFAULT_STATS_INTERVAL         = (3 * time.Second)
+	DEFAULT_IMPORT_INTERVAL        = (30 * time.Second)
+	DEFAULT_UPNP_DISCOVERY_TIMEOUT = (30 * time.Second)
+	DEFAULT_UPNP_MAPPING_DURATION  = (8760 * time.Hour)
+	DEFAULT_TRANSFER_DB_PATH       = `~/.config/byteflood/transfers`
+	BF_UPNP_SERVICE_NAME           = `byteflood`
 )
 
 var log = logging.MustGetLogger(`byteflood.client`)
 var logproxy = util.NewLogProxy(`byteflood.client`, `info`)
 
 type Peer struct {
-	EnableUPnP     bool
-	Address        string
-	RootDirectory  string
-	StatsFile      string
-	StatsInterval  time.Duration
-	ImportInterval time.Duration
-	DatabasePath   string
-	client         *torrent.Client
-	config         *torrent.Config
-	activeTorrents map[string]*torrent.Torrent
-	upnpMapping    *upnp.Upnp
+	EnableUpnp           bool
+	Address              string
+	RootDirectory        string
+	StatsFile            string
+	StatsInterval        time.Duration
+	ImportInterval       time.Duration
+	DatabasePath         string
+	UpnpMappingDuration  time.Duration
+	UpnpDiscoveryTimeout time.Duration
+	client               *torrent.Client
+	config               *torrent.Config
+	activeTorrents       map[string]*torrent.Torrent
+	defaultGateway       *upnp.IGD
+	upnpTcpPort          int
+	upnpUdpPort          int
 }
 
 func CreatePeer(rootDir string, listenAddr string) (*Peer, error) {
@@ -56,13 +63,15 @@ func CreatePeer(rootDir string, listenAddr string) (*Peer, error) {
 	}
 
 	return &Peer{
-		Address:        listenAddr,
-		RootDirectory:  rootDir,
-		EnableUPnP:     true,
-		StatsInterval:  DEFAULT_STATS_INTERVAL,
-		ImportInterval: DEFAULT_IMPORT_INTERVAL,
-		DatabasePath:   DEFAULT_TRANSFER_DB_PATH,
-		activeTorrents: make(map[string]*torrent.Torrent),
+		Address:              listenAddr,
+		RootDirectory:        rootDir,
+		EnableUpnp:           true,
+		StatsInterval:        DEFAULT_STATS_INTERVAL,
+		ImportInterval:       DEFAULT_IMPORT_INTERVAL,
+		DatabasePath:         DEFAULT_TRANSFER_DB_PATH,
+		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
+		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
+		activeTorrents:       make(map[string]*torrent.Torrent),
 	}, nil
 }
 
@@ -98,17 +107,37 @@ func (self *Peer) Run() error {
 		return err
 	}
 
-	if self.EnableUPnP {
+	if self.EnableUpnp {
 		parts := strings.Split(self.config.ListenAddr, `:`)
 
 		if len(parts) > 0 {
 			if v, err := stringutil.ConvertToInteger(parts[len(parts)-1]); err == nil {
-				self.upnpMapping = new(upnp.Upnp)
+				// search for Internet Gateway Devices, and talk to the first one
+				// (this is the 99% case for home gamers)
+				//
+				for _, device := range upnp.Discover(0, self.UpnpDiscoveryTimeout) {
 
-				if err := self.upnpMapping.AddPortMapping(int(v), int(v), `tcp`); err == nil {
-					log.Infof("Added UPnP port mapping for tcp:%d", v)
-				} else {
-					return err
+					// add TCP port mapping
+					if port, err := device.AddPortMapping(nat.TCP,
+						int(v), int(v), BF_UPNP_SERVICE_NAME, self.UpnpMappingDuration); err == nil {
+						self.upnpTcpPort = port
+						log.Infof("Added UPnP port mapping for tcp:%d", port)
+					} else {
+						log.Errorf("Failed to add UPnP port mapping for tcp:%d", port)
+					}
+
+					// add UDP port mapping
+					if port, err := device.AddPortMapping(nat.UDP,
+						int(v), int(v), BF_UPNP_SERVICE_NAME, self.UpnpMappingDuration); err == nil {
+						self.upnpUdpPort = port
+						log.Infof("Added UPnP port mapping for udp:%d", port)
+					} else {
+						log.Errorf("Failed to add UPnP port mapping for udp:%d", port)
+					}
+
+					// and we shall call this gateway our default gateway
+					self.defaultGateway = device.(*upnp.IGD)
+					break
 				}
 			} else {
 				return err
@@ -177,14 +206,31 @@ func (self *Peer) Run() error {
 	return nil
 }
 
-func (self *Peer) Close() {
-	log.Infof("Shutting down client")
-	self.client.Close()
+func (self *Peer) Close() chan bool {
+	done := make(chan bool)
 
-	if self.upnpMapping != nil {
-		log.Infof("Releasing UPnP port")
-		self.upnpMapping.Reclaim()
-	}
+	go func() {
+		log.Infof("Shutting down client")
+		self.client.Close()
+
+		if self.upnpTcpPort > 0 {
+			log.Infof("Releasing UPnP port %d/tcp", self.upnpTcpPort)
+			if err := self.defaultGateway.DeletePortMapping(nat.TCP, self.upnpTcpPort); err != nil {
+				log.Errorf("Failed to release port: %v", err)
+			}
+		}
+
+		if self.upnpUdpPort > 0 {
+			log.Infof("Releasing UPnP port %d/udp", self.upnpUdpPort)
+			if err := self.defaultGateway.DeletePortMapping(nat.UDP, self.upnpUdpPort); err != nil {
+				log.Errorf("Failed to release port: %v", err)
+			}
+		}
+
+		done <- true
+	}()
+
+	return done
 }
 
 func (self *Peer) startPeriodicImport() {
@@ -204,7 +250,9 @@ func (self *Peer) startPeriodicImport() {
 func (self *Peer) setupTorrentClient() error {
 	if dbPath, err := pathutil.ExpandUser(self.DatabasePath); err == nil {
 		if stat, err := os.Stat(dbPath); err != nil || !stat.IsDir() {
-			return fmt.Errorf("Directory %q must exist to store transfer data", dbPath)
+			if err := os.MkdirAll(dbPath, 0700); err != nil {
+				return err
+			}
 		}
 
 		torrentConfig := &torrent.Config{

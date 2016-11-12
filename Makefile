@@ -23,6 +23,9 @@ test:
 	# go test -v .
 	go test -v ./scanner
 
+dockrun:
+	docker run -it -v $(PWD):/host ubuntu /host/bin/byteflood -c /host/examples/tuned-video.yml seed /host/tests/peer2/
+
 hashtest:
 	./bin/byteflood -c test-config.yml scan -t rehash peer1
 	cp -v peer1/*.torrent peer2/

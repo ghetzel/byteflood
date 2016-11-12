@@ -1,12 +1,4 @@
 ---
 pattern: '\.(mov|avi|ogg|avi|mkv|mp4|ogm|mpg)$'
-related_suffixes:
-  - '.nfo'
-  - '.srt'
-  - '.ass'
-  - '.txt'
-  - '.jpg'
-  - '-thumb.jpg'
-
 scan_options:
   file_min_size: 52428800

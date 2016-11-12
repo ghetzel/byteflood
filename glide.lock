@@ -1,5 +1,5 @@
-hash: ac4d2cff311d4bcd2dc9cb0bde4e5ecc309872cdecabef0f1406d74bf88f8bab
-updated: 2016-11-11T18:30:46.096425977-05:00
+hash: 0dea8ad8adc20ed6442d8ed93fcde4dde7e7b798b1a01207b8599e150b40b849
+updated: 2016-11-12T14:06:42.290822542-05:00
 imports:
 - name: github.com/anacrolix/missinggo
   version: e02c444f6f318fa2fa5e5feffa320c217cb28486
@@ -34,10 +34,22 @@ imports:
   - util
 - name: github.com/anacrolix/utp
   version: 83bf7c81b0e1f917f18ac31b7a27b91c33737df9
+- name: github.com/bkaradzic/go-lz4
+  version: 74ddf82598bc4745b965729e9c6a463bedd33049
+  repo: https://github.com/bkaradzic/go-lz4
 - name: github.com/boltdb/bolt
   version: 315c65d4cf4f5278c73477a35fb1f9b08365d340
 - name: github.com/bradfitz/iter
   version: 454541ec3da2a73fc34fd049b19ee5777bf19345
+- name: github.com/calmh/du
+  version: 3c0690cca16228b97741327b1b6781397afbdb24
+  repo: https://github.com/calmh/du
+- name: github.com/calmh/luhn
+  version: 0c8388ff95fa92d4094011e5a04fc99dea3d1632
+  repo: https://github.com/calmh/luhn
+- name: github.com/calmh/xdr
+  version: f9b9f8f7aa27725f5cabb699bd9099ca7ce09143
+  repo: https://github.com/calmh/xdr
 - name: github.com/dustin/go-humanize
   version: bd88f87ad3a420f7bcf05e90566fd1ceb351fa7f
 - name: github.com/edsrzf/mmap-go
@@ -51,18 +63,26 @@ imports:
   - stringutil
 - name: github.com/ghodss/yaml
   version: bea76d6a4713e18b7f5321a2b020738552def3ea
+- name: github.com/gogo/protobuf
+  version: 7883e1468d48d969e1c3ce4bcde89b6a7dd4adc4
+  repo: https://github.com/gogo/protobuf
+  subpackages:
+  - gogoproto
+  - proto
+  - protoc-gen-gogo/descriptor
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
 - name: github.com/jackpal/bencode-go
   version: 8b8d9a9b37fcd43f365439810d725081b114af68
 - name: github.com/mattn/go-sqlite3
   version: fba66eb11643069e747022997e9be3b502b2c6fb
+- name: github.com/minio/sha256-simd
+  version: 672e7bc9f3482375df73741cf57a157fe187ec26
+  repo: https://github.com/minio/sha256-simd
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/op/go-logging
   version: 970db520ece77730c7e4724c61121037378659d9
-- name: github.com/prestonTao/upnp
-  version: f4370df5e1093d8987dfdb55a5d8fa23d72a26a6
 - name: github.com/RoaringBitmap/roaring
   version: c3e090c41e857e2efc2b85af31c3c23bde0e9574
 - name: github.com/ryszard/goskiplist
@@ -74,6 +94,21 @@ imports:
   subpackages:
   - assert
   - require
+- name: github.com/syncthing/syncthing
+  version: b7e21984a1128c1f31c7c5bdf1d3a3ba386e7f70
+  subpackages:
+  - lib/config
+  - lib/dialer
+  - lib/events
+  - lib/logger
+  - lib/nat
+  - lib/osutil
+  - lib/protocol
+  - lib/rand
+  - lib/sha256
+  - lib/sync
+  - lib/upnp
+  - lib/util
 - name: github.com/tylertreat/BoomFilters
   version: ae0b9585d4b87b2fe0b49ee09270abae7aaad179
 - name: github.com/urfave/negroni
@@ -83,13 +118,22 @@ imports:
 - name: github.com/willf/bloom
   version: c358096ae52229d900ad0c8e4e2634a1115c87f4
 - name: golang.org/x/net
-  version: e36fcd2311066d2dd958b37045679be1d8a4b483
+  version: 749a502dd1eaf3e5bfd4f8956748c502357c0bbe
   subpackages:
   - context
+  - proxy
 - name: golang.org/x/sys
-  version: b699b7032584f0953262cb2788a0ca19bb494703
+  version: a408501be4d17ee978c04a618e7a1b22af058c0e
+  repo: https://go.googlesource.com/sys
   subpackages:
   - unix
+  - windows
+- name: golang.org/x/text
+  version: a71fd10341b064c10f4a81ceac72bcf70f26ea34
+  repo: https://go.googlesource.com/text
+  subpackages:
+  - transform
+  - unicode/norm
 - name: golang.org/x/time
   version: f51c12702a4d776e4c1fa9b0fabab841babae631
   subpackages:

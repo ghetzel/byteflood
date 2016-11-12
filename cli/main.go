@@ -119,7 +119,7 @@ func main() {
 
 					go func(p *peer.Peer) {
 						for _ = range signalChan {
-							p.Close()
+							<-p.Close()
 							break
 						}
 
