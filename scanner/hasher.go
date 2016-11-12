@@ -89,15 +89,56 @@ func (self *Torrent) GetPieceSum(index int) ([]byte, bool) {
 	return nil, false
 }
 
-func (self *Torrent) AddFile(name string, length int64) error {
-	log.Debugf("Adding %s (%d bytes)", name, length)
+func (self *Torrent) Length() int {
+	// single file, top-level
+	if self.Info.Files == nil {
+		return self.Info.Length
+	} else {
+		length := 0
+
+		for _, file := range self.Info.Files {
+			length += file.Length
+		}
+
+		return length
+	}
+}
+
+func (self *Torrent) FileCount() int {
+	if self.Info.Files == nil {
+		return 1
+	} else {
+		return len(self.Info.Files)
+	}
+}
+
+func (self *Torrent) AddFile(name string) error {
+	if file, err := os.Open(name); err == nil {
+		if err := self.AddFileHeader(file); err == nil {
+			return self.AppendPieces(file)
+		} else {
+			return err
+		}
+	} else {
+		return err
+	}
+}
+
+func (self *Torrent) AddFileHeader(file *os.File) error {
+	stat, err := file.Stat()
+
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("            + %s (%d bytes)", file.Name(), stat.Size())
 
 	// first file gets placed in the top-level of the info struct
 	if !self.hasOneFile {
-		if path, err := self.PreparePath(name); err == nil {
+		if path, err := self.PreparePath(file.Name()); err == nil {
 			self.hasOneFile = true
 			self.Info.Name = path[len(path)-1]
-			self.Info.Length = int(length)
+			self.Info.Length = int(stat.Size())
 		} else {
 			return err
 		}
@@ -111,19 +152,41 @@ func (self *Torrent) AddFile(name string, length int64) error {
 					},
 				}
 
-				self.Info.Name = ``
 				self.Info.Length = 0
 			} else {
 				return err
 			}
 		}
 
-		if path, err := self.PreparePath(name); err == nil {
+		if path, err := self.PreparePath(file.Name()); err == nil {
 			self.Info.Files = append(self.Info.Files, TorrentFile{
 				Path:   path,
-				Length: int(length),
+				Length: int(stat.Size()),
 			})
 		} else {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (self *Torrent) AppendPieces(data io.Reader) error {
+	buffer := make([]byte, self.Info.PieceLength)
+	i := 0
+
+	for {
+		if n, err := data.Read(buffer); err == nil {
+			sum := sha1.Sum(buffer[0:n])
+			self.AddPiece(sum[:])
+			// log.Debugf("Add Piece %d: %d bytes, hash: %x", i, n, sum)
+
+			i += 1
+
+			if n < self.Info.PieceLength {
+				break
+			}
+		} else if err != io.EOF {
 			return err
 		}
 	}
@@ -134,9 +197,9 @@ func (self *Torrent) AddFile(name string, length int64) error {
 func (self *Torrent) Validate() error {
 	var chunks int
 
-	if self.Announce == `` {
-		return fmt.Errorf("Torrent Infohash must specify at least one announce URL")
-	}
+	// if self.Announce == `` {
+	// 	return fmt.Errorf("Torrent Infohash must specify at least one announce URL")
+	// }
 
 	if self.Info.PieceLength == 0 {
 		return fmt.Errorf("Torrent must specify a piece length")
@@ -147,7 +210,7 @@ func (self *Torrent) Validate() error {
 	}
 
 	// single-file validation
-	if self.Info.Name != `` {
+	if self.Info.Files == nil {
 		chunks = int(math.Ceil(float64(self.Info.Length) / float64(self.Info.PieceLength)))
 	} else {
 		// multi-file validation
@@ -155,6 +218,9 @@ func (self *Torrent) Validate() error {
 			chunks += int(math.Ceil(float64(torrentFile.Length) / float64(self.Info.PieceLength)))
 		}
 	}
+
+	// log.Debugf("Validation: total-length=%d, piece-length=%d, pieces-size=%d, chunk=%d",
+	// 	self.Length(), self.Info.PieceLength, len(self.Info.Pieces), chunks)
 
 	if shouldHave := (chunks * sha1.Size); shouldHave != len(self.Info.Pieces) {
 		return fmt.Errorf("Invalid piece length: %d %d-byte chunks should produce %d pieces, have: %d", chunks, self.Info.PieceLength, shouldHave, len(self.Info.Pieces))
@@ -201,46 +267,15 @@ func LoadTorrent(name string) (*Torrent, error) {
 	}
 }
 
-func CreateTorrent(name string, pieceLength int) (*Torrent, error) {
-	if file, err := os.Open(name); err == nil {
-		if stat, err := file.Stat(); err == nil {
-			torrent := NewTorrent()
+func CreateTorrent(pieceLength int) *Torrent {
+	torrent := NewTorrent()
 
-			if pieceLength > 0 {
-				torrent.Info.PieceLength = pieceLength
-			}
-
-			buffer := make([]byte, torrent.Info.PieceLength)
-			i := 0
-
-			torrent.CreationEpoch = Epoch(time.Now().Unix())
-			torrent.CreatedBy = DEFAULT_BF_CREATOR
-
-			if err := torrent.AddFile(name, stat.Size()); err != nil {
-				return nil, err
-			}
-
-			for {
-				if n, err := file.Read(buffer); err == nil {
-					sum := sha1.Sum(buffer[0:n])
-					torrent.AddPiece(sum[:])
-					// log.Debugf("Add Piece %d: %d bytes, hash: %x", i, n, sum)
-
-					i += 1
-
-					if n < torrent.Info.PieceLength {
-						break
-					}
-				} else if err != io.EOF {
-					return nil, err
-				}
-			}
-
-			return torrent, nil
-		} else {
-			return nil, err
-		}
-	} else {
-		return nil, err
+	if pieceLength > 0 {
+		torrent.Info.PieceLength = pieceLength
 	}
+
+	torrent.CreationEpoch = Epoch(time.Now().Unix())
+	torrent.CreatedBy = DEFAULT_BF_CREATOR
+
+	return torrent
 }

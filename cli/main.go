@@ -176,6 +176,14 @@ func main() {
 					Name:  `announce, a`,
 					Usage: `The URL for the tracker to contact for peer discovery (can be specified multiple times)`,
 				},
+				cli.StringSliceFlag{
+					Name:  `related-suffix, R`,
+					Usage: `A filename suffix that should be considered related to the base file and included in the same torrent (can be specified multiple times)`,
+				},
+				cli.IntFlag{
+					Name:  `min-size, M`,
+					Usage: `The minimum size a file can be to be considered for becoming a torrent`,
+				},
 				cli.BoolFlag{
 					Name:  `force, F`,
 					Usage: `Forces the regeneration of torrent infohashes, even if they already exist.`,
@@ -261,6 +269,14 @@ func scanPath(path string, config *byteflood.Configuration, oneShot bool, option
 	s.PieceLength = config.PieceLength
 	s.AnnounceList = config.AnnounceList
 
+	if config.ScanRelatedSuffixes != nil {
+		s.RelatedFileSuffixes = config.ScanRelatedSuffixes
+	}
+
+	if len(s.RelatedFileSuffixes) > 0 {
+		log.Infof("Scanner will rollup the following extensions: %s", strings.Join(s.RelatedFileSuffixes, ` `))
+	}
+
 	if config.DirectoryPrefix != `` {
 		s.DirectoryPrefix = config.DirectoryPrefix
 	} else {
@@ -299,6 +315,14 @@ func applyFlagsToConfig(c *cli.Context, config *byteflood.Configuration) {
 
 	if config.ScanOptions == nil {
 		config.ScanOptions = scanner.DefaultScannerOptions()
+	}
+
+	if v := c.StringSlice(`related-suffix`); len(v) > 0 {
+		config.ScanRelatedSuffixes = v
+	}
+
+	if v := c.Int(`min-size`); v > 0 {
+		config.ScanOptions.FileMinimumSize = v
 	}
 
 	if c.Bool(`force`) {

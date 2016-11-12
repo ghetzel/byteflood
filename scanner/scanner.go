@@ -13,7 +13,8 @@ import (
 var log = logging.MustGetLogger(`byteflood.scanner`)
 
 type File struct {
-	Name string
+	Name            string
+	RelatedSuffixes []string
 }
 
 type ScannerOptions struct {
@@ -21,11 +22,19 @@ type ScannerOptions struct {
 	SkipTorrentGeneration bool `json:"skip_hashing,omitempty"`
 	ForceTorrentRehash    bool `json:"force_hashing,omitempty"`
 	MakePublicTorrent     bool `json:"public,omitempty"`
+	FileMinimumSize       int  `json:"file_min_size,omitempty"`
 }
 
 func DefaultScannerOptions() *ScannerOptions {
 	return &ScannerOptions{
 		RecurseDirectories: true,
+	}
+}
+
+func NewFile(name string, relatedSuffixes ...string) *File {
+	return &File{
+		Name:            name,
+		RelatedSuffixes: relatedSuffixes,
 	}
 }
 
@@ -60,10 +69,16 @@ func (self *File) OpenAlternate(extension string) (*os.File, error) {
 	}
 }
 
-func NewFile(name string) *File {
-	return &File{
-		Name: name,
+func (self *File) GetRelatedFiles() []*File {
+	rv := make([]*File, 0)
+
+	for _, suffix := range self.RelatedSuffixes {
+		if subfile, err := self.GetAlternatePath(suffix); err == nil {
+			rv = append(rv, NewFile(subfile))
+		}
 	}
+
+	return rv
 }
 
 type Directory struct {
@@ -116,43 +131,59 @@ func (self *Directory) ScanFile(name string, options *ScannerOptions) (*File, er
 		}
 	}
 
-	file := NewFile(name)
+	file := NewFile(name, self.Scanner.RelatedFileSuffixes...)
 
 	if file.Ext() != `.torrent` {
-		log.Debugf("ADD:      file %s", file.Name)
+		var related string
+
+		if len(file.RelatedSuffixes) > 0 {
+			related = fmt.Sprintf(" (+ %s)", strings.Join(file.RelatedSuffixes, ` `))
+		}
+
+		log.Debugf("ADD:      file %s%s", file.Name, related)
 
 		if !options.SkipTorrentGeneration {
 			if torrentFilePath, err := file.AddExtension(`.torrent`); err != nil || options.ForceTorrentRehash {
 				relPath := self.GetTorrentPath(file.Name)
 				log.Debugf("ADD:        creating torrent %s from %s", torrentFilePath, relPath)
 
-				if torrent, err := CreateTorrent(relPath, self.GetPieceLength()); err == nil {
-					if announces := self.GetAnnounceUrls(); len(announces) > 0 {
-						torrent.Announce = announces[0]
+				torrent := CreateTorrent(self.GetPieceLength())
 
-						if len(announces) > 1 {
-							torrent.AnnounceList = announces[1:]
-						}
-
-						if options.MakePublicTorrent {
-							torrent.SetPrivate(false)
-						} else {
-							torrent.SetPrivate(true)
-						}
-					}
-
-					if torrentFile, err := os.Create(torrentFilePath); err == nil {
-						err := torrent.WriteTo(torrentFile)
-						torrentFile.Close()
-
-						if err == nil {
-							log.Debugf("ADD:        wrote torrent %s", torrentFilePath)
-						} else {
-							return nil, err
-						}
-					}
-				} else {
+				if err := torrent.AddFile(relPath); err != nil {
 					return nil, err
+				}
+
+				for _, subfile := range file.GetRelatedFiles() {
+					if err := torrent.AddFile(subfile.Name); err != nil {
+						return nil, err
+					}
+				}
+
+				if announces := self.GetAnnounceUrls(); len(announces) > 0 {
+					torrent.Announce = announces[0]
+
+					if len(announces) > 1 {
+						torrent.AnnounceList = announces[1:]
+					}
+
+					if options.MakePublicTorrent {
+						torrent.SetPrivate(false)
+					} else {
+						torrent.SetPrivate(true)
+					}
+				}
+
+				if torrentFile, err := os.Create(torrentFilePath); err == nil {
+					err := torrent.WriteTo(torrentFile)
+					torrentFile.Close()
+
+					if err == nil {
+						log.Debugf("ADD:      wrote torrent containing %d files, %d bytes",
+							torrent.FileCount(), torrent.Length())
+						log.Debug("")
+					} else {
+						return nil, err
+					}
 				}
 			}
 		}
@@ -179,6 +210,28 @@ func (self *Directory) Scan(options *ScannerOptions) error {
 					}
 				}
 			} else {
+				// if we've specified a set of related extensions, and the current filename matches one,
+				// then skip processing this file
+				var shouldSkip bool
+
+				for _, suffix := range self.Scanner.RelatedFileSuffixes {
+					if strings.HasSuffix(entry.Name(), suffix) {
+						shouldSkip = true
+						break
+					}
+				}
+
+				if shouldSkip {
+					continue
+				}
+
+				// if we've specified a minimum file size, and this file is less than that,
+				// then skip it
+				if options.FileMinimumSize > 0 && entry.Size() < int64(options.FileMinimumSize) {
+					continue
+				}
+
+				// scan the file as a sharable asset
 				if file, err := self.ScanFile(absPath, options); err == nil {
 					if file != nil {
 						self.Files = append(self.Files, file)
@@ -196,15 +249,17 @@ func (self *Directory) Scan(options *ScannerOptions) error {
 }
 
 type Scanner struct {
-	RootDirectory   *Directory
-	DirectoryPrefix string
-	PieceLength     int
-	AnnounceList    []string
+	RootDirectory       *Directory
+	DirectoryPrefix     string
+	PieceLength         int
+	AnnounceList        []string
+	RelatedFileSuffixes []string
 }
 
 func NewScanner(rootDirectory string, filePattern string) *Scanner {
 	scanner := &Scanner{
-		PieceLength: DEFAULT_BF_HASH_PIECELENGTH,
+		PieceLength:         DEFAULT_BF_HASH_PIECELENGTH,
+		RelatedFileSuffixes: make([]string, 0),
 	}
 
 	scanner.RootDirectory = NewDirectory(scanner, rootDirectory, filePattern)

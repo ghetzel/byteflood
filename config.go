@@ -7,11 +7,12 @@ import (
 )
 
 type Configuration struct {
-	PieceLength     int                     `json:"piece_length,omitempty"`
-	AnnounceList    []string                `json:"announce"`
-	ScanPattern     string                  `json:"pattern,omitempty"`
-	ScanOptions     *scanner.ScannerOptions `json:"options,omitempty"`
-	DirectoryPrefix string                  `json:"prefix,omitempty"`
+	PieceLength         int                     `json:"piece_length,omitempty"`
+	AnnounceList        []string                `json:"announce"`
+	ScanPattern         string                  `json:"pattern,omitempty"`
+	ScanOptions         *scanner.ScannerOptions `json:"scan_options,omitempty"`
+	DirectoryPrefix     string                  `json:"prefix,omitempty"`
+	ScanRelatedSuffixes []string                `json:"related_suffixes"`
 }
 
 func LoadConfig(filename string) (Configuration, error) {
