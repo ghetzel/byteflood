@@ -1,98 +1,46 @@
 vendors:
-- path: github.com/RoaringBitmap/roaring
-  rev: 08a66fecce51e89d2992a00d970797b6e154829e
-- path: github.com/anacrolix/envpprof
-  rev: 0383bfe017e02efb418ffd595fc54777a35e48b0
-- path: github.com/anacrolix/missinggo
-  rev: 24a2e633dbdadf0cc25b5624a9a3fc1019538bc9
-- path: github.com/anacrolix/sync
-  rev: 812602587b72df6a2a4f6e30536adc75394a374b
-- path: github.com/anacrolix/torrent
-  rev: fdf75d59c833a26dde9facbd564cb0a203ef07c2
-- path: github.com/anacrolix/utp
-  rev: fa8b6bbd0386e3b98845c5d1f10148b29915d4b9
 - path: github.com/bkaradzic/go-lz4
   rev: 7224d8d8f27ef618c0a95f1ae69dbb0488abc33a
-- path: github.com/boltdb/bolt
-  rev: 0d9f544bb94aac29c185968483459ef74d6deb5d
-- path: github.com/bradfitz/iter
-  rev: 454541ec3da2a73fc34fd049b19ee5777bf19345
 - path: github.com/calmh/du
   rev: 3c0690cca16228b97741327b1b6781397afbdb24
 - path: github.com/calmh/luhn
   rev: 0c8388ff95fa92d4094011e5a04fc99dea3d1632
 - path: github.com/calmh/xdr
   rev: f9b9f8f7aa27725f5cabb699bd9099ca7ce09143
-- path: github.com/cznic/b
-  rev: bcff30a622dbdcb425aba904792de1df606dab7c
-- path: github.com/cznic/mathutil
-  rev: 4609a45a9e61188d0d69a5d8ad42600c3df35002
-- path: github.com/cznic/strutil
-  rev: 1eb03e3cc9d345307a45ec82bd3016cde4bd4464
 - path: github.com/d4l3k/messagediff
   rev: 7b706999d935b04cf2dbc71a5a5afcbd288aeb48
 - path: github.com/davecgh/go-spew
   rev: 346938d642f2ec3594ed81d874461961cd0faa76
-- path: github.com/dustin/go-humanize
-  rev: bd88f87ad3a420f7bcf05e90566fd1ceb351fa7f
-- path: github.com/edsrzf/mmap-go
-  rev: 935e0e8a636ca4ba70b713f3e38a19e1b77739e8
 - path: github.com/ghetzel/cli
   rev: 4733699ce30faa633c4db36ebfbe427963593d7d
 - path: github.com/ghetzel/go-stockutil
-  rev: aa5b98b6d879ed5dce658bbe38b0dd7fa725d7be
+  rev: f98a95b782b8aeb508947068f2532b9bf963abf8
 - path: github.com/ghodss/yaml
   rev: a54de18a07046d8c4b26e9327698a2ebb9285b36
 - path: github.com/gogo/protobuf
   rev: 8d70fb3182befc465c4a1eac8ad4d38ff49778e2
-- path: github.com/google/btree
-  rev: 925471ac9e2131377a91e1595defec898166fe49
-- path: github.com/gopherjs/gopherjs
-  rev: e34a5cd6a1bc7c4fde759f2d3039852fc68b5fcc
 - path: github.com/jackpal/bencode-go
   rev: 8b8d9a9b37fcd43f365439810d725081b114af68
-- path: github.com/jtolds/gls
-  rev: 8ddce2a84170772b95dd5d576c48d517b22cac63
-- path: github.com/mattn/go-sqlite3
-  rev: fba66eb11643069e747022997e9be3b502b2c6fb
 - path: github.com/minio/sha256-simd
   rev: f78567f7ee70e4be482ad2849f6c3bb7651b34a5
-- path: github.com/mschoch/smat
-  rev: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - path: github.com/op/go-logging
   rev: 970db520ece77730c7e4724c61121037378659d9
-- path: github.com/petar/GoLLRB
-  rev: 53be0d36a84c2a886ca057d34b6aa4468df9ccb4
 - path: github.com/pmezard/go-difflib
   rev: 792786c7400a136282c1664665ae0a8db921c6c2
-- path: github.com/ryszard/goskiplist
-  rev: 2dfbae5fcf46374f166f8969cb07e167f1be6273
 - path: github.com/sasha-s/go-deadlock
   rev: 09aefc0ac06ad74d91ca31acdb11fc981c159149
-- path: github.com/smartystreets/assertions
-  rev: e60cfa771e3f4d18723a4119f1833898c9c62066
-- path: github.com/smartystreets/goconvey
-  rev: 3c2572876754c4669ae7417b219f0b30a29b32c7
+- path: github.com/stretchr/objx
+  rev: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
 - path: github.com/stretchr/testify
   rev: 18a02ba4a312f95da08ff4cfc0055750ce50ae9e
 - path: github.com/syncthing/syncthing
-  rev: 8559e20237313ca0d7874673ecfe4c644aa0e3f3
-- path: github.com/tylertreat/BoomFilters
-  rev: ae0b9585d4b87b2fe0b49ee09270abae7aaad179
+  rev: 9da422f1c5df52b987cc39d989ad8866ea925a0d
 - path: github.com/urfave/negroni
-  rev: e0e50f7dc431c043cb33f91b09c3419d48b7cff5
-- path: github.com/willf/bitset
-  rev: 85301ea3894aa6d640cbc2afccc0994239444300
-- path: github.com/willf/bloom
-  rev: c358096ae52229d900ad0c8e4e2634a1115c87f4
+  rev: cd9734011043904139c24dbad9a71b21f1586f36
 - path: golang.org/x/net
   rev: 4971afdc2f162e82d185353533d3cf16188a9f4e
-- path: golang.org/x/sys
-  rev: 30237cf4eefd639b184d1f2cb77a581ea0be8947
 - path: golang.org/x/text
-  rev: b01949dc0793a9af5e4cb3fce4d42999e76e8ca1
-- path: golang.org/x/time
-  rev: f51c12702a4d776e4c1fa9b0fabab841babae631
+  rev: 4ea6c073aae78d08c7e95e95aa7f55b888287d6f
 - path: gopkg.in/check.v1
   rev: aa8c43564278bc4c58e8ca51bfc5f1c149925cf0
 - path: gopkg.in/yaml.v2

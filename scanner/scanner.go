@@ -2,10 +2,10 @@ package scanner
 
 import (
 	"fmt"
-	"github.com/op/go-logging"
 	"github.com/ghetzel/byteflood/scanner/metadata"
+	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/op/go-logging"
 	"io/ioutil"
-	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -14,7 +14,8 @@ import (
 var log = logging.MustGetLogger(`byteflood/scanner`)
 
 type File struct {
-	Name string
+	Name     string
+	Metadata map[string]interface{}
 }
 
 type ScannerOptions struct {
@@ -30,12 +31,26 @@ func DefaultScannerOptions() *ScannerOptions {
 
 func NewFile(name string) *File {
 	return &File{
-		Name: name,
+		Name:     name,
+		Metadata: make(map[string]interface{}),
 	}
 }
 
 func (self *File) LoadMetadata() error {
-	return fmt.Errorf("File: NI")
+	for _, loader := range metadata.GetLoadersForFile(self.Name) {
+		if data, err := loader.LoadMetadata(self.Name); err == nil {
+			self.Metadata[self.normalizeLoaderName(loader)] = data
+		} else {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (self *File) normalizeLoaderName(loader metadata.Loader) string {
+	name := stringutil.Underscore(strings.Replace(fmt.Sprintf("%T", loader), `Loader`, ``, -1))
+	return name
 }
 
 type Directory struct {
@@ -76,6 +91,8 @@ func (self *Directory) ScanFile(name string, options *ScannerOptions) (*File, er
 		return nil, err
 	}
 
+	log.Debugf("Got file %+v", file)
+
 	return file, nil
 }
 
@@ -97,21 +114,6 @@ func (self *Directory) Scan(options *ScannerOptions) error {
 					}
 				}
 			} else {
-				// if we've specified a set of related extensions, and the current filename matches one,
-				// then skip processing this file
-				var shouldSkip bool
-
-				for _, suffix := range self.Scanner.RelatedFileSuffixes {
-					if strings.HasSuffix(entry.Name(), suffix) {
-						shouldSkip = true
-						break
-					}
-				}
-
-				if shouldSkip {
-					continue
-				}
-
 				// if we've specified a minimum file size, and this file is less than that,
 				// then skip it
 				if options.FileMinimumSize > 0 && entry.Size() < int64(options.FileMinimumSize) {

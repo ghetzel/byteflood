@@ -1,15 +1,51 @@
 package metadata
 
 import (
-    "fmt"
+	"os"
+	"path/filepath"
 )
 
-type FileLoader struct {}
+var FileModeFlags = map[string]os.FileMode{
+	`symlink`:   os.ModeSymlink,
+	`device`:    os.ModeDevice,
+	`pipe`:      os.ModeNamedPipe,
+	`socket`:    os.ModeSocket,
+	`character`: os.ModeCharDevice,
+}
+
+type FileLoader struct {
+	Loader
+}
 
 func (self FileLoader) CanHandle(_ string) bool {
-    return true
+	return true
 }
 
 func (self FileLoader) LoadMetadata(name string) (map[string]interface{}, error) {
-    return nil, fmt.Errorf("%T: NI", self)
+	if stat, err := os.Stat(name); err == nil {
+		if fullPath, err := filepath.Abs(name); err == nil {
+			mode := stat.Mode()
+			perms := map[string]interface{}{
+				`mode`:    mode,
+				`regular`: mode.IsRegular(),
+			}
+
+			for lbl, flag := range FileModeFlags {
+				if (mode & flag) == flag {
+					perms[lbl] = true
+				}
+			}
+
+			return map[string]interface{}{
+				`path`:        fullPath,
+				`size`:        stat.Size(),
+				`permissions`: perms,
+				`modified_at`: stat.ModTime(),
+			}, nil
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
 }
