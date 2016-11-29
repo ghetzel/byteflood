@@ -3,6 +3,7 @@ package scanner
 import (
 	"fmt"
 	"github.com/op/go-logging"
+	"github.com/ghetzel/byteflood/scanner/metadata"
 	"io/ioutil"
 	"os"
 	"path"
@@ -10,19 +11,15 @@ import (
 	"strings"
 )
 
-var log = logging.MustGetLogger(`byteflood.scanner`)
+var log = logging.MustGetLogger(`byteflood/scanner`)
 
 type File struct {
-	Name            string
-	RelatedSuffixes []string
+	Name string
 }
 
 type ScannerOptions struct {
-	RecurseDirectories    bool `json:"recurse,omitempty"`
-	SkipTorrentGeneration bool `json:"skip_hashing,omitempty"`
-	ForceTorrentRehash    bool `json:"force_hashing,omitempty"`
-	MakePublicTorrent     bool `json:"public,omitempty"`
-	FileMinimumSize       int  `json:"file_min_size,omitempty"`
+	RecurseDirectories bool `json:"recurse,omitempty"`
+	FileMinimumSize    int  `json:"file_min_size,omitempty"`
 }
 
 func DefaultScannerOptions() *ScannerOptions {
@@ -31,54 +28,14 @@ func DefaultScannerOptions() *ScannerOptions {
 	}
 }
 
-func NewFile(name string, relatedSuffixes ...string) *File {
+func NewFile(name string) *File {
 	return &File{
-		Name:            name,
-		RelatedSuffixes: relatedSuffixes,
+		Name: name,
 	}
 }
 
-func (self *File) Base() string {
-	return strings.TrimSuffix(path.Base(self.Name), path.Ext(self.Name))
-}
-
-func (self *File) Ext() string {
-	return path.Ext(self.Name)
-}
-
-func (self *File) AddExtension(extension string) (string, error) {
-	return self.GetAlternatePath(self.Ext() + extension)
-}
-
-func (self *File) GetAlternatePath(extension string) (string, error) {
-	altPath := path.Join(path.Dir(self.Name), fmt.Sprintf("%s%s",
-		self.Base(), extension))
-
-	if _, err := os.Stat(altPath); err == nil {
-		return altPath, nil
-	} else {
-		return altPath, err
-	}
-}
-
-func (self *File) OpenAlternate(extension string) (*os.File, error) {
-	if altPath, err := self.GetAlternatePath(extension); err == nil {
-		return os.Open(altPath)
-	} else {
-		return nil, err
-	}
-}
-
-func (self *File) GetRelatedFiles() []*File {
-	rv := make([]*File, 0)
-
-	for _, suffix := range self.RelatedSuffixes {
-		if subfile, err := self.GetAlternatePath(suffix); err == nil {
-			rv = append(rv, NewFile(subfile))
-		}
-	}
-
-	return rv
+func (self *File) LoadMetadata() error {
+	return fmt.Errorf("File: NI")
 }
 
 type Directory struct {
@@ -99,26 +56,6 @@ func NewDirectory(scanner *Scanner, name string, pattern string) *Directory {
 	}
 }
 
-func (self *Directory) GetPieceLength() int {
-	if self.Scanner == nil || self.Scanner.PieceLength == 0 {
-		return DEFAULT_BF_HASH_PIECELENGTH
-	} else {
-		return self.Scanner.PieceLength
-	}
-}
-
-func (self *Directory) GetAnnounceUrls() []string {
-	if self.Scanner != nil && len(self.Scanner.AnnounceList) > 0 {
-		return self.Scanner.AnnounceList
-	} else {
-		return []string{}
-	}
-}
-
-func (self *Directory) GetTorrentPath(in string) string {
-	return strings.TrimPrefix(in, `./`)
-}
-
 func (self *Directory) ScanFile(name string, options *ScannerOptions) (*File, error) {
 	// file pattern matching
 	if self.FilePattern != `` {
@@ -131,62 +68,12 @@ func (self *Directory) ScanFile(name string, options *ScannerOptions) (*File, er
 		}
 	}
 
-	file := NewFile(name, self.Scanner.RelatedFileSuffixes...)
+	// get file implementation
+	file := NewFile(name)
 
-	if file.Ext() != `.torrent` {
-		var related string
-
-		if len(file.RelatedSuffixes) > 0 {
-			related = fmt.Sprintf(" (+ %s)", strings.Join(file.RelatedSuffixes, ` `))
-		}
-
-		log.Debugf("ADD:      file %s%s", file.Name, related)
-
-		if !options.SkipTorrentGeneration {
-			if torrentFilePath, err := file.AddExtension(`.torrent`); err != nil || options.ForceTorrentRehash {
-				relPath := self.GetTorrentPath(file.Name)
-				log.Debugf("ADD:        creating torrent %s from %s", torrentFilePath, relPath)
-
-				torrent := CreateTorrent(self.GetPieceLength())
-
-				if err := torrent.AddFile(relPath); err != nil {
-					return nil, err
-				}
-
-				for _, subfile := range file.GetRelatedFiles() {
-					if err := torrent.AddFile(subfile.Name); err != nil {
-						return nil, err
-					}
-				}
-
-				if announces := self.GetAnnounceUrls(); len(announces) > 0 {
-					torrent.Announce = announces[0]
-
-					if len(announces) > 1 {
-						torrent.AnnounceList = announces[1:]
-					}
-
-					if options.MakePublicTorrent {
-						torrent.SetPrivate(false)
-					} else {
-						torrent.SetPrivate(true)
-					}
-				}
-
-				if torrentFile, err := os.Create(torrentFilePath); err == nil {
-					err := torrent.WriteTo(torrentFile)
-					torrentFile.Close()
-
-					if err == nil {
-						log.Debugf("ADD:      wrote torrent containing %d files, %d bytes",
-							torrent.FileCount(), torrent.Length())
-						log.Debug("")
-					} else {
-						return nil, err
-					}
-				}
-			}
-		}
+	// load file metadata
+	if err := file.LoadMetadata(); err != nil {
+		return nil, err
 	}
 
 	return file, nil
@@ -249,18 +136,12 @@ func (self *Directory) Scan(options *ScannerOptions) error {
 }
 
 type Scanner struct {
-	RootDirectory       *Directory
-	DirectoryPrefix     string
-	PieceLength         int
-	AnnounceList        []string
-	RelatedFileSuffixes []string
+	RootDirectory   *Directory
+	DirectoryPrefix string
 }
 
 func NewScanner(rootDirectory string, filePattern string) *Scanner {
-	scanner := &Scanner{
-		PieceLength:         DEFAULT_BF_HASH_PIECELENGTH,
-		RelatedFileSuffixes: make([]string, 0),
-	}
+	scanner := &Scanner{}
 
 	scanner.RootDirectory = NewDirectory(scanner, rootDirectory, filePattern)
 

@@ -3,12 +3,12 @@
 all: vendor fmt build bundle
 
 update:
-	test -d vendor && rm -rf vendor || exit 0
-	glide up
+	-rm -rf vendor
+	govend -u -v -l
 
 vendor:
-	go list github.com/Masterminds/glide
-	glide install
+	go list github.com/govend/govend
+	govend -v -l
 
 clean-bundle:
 	@test -d public && rm -rf public || true
