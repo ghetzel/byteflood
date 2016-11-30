@@ -18,13 +18,14 @@ type File struct {
 	Metadata map[string]interface{}
 }
 
-type ScannerOptions struct {
-	RecurseDirectories bool `json:"recurse,omitempty"`
-	FileMinimumSize    int  `json:"file_min_size,omitempty"`
+type ScanOptions struct {
+	FilePattern        string `json:"patterns,omitempty"`
+	RecurseDirectories bool   `json:"recurse,omitempty"`
+	FileMinimumSize    int    `json:"file_min_size,omitempty"`
 }
 
-func DefaultScannerOptions() *ScannerOptions {
-	return &ScannerOptions{
+func DefaultScanOptions() ScanOptions {
+	return ScanOptions{
 		RecurseDirectories: true,
 	}
 }
@@ -55,26 +56,67 @@ func (self *File) normalizeLoaderName(loader metadata.Loader) string {
 
 type Directory struct {
 	Scanner     *Scanner
-	Name        string
-	FilePattern string
-	Files       []*File
-	Directories []*Directory
+	Path        string       `json:"path"`
+	Options     ScanOptions  `json:"options"`
+	Files       []*File      `json:"-"`
+	Directories []*Directory `json:"-"`
 }
 
-func NewDirectory(scanner *Scanner, name string, pattern string) *Directory {
+func NewDirectory(scanner *Scanner, path string, options ScanOptions) *Directory {
 	return &Directory{
 		Scanner:     scanner,
-		Name:        name,
-		FilePattern: pattern,
+		Path:        path,
+		Options:     options,
 		Files:       make([]*File, 0),
 		Directories: make([]*Directory, 0),
 	}
 }
 
-func (self *Directory) ScanFile(name string, options *ScannerOptions) (*File, error) {
+func (self *Directory) Scan() error {
+	if entries, err := ioutil.ReadDir(self.Path); err == nil {
+		for _, entry := range entries {
+			absPath := path.Join(self.Path, entry.Name())
+
+			// recursive directory handling
+			if entry.IsDir() {
+				if self.Options.RecurseDirectories {
+					subdirectory := NewDirectory(self.Scanner, absPath, self.Options)
+
+					if err := subdirectory.Scan(); err != nil {
+						return err
+					} else {
+						log.Debugf("ADD: directory %s", subdirectory.Path)
+						self.Directories = append(self.Directories, subdirectory)
+					}
+				}
+			} else {
+				// if we've specified a minimum file size, and this file is less than that,
+				// then skip it
+				if self.Options.FileMinimumSize > 0 && entry.Size() < int64(self.Options.FileMinimumSize) {
+					continue
+				}
+
+				// scan the file as a sharable asset
+				if file, err := self.scanFile(absPath); err == nil {
+					if file != nil {
+						self.Files = append(self.Files, file)
+					}
+				} else {
+					return err
+				}
+			}
+		}
+	} else {
+		return err
+	}
+
+	return nil
+}
+
+func (self *Directory) scanFile(name string) (*File, error) {
 	// file pattern matching
-	if self.FilePattern != `` {
-		if rx, err := regexp.Compile(self.FilePattern); err == nil {
+	if self.Options.FilePattern != `` {
+		if rx, err := regexp.Compile(self.Options.FilePattern); err == nil {
 			if !rx.MatchString(name) {
 				return nil, nil
 			}
@@ -91,69 +133,37 @@ func (self *Directory) ScanFile(name string, options *ScannerOptions) (*File, er
 		return nil, err
 	}
 
+	self.Files = append(self.Files, file)
+
 	log.Debugf("Got file %+v", file)
 
 	return file, nil
 }
 
-func (self *Directory) Scan(options *ScannerOptions) error {
-	if entries, err := ioutil.ReadDir(self.Name); err == nil {
-		for _, entry := range entries {
-			absPath := path.Join(self.Name, entry.Name())
+type Scanner struct {
+	Directories []*Directory
+}
 
-			// recursive directory handling
-			if entry.IsDir() {
-				if options.RecurseDirectories {
-					subdirectory := NewDirectory(self.Scanner, absPath, self.FilePattern)
+func NewScanner() *Scanner {
+	return &Scanner{
+		Directories: make([]*Directory, 0),
+	}
+}
 
-					if err := subdirectory.Scan(options); err != nil {
-						return err
-					} else {
-						log.Debugf("ADD: directory %s", subdirectory.Name)
-						self.Directories = append(self.Directories, subdirectory)
-					}
-				}
-			} else {
-				// if we've specified a minimum file size, and this file is less than that,
-				// then skip it
-				if options.FileMinimumSize > 0 && entry.Size() < int64(options.FileMinimumSize) {
-					continue
-				}
+func (self *Scanner) AddDirectory(path string, options ScanOptions) {
+	self.Directories = append(self.Directories, NewDirectory(self, path, options))
+}
 
-				// scan the file as a sharable asset
-				if file, err := self.ScanFile(absPath, options); err == nil {
-					if file != nil {
-						self.Files = append(self.Files, file)
-					}
-				} else {
-					return err
-				}
-			}
+func (self *Scanner) PersistRecord(id string, data map[string]interface{}) error {
+	return fmt.Errorf("PersistRecord: NI")
+}
+
+func (self *Scanner) Scan() error {
+	for _, directory := range self.Directories {
+		if err := directory.Scan(); err != nil {
+			return err
 		}
-	} else {
-		return err
 	}
 
 	return nil
-}
-
-type Scanner struct {
-	RootDirectory   *Directory
-	DirectoryPrefix string
-}
-
-func NewScanner(rootDirectory string, filePattern string) *Scanner {
-	scanner := &Scanner{}
-
-	scanner.RootDirectory = NewDirectory(scanner, rootDirectory, filePattern)
-
-	return scanner
-}
-
-func (self *Scanner) ScanFile(name string, options *ScannerOptions) (*File, error) {
-	return self.RootDirectory.ScanFile(name, options)
-}
-
-func (self *Scanner) Scan(options *ScannerOptions) error {
-	return self.RootDirectory.Scan(options)
 }

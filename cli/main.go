@@ -39,8 +39,8 @@ func main() {
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
 		log.Infof("Loading configuration from %s", c.String(`config`))
 
-		if c, err := byteflood.LoadConfig(c.String(`config`)); err == nil {
-			config = c
+		if cf, err := byteflood.LoadConfig(c.String(`config`)); err == nil {
+			config = cf
 		} else {
 			log.Fatal(err)
 		}
@@ -96,66 +96,21 @@ func main() {
 				// }(btPeer)
 			},
 		}, {
-			Name:      `scan`,
-			Usage:     `Scans all configured source directories for changes`,
-			ArgsUsage: `PATH [.. PATH]`,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  `pattern, p`,
-					Usage: `A Perl-compatible regular expression that filenames must match to be included in the scan`,
-				},
-				cli.IntFlag{
-					Name:  `min-size, M`,
-					Usage: `The minimum size a file can be to be considered for becoming a torrent`,
-				},
-			},
+			Name:  `scan`,
+			Usage: `Scans all configured source directories for changes`,
 			Action: func(c *cli.Context) {
-				applyFlagsToConfig(c, &config)
-				paths := c.Args()
+				s := scanner.NewScanner()
 
-				for _, path := range paths {
-					s := scanner.NewScanner(path, config.ScanPattern)
+				for _, directory := range config.Directories {
+					s.AddDirectory(directory.Path, directory.Options)
+				}
 
-					if config.DirectoryPrefix != `` {
-						s.DirectoryPrefix = config.DirectoryPrefix
-					} else {
-						if cwd, err := os.Getwd(); err == nil {
-							s.DirectoryPrefix = cwd
-						} else {
-							log.Fatal(err)
-						}
-					}
-
-					if err := s.Scan(config.ScanOptions); err != nil {
-						log.Errorf("Failed to scan path %q: %v", path, err)
-						continue
-					}
+				if err := s.Scan(); err != nil {
+					log.Fatalf("Failed to scan: %v", err)
 				}
 			},
 		},
 	}
 
 	app.Run(os.Args)
-}
-
-func applyFlagsToConfig(c *cli.Context, config *byteflood.Configuration) {
-	if v := c.String(`pattern`); v != `` {
-		config.ScanPattern = v
-	}
-
-	if config.ScanOptions == nil {
-		config.ScanOptions = scanner.DefaultScannerOptions()
-	}
-
-	if v := c.Int(`min-size`); v > 0 {
-		config.ScanOptions.FileMinimumSize = v
-	}
-
-	log.Infof("Options: %+v", config.ScanOptions)
-
-	if config.ScanPattern != `` {
-		log.Infof("Scan Pattern: '%s'", config.ScanPattern)
-	}
-
-	log.Infof("================================================================================")
 }
