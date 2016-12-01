@@ -1,9 +1,15 @@
 package scanner
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/byteflood/scanner/metadata"
+	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/pivot"
+	"github.com/ghetzel/pivot/backends"
+	"github.com/ghetzel/pivot/dal"
+	"github.com/jbenet/go-base58"
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"path"
@@ -13,20 +19,22 @@ import (
 
 var log = logging.MustGetLogger(`byteflood/scanner`)
 
+const FileFingerprintSize = 16777216
+
 type File struct {
 	Name     string
 	Metadata map[string]interface{}
 }
 
 type ScanOptions struct {
-	FilePattern        string `json:"patterns,omitempty"`
-	RecurseDirectories bool   `json:"recurse,omitempty"`
-	FileMinimumSize    int    `json:"file_min_size,omitempty"`
+	FilePattern          string `json:"patterns,omitempty"`
+	NoRecurseDirectories bool   `json:"no_recurse,omitempty"`
+	FileMinimumSize      int    `json:"file_min_size,omitempty"`
 }
 
 func DefaultScanOptions() ScanOptions {
 	return ScanOptions{
-		RecurseDirectories: true,
+		NoRecurseDirectories: false,
 	}
 }
 
@@ -42,33 +50,72 @@ func (self *File) LoadMetadata() error {
 		if data, err := loader.LoadMetadata(self.Name); err == nil {
 			self.Metadata[self.normalizeLoaderName(loader)] = data
 		} else {
-			return err
+			log.Warningf("Problem loading %T for file %q: %v", loader, self.Name, err)
 		}
 	}
 
 	return nil
 }
 
+func (self *File) String() string {
+	if data, err := json.MarshalIndent(self, ``, `  `); err == nil {
+		return string(data[:])
+	} else {
+		return err.Error()
+	}
+}
+
+func (self *File) ID() string {
+	return base58.Encode([]byte(self.Name[:]))
+}
+
+// func (self *File) getFingerprintData() ([]byte, error) {
+// 	rv := bytes.NewBuffer()
+
+// 	if file, err := os.Open(self.Name); err == nil {
+// 		fmt.Fprintf(rv, "%s:%d:", self.Name, self.Get(`file.size`, -1))
+
+// 		if _, err := io.CopyN(rv, file, FileFingerprintSize); err == nil {
+// 			return rv.Bytes(), nil
+// 		}else{
+// 			return nil, err
+// 		}
+// 	}else{
+// 		return nil, err
+// 	}
+// }
+
+func (self *File) Get(key string, fallback ...interface{}) interface{} {
+	if len(fallback) == 0 {
+		fallback = append(fallback, nil)
+	}
+
+	return maputil.DeepGet(self.Metadata, strings.Split(key, `.`), fallback[0])
+}
+
 func (self *File) normalizeLoaderName(loader metadata.Loader) string {
-	name := stringutil.Underscore(strings.Replace(fmt.Sprintf("%T", loader), `Loader`, ``, -1))
-	return name
+	name := fmt.Sprintf("%T", loader)
+	name = strings.TrimPrefix(name, `metadata.`)
+	name = strings.TrimSuffix(name, `Loader`)
+
+	return stringutil.Underscore(name)
 }
 
 type Directory struct {
-	Scanner     *Scanner
 	Path        string       `json:"path"`
 	Options     ScanOptions  `json:"options"`
 	Files       []*File      `json:"-"`
 	Directories []*Directory `json:"-"`
+	scanner     *Scanner
 }
 
 func NewDirectory(scanner *Scanner, path string, options ScanOptions) *Directory {
 	return &Directory{
-		Scanner:     scanner,
 		Path:        path,
 		Options:     options,
 		Files:       make([]*File, 0),
 		Directories: make([]*Directory, 0),
+		scanner:     scanner,
 	}
 }
 
@@ -79,8 +126,8 @@ func (self *Directory) Scan() error {
 
 			// recursive directory handling
 			if entry.IsDir() {
-				if self.Options.RecurseDirectories {
-					subdirectory := NewDirectory(self.Scanner, absPath, self.Options)
+				if !self.Options.NoRecurseDirectories {
+					subdirectory := NewDirectory(self.scanner, absPath, self.Options)
 
 					if err := subdirectory.Scan(); err != nil {
 						return err
@@ -133,29 +180,48 @@ func (self *Directory) scanFile(name string) (*File, error) {
 		return nil, err
 	}
 
-	self.Files = append(self.Files, file)
-
-	log.Debugf("Got file %+v", file)
+	if self.scanner != nil {
+		if err := self.scanner.PersistRecord(`metadata`, file.ID(), file.Metadata); err != nil {
+			return nil, err
+		}
+	}
 
 	return file, nil
 }
 
 type Scanner struct {
 	Directories []*Directory
+	DatabaseURI string
+	db          backends.Backend
 }
 
 func NewScanner() *Scanner {
 	return &Scanner{
 		Directories: make([]*Directory, 0),
+		DatabaseURI: `boltdb:///~/.local/share/byteflood/db`,
 	}
+}
+
+func (self *Scanner) Initialize() error {
+	if db, err := pivot.NewDatabase(self.DatabaseURI); err == nil {
+		self.db = db
+	} else {
+		return err
+	}
+
+	return nil
 }
 
 func (self *Scanner) AddDirectory(path string, options ScanOptions) {
 	self.Directories = append(self.Directories, NewDirectory(self, path, options))
 }
 
-func (self *Scanner) PersistRecord(id string, data map[string]interface{}) error {
-	return fmt.Errorf("PersistRecord: NI")
+func (self *Scanner) PersistRecord(collection string, id string, data map[string]interface{}) error {
+	log.Debugf("Writing %s/%s", collection, id)
+
+	return self.db.InsertRecords(collection, dal.NewRecordSet(
+		dal.NewRecord(id).SetFields(data),
+	))
 }
 
 func (self *Scanner) Scan() error {

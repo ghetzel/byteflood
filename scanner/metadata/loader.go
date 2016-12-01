@@ -8,6 +8,7 @@ type Loader interface {
 func GetLoaders() []Loader {
 	return []Loader{
 		FileLoader{},
+		MediaLoader{},
 		AudioLoader{},
 		VideoLoader{},
 		ImageLoader{},

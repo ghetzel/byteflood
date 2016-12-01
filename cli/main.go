@@ -101,12 +101,16 @@ func main() {
 			Action: func(c *cli.Context) {
 				s := scanner.NewScanner()
 
-				for _, directory := range config.Directories {
-					s.AddDirectory(directory.Path, directory.Options)
-				}
+				if err := s.Initialize(); err == nil {
+					for _, directory := range config.Directories {
+						s.AddDirectory(directory.Path, directory.Options)
+					}
 
-				if err := s.Scan(); err != nil {
-					log.Fatalf("Failed to scan: %v", err)
+					if err := s.Scan(); err != nil {
+						log.Fatalf("Failed to scan: %v", err)
+					}
+				} else {
+					log.Fatal(err)
 				}
 			},
 		},

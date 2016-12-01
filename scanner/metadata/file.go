@@ -26,7 +26,7 @@ func (self FileLoader) LoadMetadata(name string) (map[string]interface{}, error)
 		if fullPath, err := filepath.Abs(name); err == nil {
 			mode := stat.Mode()
 			perms := map[string]interface{}{
-				`mode`:    mode,
+				`mode`:    mode.Perm(),
 				`regular`: mode.IsRegular(),
 			}
 
@@ -37,6 +37,7 @@ func (self FileLoader) LoadMetadata(name string) (map[string]interface{}, error)
 			}
 
 			return map[string]interface{}{
+				`name`:        stat.Name(),
 				`path`:        fullPath,
 				`size`:        stat.Size(),
 				`permissions`: perms,
