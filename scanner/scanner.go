@@ -11,7 +11,9 @@ import (
 	"github.com/ghetzel/pivot/dal"
 	"github.com/jbenet/go-base58"
 	"github.com/op/go-logging"
+	"github.com/spaolacci/murmur3"
 	"io/ioutil"
+	"math/big"
 	"path"
 	"regexp"
 	"strings"
@@ -66,7 +68,9 @@ func (self *File) String() string {
 }
 
 func (self *File) ID() string {
-	return base58.Encode([]byte(self.Name[:]))
+	uid := path.Clean(self.Name)
+	hash64 := murmur3.Sum64([]byte(uid[:]))
+	return base58.Encode(big.NewInt(int64(hash64)).Bytes())
 }
 
 // func (self *File) getFingerprintData() ([]byte, error) {
@@ -219,7 +223,7 @@ func (self *Scanner) AddDirectory(path string, options ScanOptions) {
 func (self *Scanner) PersistRecord(collection string, id string, data map[string]interface{}) error {
 	log.Debugf("Writing %s/%s", collection, id)
 
-	return self.db.InsertRecords(collection, dal.NewRecordSet(
+	return self.db.Insert(collection, dal.NewRecordSet(
 		dal.NewRecord(id).SetFields(data),
 	))
 }
