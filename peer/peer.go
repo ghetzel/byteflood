@@ -1,21 +1,18 @@
 package peer
 
 import (
+	"fmt"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/hashicorp/yamux"
 	"github.com/op/go-logging"
-	"github.com/syncthing/syncthing/lib/nat"
-	"github.com/syncthing/syncthing/lib/upnp"
+	"github.com/satori/go.uuid"
+	"io"
 	"net"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 )
 
 const (
-	DEFAULT_STATS_INTERVAL         = (3 * time.Second)
-	DEFAULT_IMPORT_INTERVAL        = (30 * time.Second)
 	DEFAULT_UPNP_DISCOVERY_TIMEOUT = (30 * time.Second)
 	DEFAULT_UPNP_MAPPING_DURATION  = (8760 * time.Hour)
 	BF_UPNP_SERVICE_NAME           = `byteflood`
@@ -27,21 +24,24 @@ var logproxy = util.NewLogProxy(`byteflood.client`, `info`)
 type Peer struct {
 	EnableUpnp           bool
 	Address              string
-	RootDirectory        string
-	StatsFile            string
-	StatsInterval        time.Duration
-	ImportInterval       time.Duration
+	Port                 int
 	UpnpMappingDuration  time.Duration
 	UpnpDiscoveryTimeout time.Duration
-	defaultGateway       *upnp.IGD
-	upnpTcpPort          int
-	upnpUdpPort          int
+	id                   uuid.UUID
+	defaultGateway       *IGD
+	sessions             map[uuid.UUID]*yamux.Session
 }
 
-func CreatePeer(rootDir string, listenAddr string) (*Peer, error) {
-	if listenAddr == `` {
+func CreatePeer(id string, addr string, port int) (*Peer, error) {
+	if port == 0 {
 		if randomSocket, err := net.Listen(`tcp6`, `:0`); err == nil {
-			listenAddr = randomSocket.Addr().String()
+			_, p, _ := net.SplitHostPort(randomSocket.Addr().String())
+
+			if v, err := stringutil.ConvertToInteger(p); err == nil {
+				port = int(v)
+			} else {
+				return nil, err
+			}
 
 			if err := randomSocket.Close(); err != nil {
 				return nil, err
@@ -51,75 +51,103 @@ func CreatePeer(rootDir string, listenAddr string) (*Peer, error) {
 		}
 	}
 
+	var localID uuid.UUID
+
+	if id == `` {
+		localID = uuid.NewV4()
+	} else {
+		if i, err := uuid.FromString(id); err == nil {
+			localID = i
+		} else {
+			return nil, err
+		}
+	}
+
 	return &Peer{
-		Address:              listenAddr,
-		RootDirectory:        rootDir,
+		Address:              addr,
+		Port:                 port,
 		EnableUpnp:           true,
-		StatsInterval:        DEFAULT_STATS_INTERVAL,
-		ImportInterval:       DEFAULT_IMPORT_INTERVAL,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
+		id:                   localID,
+		sessions:             make(map[uuid.UUID]*yamux.Session),
 	}, nil
 }
 
-func (self *Peer) ImportDirectory(name string) error {
-	return filepath.Walk(name, func(entryPath string, info os.FileInfo, err error) error {
-		// if we want to make this file available...
-		// 		load file metadata
-		//
-		return nil
-	})
-}
-
-func (self *Peer) Run() error {
+func (self *Peer) Listen() error {
 	if self.EnableUpnp {
-		parts := strings.Split(self.Address, `:`)
+		if self.Port > 0 {
+			log.Infof("Setting up UPnP port mapping...")
 
-		if len(parts) > 0 {
-			if v, err := stringutil.ConvertToInteger(parts[len(parts)-1]); err == nil {
+			if devices, err := DiscoverGateways(self.UpnpDiscoveryTimeout); err == nil {
 				// search for Internet Gateway Devices, and talk to the first one
 				// (this is the 99% case for home gamers)
 				//
-				for _, device := range upnp.Discover(0, self.UpnpDiscoveryTimeout) {
-
+				for _, device := range devices {
 					// add TCP port mapping
-					if port, err := device.AddPortMapping(nat.TCP,
-						int(v), int(v), BF_UPNP_SERVICE_NAME, self.UpnpMappingDuration); err == nil {
-						self.upnpTcpPort = port
-						log.Infof("Added UPnP port mapping for tcp:%d", port)
+					if err := device.AddPortMapping(`tcp`,
+						self.Port, self.Port, BF_UPNP_SERVICE_NAME, self.UpnpMappingDuration); err == nil {
 					} else {
-						log.Errorf("Failed to add UPnP port mapping for tcp:%d", port)
-					}
-
-					// add UDP port mapping
-					if port, err := device.AddPortMapping(nat.UDP,
-						int(v), int(v), BF_UPNP_SERVICE_NAME, self.UpnpMappingDuration); err == nil {
-						self.upnpUdpPort = port
-						log.Infof("Added UPnP port mapping for udp:%d", port)
-					} else {
-						log.Errorf("Failed to add UPnP port mapping for udp:%d", port)
+						log.Errorf("Failed to add UPnP port mapping for %d/tcp", self.Port)
 					}
 
 					// and we shall call this gateway our default gateway
-					self.defaultGateway = device.(*upnp.IGD)
+					self.defaultGateway = device
 					break
 				}
 			} else {
 				return err
 			}
-
-			log.Infof("Listening on %s:%d/tcp", parts[0], self.upnpTcpPort)
-			log.Infof("Listening on %s:%d/udp", parts[0], self.upnpUdpPort)
 		}
 	}
 
-	errchan := make(chan error)
+	if listener, err := net.Listen(`tcp`, fmt.Sprintf("%s:%d", self.Address, self.Port)); err == nil {
+		log.Infof("Listening on %s:%d", self.Address, self.Port)
 
-	go self.startPeriodicImport()
+		for {
+			if conn, err := listener.Accept(); err == nil {
+				log.Debugf("Got connection request from %s", conn.RemoteAddr().String())
 
-	select {
-	case err := <-errchan:
+				id := make([]byte, 16, 16)
+				conn.SetDeadline(time.Now().Add(10 * time.Second))
+
+				// read 16 bytes from client, which should be their UUID
+				if n, err := conn.Read(id); err == nil && n <= 16 {
+					if clientID, err := uuid.FromBytes(id); err == nil {
+						if err := self.CreateSession(clientID, conn); err == nil {
+							log.Infof("Session created for peer %s", clientID.String())
+						} else {
+							log.Errorf("Connection error: failed to create session - %v", err)
+						}
+					} else {
+						log.Errorf("Connection error: invalid preamble - %v", err)
+					}
+				} else {
+					log.Errorf("Connection error: incomplete preamble - %v", err)
+				}
+			} else {
+				log.Errorf("Connection error: %v", err)
+			}
+		}
+	} else {
 		return err
+	}
+
+	return nil
+}
+
+func (self *Peer) CreateSession(id uuid.UUID, conn io.ReadWriteCloser) error {
+	if _, ok := self.sessions[id]; !ok {
+		if session, err := yamux.Server(conn, &yamux.Config{
+			AcceptBacklog:          16,
+			EnableKeepAlive:        true,
+			KeepAliveInterval:      (10 * time.Second),
+			ConnectionWriteTimeout: (500 * time.Millisecond),
+		}); err == nil {
+			self.sessions[id] = session
+		} else {
+			return err
+		}
 	}
 
 	return nil
@@ -129,16 +157,9 @@ func (self *Peer) Close() chan bool {
 	done := make(chan bool)
 
 	go func() {
-		if self.upnpTcpPort > 0 {
-			log.Infof("Releasing UPnP port %d/tcp", self.upnpTcpPort)
-			if err := self.defaultGateway.DeletePortMapping(nat.TCP, self.upnpTcpPort); err != nil {
-				log.Errorf("Failed to release port: %v", err)
-			}
-		}
-
-		if self.upnpUdpPort > 0 {
-			log.Infof("Releasing UPnP port %d/udp", self.upnpUdpPort)
-			if err := self.defaultGateway.DeletePortMapping(nat.UDP, self.upnpUdpPort); err != nil {
+		if self.EnableUpnp && self.Port > 0 && self.defaultGateway != nil {
+			log.Infof("Releasing UPnP port %d/tcp", self.Port)
+			if err := self.defaultGateway.DeletePortMapping(`tcp`, self.Port); err != nil {
 				log.Errorf("Failed to release port: %v", err)
 			}
 		}
@@ -147,18 +168,4 @@ func (self *Peer) Close() chan bool {
 	}()
 
 	return done
-}
-
-func (self *Peer) startPeriodicImport() {
-	if self.ImportInterval > 0 {
-		log.Debugf("Rechecking %s for new files every %s",
-			self.RootDirectory, self.ImportInterval)
-
-		for {
-			select {
-			case <-time.After(self.ImportInterval):
-				self.ImportDirectory(self.RootDirectory)
-			}
-		}
-	}
 }

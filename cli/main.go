@@ -1,13 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"github.com/ghetzel/byteflood"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/scanner"
 	"github.com/ghetzel/cli"
 	"github.com/op/go-logging"
 	"os"
+	"os/signal"
 )
 
 var log = logging.MustGetLogger(`main`)
@@ -51,49 +51,39 @@ func main() {
 	app.Commands = []cli.Command{
 		{
 			Name:      `run`,
-			Usage:     `Starts a file transfer peer that will retrieve data from and send data to known peers.`,
+			Usage:     `Start a file transfer peer using the given configuration`,
 			ArgsUsage: `PATH`,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  `address, a`,
 					Usage: `The address the client should listen on`,
+					Value: `0.0.0.0`,
 				},
 				cli.IntFlag{
 					Name:  `port, p`,
 					Usage: `The port the client should listen on`,
 				},
-				cli.StringFlag{
-					Name:  `stats-file, S`,
-					Usage: `The name of a file to periodically log client stats information to`,
-				},
-				cli.DurationFlag{
-					Name:  `import-interval, I`,
-					Usage: `How often the directory should be rechecked for new torrents to seed`,
-					Value: peer.DEFAULT_IMPORT_INTERVAL,
-				},
 			},
 			Action: func(c *cli.Context) {
-				if c.NArg() == 0 {
-					log.Fatalf("Must specify a directory to seed.")
+				if localPeer, err := peer.CreatePeer(``, c.String(`address`), c.Int(`port`)); err == nil {
+					signalChan := make(chan os.Signal, 1)
+					signal.Notify(signalChan, os.Interrupt)
+
+					go func(p *peer.Peer) {
+						for _ = range signalChan {
+							<-p.Close()
+							break
+						}
+
+						os.Exit(0)
+					}(localPeer)
+
+					if err := localPeer.Listen(); err != nil {
+						log.Fatal(err)
+					}
+				} else {
+					log.Fatal(err)
 				}
-
-				listenAddr := c.String(`address`)
-
-				if port := c.Int(`port`); port != 0 {
-					listenAddr = fmt.Sprintf("%s:%d", listenAddr, port)
-				}
-
-				// signalChan := make(chan os.Signal, 1)
-				// signal.Notify(signalChan, os.Interrupt)
-
-				// go func(p *peer.Peer) {
-				// 	for _ = range signalChan {
-				// 		<-p.Close()
-				// 		break
-				// 	}
-
-				// 	os.Exit(0)
-				// }(btPeer)
 			},
 		}, {
 			Name:  `scan`,
