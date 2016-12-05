@@ -19,3 +19,7 @@ func (self *RemotePeer) String() string {
 func (self *RemotePeer) ID() []byte {
 	return self.id.Bytes()
 }
+
+func (self *RemotePeer) GetPublicKey() []byte {
+	return nil
+}

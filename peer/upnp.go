@@ -81,6 +81,10 @@ func DiscoverGateways(timeout time.Duration) ([]*IGD, error) {
 			lastError = err
 		}
 
+		for _, device := range igdDevices {
+			log.Debugf("Found gateway device: %s", device.GetServiceClient().RootDevice.URLBase.Host)
+		}
+
 		discochan <- igdDiscoveryResponse{
 			Devices: igdDevices,
 			Error:   lastError,

@@ -7,10 +7,8 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/op/go-logging"
 	"github.com/satori/go.uuid"
-	"github.com/vmihailenco/msgpack"
 	"io"
 	"net"
-	"bytes"
 	"time"
 )
 
@@ -22,34 +20,10 @@ const (
 
 var log = logging.MustGetLogger(`byteflood.client`)
 var logproxy = util.NewLogProxy(`byteflood.client`, `info`)
-var PeeringRequestMaxInitialRead = 32768
-
-type PeeringRequest struct {
-	ID        []byte
-	PublicKey []byte
-}
-
-func (self *PeeringRequest) WriteTo(w io.Writer) (int, error) {
-	if data, err := msgpack.Marshal(peeringRequest); err == nil {
-		return w.Write(data)
-	}else{
-		return -1, err
-	}
-}
-
-func ParsePeeringRequest(r io.Reader) (*PeeringRequest, error) {
-    peeringRequest := PeeringRequest{}
-
-    if err := msgpack.NewDecoder(r).Decode(&peeringRequest); err == nil {
-        return peeringRequest, nil
-    }else{
-        return nil, err
-    }
-}
 
 type Peer interface {
 	ID() []byte
-	GetPeeringRequest() PeeringRequest
+	GetPublicKey() []byte
 }
 
 type LocalPeer struct {
@@ -110,6 +84,10 @@ func (self *LocalPeer) ID() []byte {
 	return self.id.Bytes()
 }
 
+func (self *LocalPeer) GetPublicKey() []byte {
+	return nil
+}
+
 func (self *LocalPeer) Listen() error {
 	if self.EnableUpnp && self.Port > 0 {
 		log.Infof("Setting up UPnP port mapping...")
@@ -133,7 +111,11 @@ func (self *LocalPeer) Listen() error {
 			}
 
 			if self.upnpPortMapping == nil {
-				return fmt.Errorf("Failed to map port %d/tcp via any discovered gateway", self.Port)
+				if len(devices) == 0 {
+					return fmt.Errorf("Failed to map port %d/tcp: no UPnP gateways discovered", self.Port)
+				} else {
+					return fmt.Errorf("Failed to map port %d/tcp via any discovered gateway", self.Port)
+				}
 			}
 		} else {
 			return err
@@ -150,27 +132,8 @@ func (self *LocalPeer) Listen() error {
 
 				// verify that we want to proceed with this connection...
 				if self.PermitConnectionFrom(conn) {
-					payload := make([]byte, 0, PeeringRequestMaxInitialRead)
-					conn.SetDeadline(time.Now().Add(10 * time.Second))
-
-					// read up to PeeringRequestMaxInitialRead bytes and attempt to decode this as a peering request
-					if n, err := conn.Read(payload); err == nil && n <= PeeringRequestMaxInitialRead {
-						buffer := bytes.NewBuffer(payload)
-
-						if peeringRequest, err := ParsePeeringRequest(buffer); err == nil {
-							if remotePeer, err := self.CreateSession(conn, &peeringRequest); err == nil {
-								log.Infof("Session created for peer %s", remotePeer.String())
-
-								// this skips the fallback close
-								continue
-							} else {
-								log.Errorf("Connection error: failed to create session - %v", err)
-							}
-						} else {
-							log.Errorf("Connection error: corrupt join request - %v", err)
-						}
-					} else {
-						log.Errorf("Connection error: incomplete preamble - %v", err)
+					if _, err := self.RegisterPeer(conn, true); err != nil {
+						log.Errorf("Connection from %s failed: %v", conn.RemoteAddr().String(), err)
 					}
 				} else {
 					log.Warningf("Connection from %s is prohibited", conn.RemoteAddr().String())
@@ -224,6 +187,10 @@ func (self *LocalPeer) CreateSession(conn io.ReadWriteCloser, peeringRequest *Pe
 	}
 }
 
+func (self *LocalPeer) RegisterPeer(conn net.Conn, remoteInitiated bool) (*RemotePeer, error) {
+	return nil, fmt.Errorf("Not Implemented")
+}
+
 func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {
 	var returnErr error
 
@@ -234,26 +201,23 @@ func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {
 
 		// write the request to the peer we're connecting to (who is expecting it)
 		if _, err := peeringRequest.WriteTo(conn); err == nil {
-			// read acknowledgement from peer
-			if ackRequest, err := ParsePeeringRequest(conn); err == nil {
-				// register the remote peer
-				if remotePeer, err := self.CreateSession(conn, ackRequest); err == nil {
-					log.Infof("Connected to peer %s", remotePeer.String())
-				}else{
-					returnErr = err
-				}
+			if remotePeer, err := self.RegisterPeer(conn, false); err == nil {
+				return remotePeer, nil
 			} else {
 				returnErr = err
 			}
-		}else{
+		} else {
 			returnErr = err
 		}
-	} else {
-		returnErr = err
-	}
 
-	defer conn.Close()
-	return returnErr
+		if err := conn.Close(); err != nil {
+			log.Errorf("Failed to close connection %s: %v", conn.RemoteAddr().String(), err)
+		}
+
+		return nil, returnErr
+	} else {
+		return nil, err
+	}
 }
 
 func (self *LocalPeer) Close() chan bool {
