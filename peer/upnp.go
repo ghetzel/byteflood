@@ -23,8 +23,32 @@ type igdDiscoveryResponse struct {
 }
 
 type IGD struct {
-	client          igdClient
-	ExternalAddress string
+	client igdClient
+}
+
+type PortMapping struct {
+	ExternalPort    int
+	InternalAddress string
+	InternalPort    int
+	Protocol        string
+	Description     string
+	LeaseDuration   time.Duration
+	IGD             *IGD
+}
+
+func (self *PortMapping) Delete() error {
+	if err := self.IGD.DeletePortMapping(self); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (self *PortMapping) String() string {
+	return fmt.Sprintf("%s:%d/%s",
+		self.InternalAddress,
+		self.InternalPort,
+		strings.ToLower(self.Protocol))
 }
 
 func DiscoverGateways(timeout time.Duration) ([]*IGD, error) {
@@ -35,9 +59,9 @@ func DiscoverGateways(timeout time.Duration) ([]*IGD, error) {
 		igdDevices := make([]igdClient, 0)
 		var lastError error
 
-		// IGD1 discovery
-		if ig1, _, err := internetgateway1.NewWANIPConnection1Clients(); err == nil {
-			for _, ig := range ig1 {
+		// IGD2 discovery
+		if ig2, _, err := internetgateway2.NewWANIPConnection1Clients(); err == nil {
+			for _, ig := range ig2 {
 				var i igdClient
 				i = ig
 				igdDevices = append(igdDevices, i)
@@ -46,9 +70,9 @@ func DiscoverGateways(timeout time.Duration) ([]*IGD, error) {
 			lastError = err
 		}
 
-		// IGD2 discovery
-		if ig2, _, err := internetgateway2.NewWANIPConnection1Clients(); err == nil {
-			for _, ig := range ig2 {
+		// IGD1 discovery
+		if ig1, _, err := internetgateway1.NewWANIPConnection1Clients(); err == nil {
+			for _, ig := range ig1 {
 				var i igdClient
 				i = ig
 				igdDevices = append(igdDevices, i)
@@ -68,14 +92,9 @@ func DiscoverGateways(timeout time.Duration) ([]*IGD, error) {
 	case discovery := <-discochan:
 		if discovery.Error == nil {
 			for _, igdDevice := range discovery.Devices {
-				if externalAddr, err := igdDevice.GetExternalIPAddress(); err == nil {
-					devices = append(devices, &IGD{
-						ExternalAddress: externalAddr,
-						client:          igdDevice,
-					})
-				} else {
-					log.Warningf("Failed to get external address for device %s: %v", igdDevice.GetServiceClient().Location, err)
-				}
+				devices = append(devices, &IGD{
+					client: igdDevice,
+				})
 			}
 		} else {
 			return nil, discovery.Error
@@ -87,43 +106,44 @@ func DiscoverGateways(timeout time.Duration) ([]*IGD, error) {
 	return devices, nil
 }
 
-func (self *IGD) AddPortMapping(protocol string, internalPort int, externalPort int, description string, leaseDuration time.Duration) error {
-	protocol = strings.ToUpper(protocol)
-
-	if self.ExternalAddress == `` {
-		return fmt.Errorf("Cannot add port mapping to IGD: external address not found")
-	}
-
-	if localAddr, err := self.getInternalIP(); err == nil {
-		log.Debugf("Adding port mapping: %s:%d/%s -> %s:%d/%s",
-			self.ExternalAddress, externalPort, protocol,
-			localAddr, internalPort, protocol)
-
-		return self.client.AddPortMapping(
-			self.ExternalAddress,
+func (self *IGD) AddPortMapping(protocol string, internalPort int, externalPort int, description string, leaseDuration time.Duration) (*PortMapping, error) {
+	if localAddr, err := self.GetLocalIP(); err == nil {
+		if err := self.client.AddPortMapping(
+			``,
 			uint16(externalPort),
 			protocol,
 			uint16(internalPort),
 			localAddr,
 			true,
 			description,
-			uint32(leaseDuration/time.Second))
+			uint32(leaseDuration/time.Second)); err == nil {
+
+			return &PortMapping{
+				IGD:             self,
+				ExternalPort:    externalPort,
+				InternalAddress: localAddr,
+				InternalPort:    internalPort,
+				Protocol:        protocol,
+				Description:     description,
+				LeaseDuration:   leaseDuration,
+			}, nil
+		} else {
+			return nil, err
+		}
 	} else {
-		return err
+		return nil, err
 	}
 }
 
-func (self *IGD) DeletePortMapping(protocol string, port int) error {
-	protocol = strings.ToUpper(protocol)
-
-	if self.ExternalAddress == `` {
-		return fmt.Errorf("Cannot add port mapping to IGD: external address not found")
+func (self *IGD) DeletePortMapping(mapping *PortMapping) error {
+	if mapping != nil && mapping.IGD != nil {
+		return self.client.DeletePortMapping(``, uint16(mapping.ExternalPort), mapping.Protocol)
+	} else {
+		return fmt.Errorf("invalid mapping")
 	}
-
-	return self.client.DeletePortMapping(self.ExternalAddress, uint16(port), protocol)
 }
 
-func (self *IGD) getInternalIP() (string, error) {
+func (self *IGD) GetLocalIP() (string, error) {
 	host, _, _ := net.SplitHostPort(self.client.GetServiceClient().RootDevice.URLBase.Host)
 	devIP := net.ParseIP(host)
 
@@ -148,4 +168,8 @@ func (self *IGD) getInternalIP() (string, error) {
 	} else {
 		return ``, err
 	}
+}
+
+func (self *IGD) GetExternalIP() (string, error) {
+	return self.client.GetExternalIPAddress()
 }

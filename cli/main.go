@@ -69,7 +69,7 @@ func main() {
 					signalChan := make(chan os.Signal, 1)
 					signal.Notify(signalChan, os.Interrupt)
 
-					go func(p *peer.Peer) {
+					go func(p *peer.LocalPeer) {
 						for _ = range signalChan {
 							<-p.Close()
 							break

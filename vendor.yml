@@ -41,15 +41,21 @@ vendors:
   rev: 0abe01ef9be25c4aedc174758ec2d917314d6d70
 - path: github.com/urfave/negroni
   rev: cd9734011043904139c24dbad9a71b21f1586f36
+- path: github.com/vmihailenco/msgpack
+  rev: 94af6ea04d2da6a09d6914ca79b8fb94f3acbba4
 - path: golang.org/x/net
   rev: 6cdc0daab091c43fc46193327e0047b4f883c613
 - path: golang.org/x/sys
   rev: ca83bd2cb9abb47839b50eb4da612f00158f5870
 - path: golang.org/x/text
   rev: 5c6cf4f9a2357d38515014cea8c488ed22bdab90
+- path: google.golang.org/appengine
+  rev: ca59ef35f409df61fa4a5f8290ff289b37eccfb8
 - path: gopkg.in/check.v1
   rev: aa8c43564278bc4c58e8ca51bfc5f1c149925cf0
 - path: gopkg.in/mgo.v2
   rev: 3f83fa5005286a7fe593b055f0d7771a7dce4655
+- path: gopkg.in/vmihailenco/msgpack.v2
+  rev: 94af6ea04d2da6a09d6914ca79b8fb94f3acbba4
 - path: gopkg.in/yaml.v2
   rev: a5b47d31c556af34a302ce5d659e6fea44d90de0
