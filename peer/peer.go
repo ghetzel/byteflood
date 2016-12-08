@@ -1,18 +1,23 @@
 package peer
 
 import (
+	"crypto/rand"
+	"encoding/pem"
 	"fmt"
 	"github.com/ghetzel/byteflood/util"
+	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
-	"github.com/hashicorp/yamux"
 	"github.com/op/go-logging"
 	"github.com/satori/go.uuid"
-	"io"
+	"golang.org/x/crypto/nacl/box"
+	"io/ioutil"
 	"net"
+	"os"
 	"time"
 )
 
 const (
+	DEFAULT_PEER_SERVER_PORT       = 0
 	DEFAULT_UPNP_DISCOVERY_TIMEOUT = (30 * time.Second)
 	DEFAULT_UPNP_MAPPING_DURATION  = (8760 * time.Hour)
 	BF_UPNP_SERVICE_NAME           = `byteflood`
@@ -23,6 +28,7 @@ var logproxy = util.NewLogProxy(`byteflood.client`, `info`)
 
 type Peer interface {
 	ID() []byte
+	UUID() uuid.UUID
 	GetPublicKey() []byte
 }
 
@@ -36,27 +42,115 @@ type LocalPeer struct {
 	id                   uuid.UUID
 	upnpPortMapping      *PortMapping
 	sessions             map[uuid.UUID]*RemotePeer
+	publicKey            []byte
+	privateKey           []byte
 }
 
-func CreatePeer(id string, addr string, port int) (*LocalPeer, error) {
-	if port == 0 {
-		if randomSocket, err := net.Listen(`tcp6`, `:0`); err == nil {
-			_, p, _ := net.SplitHostPort(randomSocket.Addr().String())
+func LoadKeyfiles(publicKeyPath string, privateKeyPath string) ([]byte, []byte, error) {
+	var publicKey []byte
+	var privateKey []byte
 
-			if v, err := stringutil.ConvertToInteger(p); err == nil {
-				port = int(v)
+	if path, err := pathutil.ExpandUser(publicKeyPath); err == nil {
+		if data, err := pemDecodeFileName(path); err == nil {
+			log.Infof("Loaded public key at %s", path)
+			publicKey = data
+		} else {
+			return nil, nil, err
+		}
+	} else {
+		return nil, nil, err
+	}
+
+	if path, err := pathutil.ExpandUser(privateKeyPath); err == nil {
+		if data, err := pemDecodeFileName(path); err == nil {
+			log.Infof("Loaded private key at %s", path)
+			privateKey = data
+		} else {
+			return nil, nil, err
+		}
+	} else {
+		return nil, nil, err
+	}
+
+	return publicKey, privateKey, nil
+}
+
+func pemDecodeFileName(filename string) ([]byte, error) {
+	if file, err := os.Open(filename); err == nil {
+		if data, err := ioutil.ReadAll(file); err == nil {
+			if block, _ := pem.Decode(data); block != nil {
+				return block.Bytes, nil
 			} else {
-				return nil, err
-			}
-
-			if err := randomSocket.Close(); err != nil {
 				return nil, err
 			}
 		} else {
 			return nil, err
 		}
+	} else {
+		return nil, err
 	}
+}
 
+func GenerateKeypair(publicKeyPath string, privateKeyPath string) error {
+	if publicKeyFile, err := os.OpenFile(
+		publicKeyPath,
+		(os.O_WRONLY | os.O_CREATE | os.O_EXCL),
+		0644,
+	); err == nil {
+		if privateKeyFile, err := os.OpenFile(
+			privateKeyPath,
+			(os.O_WRONLY | os.O_CREATE | os.O_EXCL),
+			0600,
+		); err == nil {
+			var genError error
+
+			// actually generate keys
+			if publicKey, privateKey, err := box.GenerateKey(rand.Reader); err == nil {
+				headers := map[string]string{
+					`Cryptosystem`:   `NaCl cryptobox-compatible`,
+					`Encryption`:     `XSalsa20 stream cipher`,
+					`KeyExchange`:    `Diffie-Hellman ECDH (Curve25519)`,
+					`Authentication`: `Poly1305 MAC`,
+				}
+
+				// encode and write public key
+				if err := pem.Encode(publicKeyFile, &pem.Block{
+					Type:    `NACL CRYPTOBOX PUBLIC KEY`,
+					Headers: headers,
+					Bytes:   []byte(publicKey[:]),
+				}); err == nil {
+					// encode and write private key
+					if err := pem.Encode(privateKeyFile, &pem.Block{
+						Type:    `NACL CRYPTOBOX PRIVATE KEY`,
+						Headers: headers,
+						Bytes:   []byte(privateKey[:]),
+					}); err != nil {
+						genError = err
+					}
+				} else {
+					genError = err
+				}
+			} else {
+				genError = err
+			}
+
+			// an error occurred during key generation, remove the files
+			if genError != nil {
+				defer os.Remove(privateKeyFile.Name())
+				defer os.Remove(publicKeyFile.Name())
+			}
+
+			return genError
+		} else {
+			defer os.Remove(publicKeyFile.Name())
+			return err
+		}
+	} else {
+		return err
+	}
+}
+
+func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, error) {
 	var localID uuid.UUID
 
 	if id == `` {
@@ -69,14 +163,17 @@ func CreatePeer(id string, addr string, port int) (*LocalPeer, error) {
 		}
 	}
 
+	log.Infof("Local Peer ID: %s", localID.String())
+
 	return &LocalPeer{
-		Address:              addr,
-		Port:                 port,
-		EnableUpnp:           true,
+		Port:                 DEFAULT_PEER_SERVER_PORT,
+		EnableUpnp:           false,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
 		id:                   localID,
 		sessions:             make(map[uuid.UUID]*RemotePeer),
+		publicKey:            publicKey,
+		privateKey:           privateKey,
 	}, nil
 }
 
@@ -84,11 +181,33 @@ func (self *LocalPeer) ID() []byte {
 	return self.id.Bytes()
 }
 
+func (self *LocalPeer) UUID() uuid.UUID {
+	return self.id
+}
+
 func (self *LocalPeer) GetPublicKey() []byte {
-	return nil
+	return self.publicKey
 }
 
 func (self *LocalPeer) Listen() error {
+	if self.Port == 0 {
+		if randomSocket, err := net.Listen(`tcp6`, `:0`); err == nil {
+			_, p, _ := net.SplitHostPort(randomSocket.Addr().String())
+
+			if v, err := stringutil.ConvertToInteger(p); err == nil {
+				self.Port = int(v)
+			} else {
+				return err
+			}
+
+			if err := randomSocket.Close(); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
 	if self.EnableUpnp && self.Port > 0 {
 		log.Infof("Setting up UPnP port mapping...")
 
@@ -132,7 +251,10 @@ func (self *LocalPeer) Listen() error {
 
 				// verify that we want to proceed with this connection...
 				if self.PermitConnectionFrom(conn) {
-					if _, err := self.RegisterPeer(conn, true); err != nil {
+					if remotePeer, err := self.RegisterPeer(conn, true); err == nil {
+						go remotePeer.Start(self)
+						continue
+					} else {
 						log.Errorf("Connection from %s failed: %v", conn.RemoteAddr().String(), err)
 					}
 				} else {
@@ -140,6 +262,8 @@ func (self *LocalPeer) Listen() error {
 				}
 
 				// successful connections will skip this, everything else will close
+				log.Errorf("Closing connection to %s", conn.RemoteAddr().String())
+
 				if err := conn.Close(); err != nil {
 					log.Errorf("Failed to close connection %s: %v", conn.RemoteAddr().String(), err)
 				}
@@ -158,37 +282,82 @@ func (self *LocalPeer) PermitConnectionFrom(conn net.Conn) bool {
 	return true
 }
 
-func (self *LocalPeer) CreateSession(conn io.ReadWriteCloser, peeringRequest *PeeringRequest) (*RemotePeer, error) {
-	if id, err := uuid.FromBytes(peeringRequest.ID); err == nil {
-		if rp, ok := self.sessions[id]; !ok {
-			if session, err := yamux.Server(conn, &yamux.Config{
-				AcceptBacklog:          16,
-				EnableKeepAlive:        true,
-				KeepAliveInterval:      (10 * time.Second),
-				ConnectionWriteTimeout: (500 * time.Millisecond),
-			}); err == nil {
-				remote := &RemotePeer{
-					PublicKey: peeringRequest.PublicKey,
-					id:        id,
-					session:   session,
-				}
+func (self *LocalPeer) RegisterPeer(conn net.Conn, remoteInitiated bool) (*RemotePeer, error) {
+	var remotePeeringRequest *PeeringRequest
 
-				self.sessions[id] = remote
+	// if the remote side initiated the request, they have already written the peering
+	// request and we need to read that and reply.
+	//
+	if remoteInitiated {
+		// read, then write
 
-				return remote, nil
+		log.Debugf("Got new peering request, parsing...")
+		if pReq, err := ParsePeeringRequest(conn); err == nil {
+			log.Debugf("Replying with our peering request...")
+			if err := GenerateAndWritePeeringRequest(conn, self); err == nil {
+				remotePeeringRequest = pReq
 			} else {
 				return nil, err
 			}
 		} else {
-			return rp, nil
+			return nil, err
 		}
 	} else {
-		return nil, err
+		// write, then read
+		log.Debugf("Sending out peering request...")
+		if err := GenerateAndWritePeeringRequest(conn, self); err == nil {
+			log.Debugf("Reading reply peering request...")
+			if pReq, err := ParsePeeringRequest(conn); err == nil {
+				remotePeeringRequest = pReq
+			} else {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	}
+
+	if remotePeeringRequest != nil {
+		if remotePeer, err := NewRemotePeerFromRequest(remotePeeringRequest, conn); err == nil {
+			var sharedKey [32]byte
+			var publicKey [32]byte
+			var privateKey [32]byte
+
+			copy(publicKey[:], remotePeeringRequest.PublicKey[:32])
+			copy(privateKey[:], self.privateKey[:32])
+
+			box.Precompute(
+				&sharedKey,
+				&publicKey,
+				&privateKey,
+			)
+
+			remotePeer.sharedKey = sharedKey
+			remotePeer.secureReady = true
+
+			self.sessions[remotePeer.UUID()] = remotePeer
+			log.Debugf("Remote peer %s registered", remotePeer.String())
+			return remotePeer, nil
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("Could not read remote peering request")
 	}
 }
 
-func (self *LocalPeer) RegisterPeer(conn net.Conn, remoteInitiated bool) (*RemotePeer, error) {
-	return nil, fmt.Errorf("Not Implemented")
+func (self *LocalPeer) RemovePeer(id uuid.UUID) {
+	if remotePeer, ok := self.sessions[id]; ok {
+		log.Errorf("Removing peer %s", remotePeer.String())
+
+		if err := remotePeer.Disconnect(); err != nil {
+			log.Errorf("Error disconnecting from peer: %v", err)
+		}
+
+		delete(self.sessions, id)
+
+		log.Debugf("%d peers registered", len(self.sessions))
+	}
 }
 
 func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {
@@ -196,20 +365,13 @@ func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {
 
 	// open a TCP socket to the given addr/port
 	if conn, err := net.Dial(`tcp`, fmt.Sprintf("%s:%d", addr, port)); err == nil {
-		// generate a new peering request
-		peeringRequest := NewPeeringRequest(self.ID(), self.GetPublicKey())
-
-		// write the request to the peer we're connecting to (who is expecting it)
-		if _, err := peeringRequest.WriteTo(conn); err == nil {
-			if remotePeer, err := self.RegisterPeer(conn, false); err == nil {
-				return remotePeer, nil
-			} else {
-				returnErr = err
-			}
+		if remotePeer, err := self.RegisterPeer(conn, false); err == nil {
+			return remotePeer, nil
 		} else {
 			returnErr = err
 		}
 
+		// successful connections will skip this, everything else will close
 		if err := conn.Close(); err != nil {
 			log.Errorf("Failed to close connection %s: %v", conn.RemoteAddr().String(), err)
 		}

@@ -2,6 +2,7 @@ package peer
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/vmihailenco/msgpack"
 	"io"
 )
@@ -18,6 +19,13 @@ func NewPeeringRequest(id []byte, publicKey []byte) *PeeringRequest {
 		ID:        id,
 		PublicKey: publicKey,
 	}
+}
+
+func GenerateAndWritePeeringRequest(w io.Writer, peer Peer) error {
+	peeringRequest := NewPeeringRequest(peer.ID(), peer.GetPublicKey())
+
+	_, err := peeringRequest.WriteTo(w)
+	return err
 }
 
 func ParsePeeringRequest(r io.Reader) (*PeeringRequest, error) {
@@ -38,4 +46,20 @@ func (self *PeeringRequest) WriteTo(w io.Writer) (int, error) {
 	} else {
 		return -1, err
 	}
+}
+
+func (self *PeeringRequest) Validate() error {
+	if self.ID == nil {
+		return fmt.Errorf("Invalid peer ID")
+	}
+
+	if self.PublicKey == nil {
+		return fmt.Errorf("Invalid peer public key")
+	}
+
+	if len(self.PublicKey) != 32 {
+		return fmt.Errorf("Public Key must be 32 bytes long")
+	}
+
+	return nil
 }

@@ -7,6 +7,7 @@ import (
 )
 
 type Configuration struct {
+	ID          string              `json:"id"`
 	DatabaseURI string              `json:"database,omitempty"`
 	Directories []scanner.Directory `json:"directories"`
 }
