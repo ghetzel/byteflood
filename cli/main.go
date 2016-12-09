@@ -127,7 +127,14 @@ func main() {
 
 								if file, err := os.Open(c.Args().Get(1)); err == nil {
 									_, err := io.Copy(remotePeer, file)
-									remotePeer.Close()
+
+									if err := remotePeer.Close(); err != nil {
+										log.Warningf("Stream close failed: %v", err)
+									}
+
+									if err := remotePeer.Disconnect(); err != nil {
+										log.Errorf("Disconnect failed: %v", err)
+									}
 
 									if err != nil {
 										log.Fatal(err)

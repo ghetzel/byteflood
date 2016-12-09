@@ -2,6 +2,7 @@ package peer
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"github.com/vmihailenco/msgpack"
 	"golang.org/x/crypto/nacl/box"
@@ -18,18 +19,43 @@ const (
 	DataType
 	MultipartStart
 	MultipartEnd
+	Acknowledgement
 )
+
+func (self MessageType) String() string {
+	switch self {
+	case CommandType:
+		return `command`
+	case DataType:
+		return `data`
+	case MultipartStart:
+		return `mp-start`
+	case MultipartEnd:
+		return `mp-end`
+	case Acknowledgement:
+		return `ack`
+	default:
+		return `invalid`
+	}
+}
 
 type Message struct {
 	io.Reader
-	Type   MessageType
-	Data   []byte
-	buffer *bytes.Buffer
+	Type MessageType
+	Data []byte
 }
 
 type SecureMessage struct {
 	Nonce   [24]byte
 	Payload []byte
+}
+
+func DecodeLengthPrefix(data []byte) (int, error) {
+	if len(data) >= 4 {
+		return int(binary.LittleEndian.Uint32(data[0:4])), nil
+	} else {
+		return 0, fmt.Errorf("message too short")
+	}
 }
 
 func DecodeSecureMessage(data []byte) (*SecureMessage, error) {
@@ -38,12 +64,33 @@ func DecodeSecureMessage(data []byte) (*SecureMessage, error) {
 	if err := msgpack.Unmarshal(data, &message); err == nil {
 		return &message, nil
 	} else {
-		return nil, fmt.Errorf("failed to decode secure message wrapper: %v", err)
+		return nil, fmt.Errorf("failed to decode secure message: %v", err)
 	}
 }
 
 func (self *SecureMessage) Encode() ([]byte, error) {
-	return msgpack.Marshal(self)
+	if data, err := msgpack.Marshal(self); err == nil {
+		buffer := bytes.NewBuffer(nil)
+		length := make([]byte, 4)
+
+		// first 4 bytes are uint32 length of the following payload
+		binary.LittleEndian.PutUint32(length, uint32(len(data)))
+
+		// write payload
+		buffer.Write(length)
+
+		if _, err := io.Copy(buffer, bytes.NewBuffer(data)); err == nil {
+			return buffer.Bytes(), nil
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
+}
+
+func (self *SecureMessage) Len() int {
+	return len(self.Nonce) + len(self.Payload)
 }
 
 func NewMessage(mt MessageType, data []byte) *Message {
@@ -55,14 +102,6 @@ func NewMessage(mt MessageType, data []byte) *Message {
 
 func (self *Message) Encode() ([]byte, error) {
 	return msgpack.Marshal(self)
-}
-
-func (self *Message) Read(p []byte) (int, error) {
-	if self.buffer == nil {
-		self.buffer = bytes.NewBuffer(self.Data)
-	}
-
-	return self.buffer.Read(p)
 }
 
 func DecodeMessage(data []byte) (*Message, error) {

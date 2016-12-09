@@ -244,35 +244,39 @@ func (self *LocalPeer) Listen() error {
 		}
 	}
 
-	if listener, err := net.Listen(`tcp`, fmt.Sprintf("%s:%d", self.Address, self.Port)); err == nil {
-		log.Infof("Listening on %s:%d", self.Address, self.Port)
+	if addr, err := net.ResolveTCPAddr(`tcp`, fmt.Sprintf("%s:%d", self.Address, self.Port)); err == nil {
+		if listener, err := net.ListenTCP(`tcp`, addr); err == nil {
+			log.Infof("Listening on %s:%d", self.Address, self.Port)
 
-		for {
-			// accept new connections
-			if conn, err := listener.Accept(); err == nil {
-				log.Debugf("Got connection request from %s", conn.RemoteAddr().String())
+			for {
+				// accept new connections
+				if conn, err := listener.AcceptTCP(); err == nil {
+					log.Debugf("Got connection request from %s", conn.RemoteAddr().String())
 
-				// verify that we want to proceed with this connection...
-				if self.PermitConnectionFrom(conn) {
-					if remotePeer, err := self.RegisterPeer(conn, true); err == nil {
-						go remotePeer.Start(self)
-						continue
+					// verify that we want to proceed with this connection...
+					if self.PermitConnectionFrom(conn) {
+						if remotePeer, err := self.RegisterPeer(conn, true); err == nil {
+							go remotePeer.Start(self)
+							continue
+						} else {
+							log.Errorf("Connection from %s failed: %v", conn.RemoteAddr().String(), err)
+						}
 					} else {
-						log.Errorf("Connection from %s failed: %v", conn.RemoteAddr().String(), err)
+						log.Warningf("Connection from %s is prohibited", conn.RemoteAddr().String())
+					}
+
+					// successful connections will skip this, everything else will close
+					log.Errorf("Closing connection to %s", conn.RemoteAddr().String())
+
+					if err := conn.Close(); err != nil {
+						log.Errorf("Failed to close connection %s: %v", conn.RemoteAddr().String(), err)
 					}
 				} else {
-					log.Warningf("Connection from %s is prohibited", conn.RemoteAddr().String())
+					log.Errorf("Connection error: %v", err)
 				}
-
-				// successful connections will skip this, everything else will close
-				log.Errorf("Closing connection to %s", conn.RemoteAddr().String())
-
-				if err := conn.Close(); err != nil {
-					log.Errorf("Failed to close connection %s: %v", conn.RemoteAddr().String(), err)
-				}
-			} else {
-				log.Errorf("Connection error: %v", err)
 			}
+		} else {
+			return err
 		}
 	} else {
 		return err
@@ -285,7 +289,7 @@ func (self *LocalPeer) PermitConnectionFrom(conn net.Conn) bool {
 	return true
 }
 
-func (self *LocalPeer) RegisterPeer(conn net.Conn, remoteInitiated bool) (*RemotePeer, error) {
+func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*RemotePeer, error) {
 	var remotePeeringRequest *PeeringRequest
 
 	// if the remote side initiated the request, they have already written the peering
@@ -373,19 +377,24 @@ func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {
 	var returnErr error
 
 	// open a TCP socket to the given addr/port
-	if conn, err := net.Dial(`tcp`, fmt.Sprintf("%s:%d", addr, port)); err == nil {
-		if remotePeer, err := self.RegisterPeer(conn, false); err == nil {
-			return remotePeer, nil
+	if raddr, err := net.ResolveTCPAddr(`tcp`, fmt.Sprintf("%s:%d", addr, port)); err == nil {
+		if conn, err := net.DialTCP(`tcp`, nil, raddr); err == nil {
+			if remotePeer, err := self.RegisterPeer(conn, false); err == nil {
+				go remotePeer.Start(self)
+				return remotePeer, nil
+			} else {
+				returnErr = err
+			}
+
+			// successful connections will skip this, everything else will close
+			if err := conn.Close(); err != nil {
+				log.Errorf("Failed to close connection %s: %v", conn.RemoteAddr().String(), err)
+			}
+
+			return nil, returnErr
 		} else {
-			returnErr = err
+			return nil, err
 		}
-
-		// successful connections will skip this, everything else will close
-		if err := conn.Close(); err != nil {
-			log.Errorf("Failed to close connection %s: %v", conn.RemoteAddr().String(), err)
-		}
-
-		return nil, returnErr
 	} else {
 		return nil, err
 	}
