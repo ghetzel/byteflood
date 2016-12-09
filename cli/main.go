@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/ghetzel/byteflood"
+	"github.com/ghetzel/byteflood/codecs"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/scanner"
 	"github.com/ghetzel/cli"
@@ -187,7 +188,7 @@ func main() {
 			ArgsUsage: `BASENAME`,
 			Action: func(c *cli.Context) {
 				if c.NArg() > 0 {
-					if err := peer.GenerateKeypair(
+					if err := codecs.CryptoboxGenerateKeypair(
 						fmt.Sprintf("%s.pub", c.Args().First()),
 						fmt.Sprintf("%s.key", c.Args().First()),
 					); err != nil {
@@ -204,7 +205,7 @@ func main() {
 }
 
 func makeLocalPeer(config *byteflood.Configuration, c *cli.Context) (*peer.LocalPeer, error) {
-	if publicKey, privateKey, err := peer.LoadKeyfiles(
+	if publicKey, privateKey, err := codecs.CryptoboxLoadKeyfiles(
 		c.GlobalString(`public-key`),
 		c.GlobalString(`private-key`),
 	); err == nil {

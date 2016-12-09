@@ -2,28 +2,26 @@ package peer
 
 import (
 	"bytes"
-	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"github.com/ghetzel/byteflood/codecs"
 	"github.com/satori/go.uuid"
-	"golang.org/x/crypto/nacl/box"
 	"hash"
 	"io"
 	"net"
 	"time"
 )
 
-var RemotePeerConnectionLingerSeconds = 3
 var RemotePeerMultipartEndAckTimeout = 2000 * time.Millisecond
 
 type RemotePeer struct {
 	io.ReadWriteCloser
 	Peer
 	MessageSize         int
+	EncryptionCodec     codecs.Codec
+	messageCodecs       []codecs.Codec
 	publicKey           []byte
 	id                  uuid.UUID
-	sharedKey           [32]byte
-	secureReady         bool
 	connection          *net.TCPConn
 	messages            chan *Message
 	isWritingDataStream bool
@@ -36,16 +34,13 @@ type RemotePeer struct {
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
 	if err := request.Validate(); err == nil {
 		if id, err := uuid.FromBytes(request.ID); err == nil {
-			if err := connection.SetLinger(RemotePeerConnectionLingerSeconds); err != nil {
-				return nil, err
-			}
-
 			return &RemotePeer{
-				MessageSize: request.MessageSize,
-				publicKey:   request.PublicKey,
-				id:          id,
-				connection:  connection,
-				messages:    make(chan *Message),
+				MessageSize:   request.MessageSize,
+				publicKey:     request.PublicKey,
+				messageCodecs: make([]codecs.Codec, 0),
+				id:            id,
+				connection:    connection,
+				messages:      make(chan *Message),
 			}, nil
 		} else {
 			return nil, err
@@ -53,6 +48,10 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 	} else {
 		return nil, err
 	}
+}
+
+func (self *RemotePeer) AddMessageCodec(codec codecs.Codec) {
+	self.messageCodecs = append(self.messageCodecs, codec)
 }
 
 func (self *RemotePeer) Start(localPeer *LocalPeer) {
@@ -113,16 +112,19 @@ func (self *RemotePeer) Start(localPeer *LocalPeer) {
 
 			select {
 			case self.messages <- message:
-				log.Debugf("Message dispatched")
+				continue
 			default:
 				continue
 			}
-		} else if err == io.EOF {
-			log.Errorf("[%s] remote peer disconnected", self.String())
+		} else {
+			if err == io.EOF {
+				log.Errorf("[%s] remote peer disconnected", self.String())
+			} else {
+				log.Errorf("[%s] error receiving message: %v", self.String(), err)
+			}
+
 			defer localPeer.RemovePeer(self.id)
 			return
-		} else {
-			log.Errorf("[%s] error receiving message: %v", self.String(), err)
 		}
 	}
 }
@@ -144,108 +146,78 @@ func (self *RemotePeer) UUID() uuid.UUID {
 }
 
 func (self *RemotePeer) Disconnect() error {
-	self.secureReady = false
-
 	log.Infof("Disconnecting from %s", self.String())
 	return self.connection.Close()
 }
 
 func (self *RemotePeer) ReceiveMessage(reader io.Reader) (*Message, error) {
-	if self.secureReady {
-		lengthPrefix := make([]byte, 4)
+	if decryptedPayload, err := self.EncryptionCodec.Decode(reader); err == nil {
+		// decode the decrypted message payload
+		if message, err := DecodeMessage(decryptedPayload); err == nil {
+			if message.Data != nil && len(self.messageCodecs) > 0 {
+				buffer := bytes.NewBuffer(message.Data)
 
-		if n, err := reader.Read(lengthPrefix); err == nil {
-			log.Debugf("Read %d bytes (prefix)", n)
+				// decoding iterates through codecs in reverse order
+				for i := range self.messageCodecs {
+					codec := self.messageCodecs[len(self.messageCodecs)-1-i]
 
-			if length, err := DecodeLengthPrefix(lengthPrefix); err == nil {
-				if length > (self.MessageSize + SecureMessageOverhead) {
-					return nil, fmt.Errorf("specified length is too long")
-				}
-
-				payload := make([]byte, length)
-				log.Debugf("Reading %d bytes", length)
-
-				if n, err := reader.Read(payload); err == nil {
-					if n != length {
-						return nil, fmt.Errorf("short read")
-					}
-
-					if secureMessage, err := DecodeSecureMessage(payload); err == nil {
-						if decryptedPayload, ok := box.OpenAfterPrecomputation(
-							nil,
-							secureMessage.Payload,
-							&secureMessage.Nonce,
-							&self.sharedKey,
-						); ok {
-							if message, err := DecodeMessage(decryptedPayload); err == nil {
-								return message, nil
-							} else {
-								return nil, err
-							}
-						} else {
-							return nil, fmt.Errorf("failed to decrypt message")
-						}
+					if post, err := codec.Decode(buffer); err == nil {
+						message.Data = post
+						buffer = bytes.NewBuffer(message.Data)
 					} else {
 						return nil, err
 					}
-				} else {
-					return nil, err
 				}
-			} else {
-				return nil, err
 			}
+
+			return message, nil
 		} else {
 			return nil, err
 		}
-
 	} else {
-		return nil, fmt.Errorf("secure communication not established")
+		return nil, err
 	}
 }
 
 func (self *RemotePeer) SendMessage(w io.Writer, mType MessageType, p []byte) (int, error) {
-	if self.secureReady {
-		// cryptobox[ SecureMessage[ Nonce, Message[ Type, Data ]]]
+	var message *Message
 
-		message := NewMessage(mType, p)
+	if p != nil && len(self.messageCodecs) > 0 {
+		preProcessed := bytes.NewBuffer(p)
+		postProcessed := bytes.NewBuffer(nil)
 
-		if encodedMessage, err := message.Encode(); err == nil {
-			var nonce [24]byte
-			rand.Read(nonce[:])
-
-			secureMessage := SecureMessage{
-				Nonce: nonce,
-				Payload: box.SealAfterPrecomputation(
-					nil,
-					encodedMessage,
-					&nonce,
-					&self.sharedKey,
-				),
-			}
-
-			if securePayload, err := secureMessage.Encode(); err == nil {
-				n, err := w.Write(securePayload)
-
-				if err == nil {
-					log.Debugf("[%s] Wrote %d bytes (%d encrypted, %d encoded, %d data)",
-						mType.String(),
-						n,
-						len(securePayload),
-						len(encodedMessage),
-						len(p))
-				} else {
-					log.Debugf("[%s] write error: %v", mType.String(), err)
-				}
-
-				return len(p), err
+		// encoding iterates through codecs in forward order
+		for _, codec := range self.messageCodecs {
+			if _, err := codec.Encode(postProcessed, preProcessed.Bytes()); err == nil {
+				preProcessed = bytes.NewBuffer(postProcessed.Bytes())
 			} else {
 				return -1, err
 			}
+		}
+
+		message = NewMessage(mType, postProcessed.Bytes())
+	} else {
+		message = NewMessage(mType, p)
+	}
+
+	if encodedMessage, err := message.Encode(); err == nil {
+		if n, err := self.EncryptionCodec.Encode(w, encodedMessage); err == nil {
+			if err == nil {
+				log.Debugf("[%s] Wrote %d bytes (%d encoded, %d data)",
+					mType.String(),
+					n,
+					len(encodedMessage),
+					len(message.Data))
+			} else {
+				log.Debugf("[%s] write error: %v", mType.String(), err)
+			}
+
+			return len(p), err
 		} else {
 			return -1, err
 		}
 	} else {
-		return -1, fmt.Errorf("secure communication not established")
+		return -1, err
 	}
 }
 
