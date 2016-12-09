@@ -8,10 +8,10 @@ import (
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/op/go-logging"
+	"io"
 	"net"
 	"os"
 	"os/signal"
-	"time"
 )
 
 var log = logging.MustGetLogger(`main`)
@@ -125,16 +125,24 @@ func main() {
 							if remotePeer, err := localPeer.ConnectTo(host, int(port)); err == nil {
 								log.Infof("Connected to peer: %s", remotePeer.String())
 
-								now := time.Now().String()
+								if file, err := os.Open(c.Args().Get(1)); err == nil {
+									_, err := io.Copy(remotePeer, file)
+									remotePeer.Close()
 
-								if n, err := remotePeer.SendMessage(
-									peer.CommandType,
-									[]byte(now[:]),
-								); err == nil {
-									log.Infof("Wrote %d bytes to peer", n)
+									if err != nil {
+										log.Fatal(err)
+									}
 								} else {
-									log.Fatalf("Failed to write to peer: %v", err)
+									log.Fatal(err)
 								}
+								// if n, err := remotePeer.SendMessage(
+								// 	peer.CommandType,
+								// 	[]byte(now[:]),
+								// ); err == nil {
+								// 	log.Infof("Wrote %d bytes to peer", n)
+								// } else {
+								// 	log.Fatalf("Failed to write to peer: %v", err)
+								// }
 							} else {
 								log.Fatal(err)
 							}

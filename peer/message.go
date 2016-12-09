@@ -1,20 +1,30 @@
 package peer
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/vmihailenco/msgpack"
+	"golang.org/x/crypto/nacl/box"
+	"io"
 )
+
+// Poly1305 tag size + nonce size + shared key size + pointer + 3x field separator
+var SecureMessageOverhead int = box.Overhead + 24 + 32 + 8 + 3
 
 type MessageType int
 
 const (
 	CommandType MessageType = iota
 	DataType
+	MultipartStart
+	MultipartEnd
 )
 
 type Message struct {
-	Type MessageType
-	Data []byte
+	io.Reader
+	Type   MessageType
+	Data   []byte
+	buffer *bytes.Buffer
 }
 
 type SecureMessage struct {
@@ -45,6 +55,14 @@ func NewMessage(mt MessageType, data []byte) *Message {
 
 func (self *Message) Encode() ([]byte, error) {
 	return msgpack.Marshal(self)
+}
+
+func (self *Message) Read(p []byte) (int, error) {
+	if self.buffer == nil {
+		self.buffer = bytes.NewBuffer(self.Data)
+	}
+
+	return self.buffer.Read(p)
 }
 
 func DecodeMessage(data []byte) (*Message, error) {

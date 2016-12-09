@@ -21,6 +21,7 @@ const (
 	DEFAULT_UPNP_DISCOVERY_TIMEOUT = (30 * time.Second)
 	DEFAULT_UPNP_MAPPING_DURATION  = (8760 * time.Hour)
 	BF_UPNP_SERVICE_NAME           = `byteflood`
+	DEFAULT_PEER_MESSAGE_SIZE      = 32768
 )
 
 var log = logging.MustGetLogger(`byteflood.client`)
@@ -37,6 +38,7 @@ type LocalPeer struct {
 	EnableUpnp           bool
 	Address              string
 	Port                 int
+	MessageSize          int
 	UpnpMappingDuration  time.Duration
 	UpnpDiscoveryTimeout time.Duration
 	id                   uuid.UUID
@@ -170,6 +172,7 @@ func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, err
 		EnableUpnp:           false,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
+		MessageSize:          DEFAULT_PEER_MESSAGE_SIZE,
 		id:                   localID,
 		sessions:             make(map[uuid.UUID]*RemotePeer),
 		publicKey:            publicKey,
@@ -294,7 +297,7 @@ func (self *LocalPeer) RegisterPeer(conn net.Conn, remoteInitiated bool) (*Remot
 		log.Debugf("Got new peering request, parsing...")
 		if pReq, err := ParsePeeringRequest(conn); err == nil {
 			log.Debugf("Replying with our peering request...")
-			if err := GenerateAndWritePeeringRequest(conn, self); err == nil {
+			if err := GenerateAndWritePeeringRequest(conn, self.MessageSize, self); err == nil {
 				remotePeeringRequest = pReq
 			} else {
 				return nil, err
@@ -305,7 +308,7 @@ func (self *LocalPeer) RegisterPeer(conn net.Conn, remoteInitiated bool) (*Remot
 	} else {
 		// write, then read
 		log.Debugf("Sending out peering request...")
-		if err := GenerateAndWritePeeringRequest(conn, self); err == nil {
+		if err := GenerateAndWritePeeringRequest(conn, self.MessageSize, self); err == nil {
 			log.Debugf("Reading reply peering request...")
 			if pReq, err := ParsePeeringRequest(conn); err == nil {
 				remotePeeringRequest = pReq
@@ -319,6 +322,12 @@ func (self *LocalPeer) RegisterPeer(conn net.Conn, remoteInitiated bool) (*Remot
 
 	if remotePeeringRequest != nil {
 		if remotePeer, err := NewRemotePeerFromRequest(remotePeeringRequest, conn); err == nil {
+			if self.MessageSize < remotePeer.MessageSize {
+				remotePeer.MessageSize = self.MessageSize
+			}
+
+			log.Debugf("Message size is %d for peer %s", remotePeer.MessageSize, remotePeer.String())
+
 			var sharedKey [32]byte
 			var publicKey [32]byte
 			var privateKey [32]byte

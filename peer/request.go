@@ -10,19 +10,21 @@ import (
 var PeeringRequestMaxInitialRead = 32768
 
 type PeeringRequest struct {
-	ID        []byte
-	PublicKey []byte
+	ID          []byte
+	PublicKey   []byte
+	MessageSize int
 }
 
-func NewPeeringRequest(id []byte, publicKey []byte) *PeeringRequest {
+func NewPeeringRequest(id []byte, messageSize int, publicKey []byte) *PeeringRequest {
 	return &PeeringRequest{
-		ID:        id,
-		PublicKey: publicKey,
+		ID:          id,
+		PublicKey:   publicKey,
+		MessageSize: messageSize,
 	}
 }
 
-func GenerateAndWritePeeringRequest(w io.Writer, peer Peer) error {
-	peeringRequest := NewPeeringRequest(peer.ID(), peer.GetPublicKey())
+func GenerateAndWritePeeringRequest(w io.Writer, messageSize int, peer Peer) error {
+	peeringRequest := NewPeeringRequest(peer.ID(), messageSize, peer.GetPublicKey())
 
 	_, err := peeringRequest.WriteTo(w)
 	return err
