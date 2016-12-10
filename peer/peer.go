@@ -36,9 +36,11 @@ type LocalPeer struct {
 	MessageSize          int
 	UpnpMappingDuration  time.Duration
 	UpnpDiscoveryTimeout time.Duration
+	Messages             chan PeerMessage
 	id                   uuid.UUID
 	upnpPortMapping      *PortMapping
 	sessions             map[uuid.UUID]*RemotePeer
+	listening            chan bool
 	publicKey            []byte
 	privateKey           []byte
 }
@@ -64,8 +66,10 @@ func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, err
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
 		MessageSize:          DEFAULT_PEER_MESSAGE_SIZE,
+		Messages:             make(chan PeerMessage),
 		id:                   localID,
 		sessions:             make(map[uuid.UUID]*RemotePeer),
+		listening:            make(chan bool),
 		publicKey:            publicKey,
 		privateKey:           privateKey,
 	}, nil
@@ -81,6 +85,10 @@ func (self *LocalPeer) UUID() uuid.UUID {
 
 func (self *LocalPeer) GetPublicKey() []byte {
 	return self.publicKey
+}
+
+func (self *LocalPeer) WaitListen() <-chan bool {
+	return self.listening
 }
 
 func (self *LocalPeer) Listen() error {
@@ -138,6 +146,14 @@ func (self *LocalPeer) Listen() error {
 	if addr, err := net.ResolveTCPAddr(`tcp`, fmt.Sprintf("%s:%d", self.Address, self.Port)); err == nil {
 		if listener, err := net.ListenTCP(`tcp`, addr); err == nil {
 			log.Infof("Listening on %s:%d", self.Address, self.Port)
+
+			// tell anyone who cares that we're ready to start accepting connections now
+			select {
+			case self.listening <- true:
+				break
+			default:
+				break
+			}
 
 			for {
 				// accept new connections
