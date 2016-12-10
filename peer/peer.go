@@ -30,19 +30,21 @@ type Peer interface {
 
 type LocalPeer struct {
 	Peer
-	EnableUpnp           bool
-	Address              string
-	Port                 int
-	MessageSize          int
-	UpnpMappingDuration  time.Duration
-	UpnpDiscoveryTimeout time.Duration
-	Messages             chan PeerMessage
-	id                   uuid.UUID
-	upnpPortMapping      *PortMapping
-	sessions             map[uuid.UUID]*RemotePeer
-	listening            chan bool
-	publicKey            []byte
-	privateKey           []byte
+	EnableUpnp             bool
+	Address                string
+	Port                   int
+	MessageSize            int
+	UpnpMappingDuration    time.Duration
+	UpnpDiscoveryTimeout   time.Duration
+	UploadBytesPerSecond   int
+	DownloadBytesPerSecond int
+	Messages               chan PeerMessage
+	id                     uuid.UUID
+	upnpPortMapping        *PortMapping
+	sessions               map[uuid.UUID]*RemotePeer
+	listening              chan bool
+	publicKey              []byte
+	privateKey             []byte
 }
 
 func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, error) {
@@ -239,13 +241,24 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 
 			log.Debugf("Message size is %d for peer %s", remotePeer.MessageSize, remotePeer.String())
 
-			remotePeer.EncryptionCodec = codecs.NewCryptoboxCodec(
+			remotePeer.Encrypter = codecs.NewCryptoboxCodec(
 				remotePeeringRequest.PublicKey[:32],
 				self.privateKey[:32],
 			)
 
 			self.sessions[remotePeer.UUID()] = remotePeer
 			log.Debugf("Remote peer %s registered", remotePeer.String())
+
+			if self.DownloadBytesPerSecond > 0 {
+				remotePeer.SetReadRateLimit(self.DownloadBytesPerSecond, self.DownloadBytesPerSecond)
+				log.Debugf("  Downloads capped at %d Bps", self.DownloadBytesPerSecond)
+			}
+
+			if self.UploadBytesPerSecond > 0 {
+				remotePeer.SetWriteRateLimit(self.UploadBytesPerSecond, self.UploadBytesPerSecond)
+				log.Debugf("  Uploads capped at %d Bps", self.UploadBytesPerSecond)
+			}
+
 			return remotePeer, nil
 		} else {
 			return nil, err

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"github.com/ghetzel/byteflood/codecs"
+	"github.com/ghetzel/byteflood/util"
 	"github.com/satori/go.uuid"
 	"hash"
 	"io"
@@ -18,36 +19,36 @@ type RemotePeer struct {
 	io.ReadWriteCloser
 	Peer
 	MessageSize         int
-	EncryptionCodec     codecs.Codec
-	Messages                   chan *Message
-    messageCodecs       []codecs.Codec
-    publicKey           []byte
-    id                  uuid.UUID
-    connection          *net.TCPConn
-    messages            chan *Message
+	Encrypter           codecs.Codec
+	Messages            chan *Message
+	publicKey           []byte
+	id                  uuid.UUID
+	connection          *net.TCPConn
+	messages            chan *Message
 	isWritingDataStream bool
 	readStreamHasher    hash.Hash
 	writeStreamHasher   hash.Hash
 	dataMessageCounter  int
 	dataMessageBytes    int
+	readLimiter         *util.RateLimitingReadWriter
+	writeLimiter        *util.RateLimitingReadWriter
 }
 
 type PeerMessage struct {
-    Peer *RemotePeer
-    Message *Message
+	Peer    *RemotePeer
+	Message *Message
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
 	if err := request.Validate(); err == nil {
 		if id, err := uuid.FromBytes(request.ID); err == nil {
 			return &RemotePeer{
-				MessageSize:   request.MessageSize,
-				publicKey:     request.PublicKey,
-				messageCodecs: make([]codecs.Codec, 0),
-				id:            id,
-				connection:    connection,
-				messages:      make(chan *Message),
-				Messages:             make(chan *Message),
+				MessageSize: request.MessageSize,
+				publicKey:   request.PublicKey,
+				id:          id,
+				connection:  connection,
+				messages:    make(chan *Message),
+				Messages:    make(chan *Message),
 			}, nil
 		} else {
 			return nil, err
@@ -57,8 +58,30 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 	}
 }
 
-func (self *RemotePeer) AddMessageCodec(codec codecs.Codec) {
-	self.messageCodecs = append(self.messageCodecs, codec)
+func (self *RemotePeer) SetReadRateLimit(bytesPerSecond int, burstSize int) {
+	self.readLimiter = util.NewRateLimitingReadWriter(float64(bytesPerSecond), burstSize)
+}
+
+func (self *RemotePeer) GetReadRateLimiter(r io.Reader) io.Reader {
+	if self.readLimiter != nil {
+		self.readLimiter.SetReader(r)
+		return self.readLimiter
+	} else {
+		return r
+	}
+}
+
+func (self *RemotePeer) SetWriteRateLimit(bytesPerSecond int, burstSize int) {
+	self.writeLimiter = util.NewRateLimitingReadWriter(float64(bytesPerSecond), burstSize)
+}
+
+func (self *RemotePeer) GetWriteRateLimiter(w io.Writer) io.Writer {
+	if self.writeLimiter != nil {
+		self.writeLimiter.SetWriter(w)
+		return self.writeLimiter
+	} else {
+		return w
+	}
 }
 
 func (self *RemotePeer) Start(localPeer *LocalPeer) {
@@ -128,9 +151,9 @@ func (self *RemotePeer) Start(localPeer *LocalPeer) {
 			// ALSO send message to external message chan (non-blocking)
 			select {
 			case localPeer.Messages <- PeerMessage{
-                Peer: self,
-                Message: message,
-            }:
+				Peer:    self,
+				Message: message,
+			}:
 				break
 			default:
 				break
@@ -170,25 +193,12 @@ func (self *RemotePeer) Disconnect() error {
 }
 
 func (self *RemotePeer) ReadMessage(reader io.Reader) (*Message, error) {
-	if decryptedPayload, err := self.EncryptionCodec.Decode(reader); err == nil {
+	// imposes rate limiting on reads (if configured)
+	reader = self.GetReadRateLimiter(reader)
+
+	if decryptedPayload, err := self.Encrypter.Decode(reader); err == nil {
 		// decode the decrypted message payload
 		if message, err := DecodeMessage(decryptedPayload); err == nil {
-			if message.Data != nil && len(self.messageCodecs) > 0 {
-				buffer := bytes.NewBuffer(message.Data)
-
-				// decoding iterates through codecs in reverse order
-				for i := range self.messageCodecs {
-					codec := self.messageCodecs[len(self.messageCodecs)-1-i]
-
-					if post, err := codec.Decode(buffer); err == nil {
-						message.Data = post
-						buffer = bytes.NewBuffer(message.Data)
-					} else {
-						return nil, err
-					}
-				}
-			}
-
 			return message, nil
 		} else {
 			return nil, err
@@ -203,28 +213,13 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 }
 
 func (self *RemotePeer) WriteMessage(w io.Writer, mType MessageType, p []byte) (int, error) {
-	var message *Message
+	// imposes rate limiting on writes (if configured)
+	w = self.GetWriteRateLimiter(w)
 
-	if p != nil && len(self.messageCodecs) > 0 {
-		preProcessed := bytes.NewBuffer(p)
-		postProcessed := bytes.NewBuffer(nil)
-
-		// encoding iterates through codecs in forward order
-		for _, codec := range self.messageCodecs {
-			if _, err := codec.Encode(postProcessed, preProcessed.Bytes()); err == nil {
-				preProcessed = bytes.NewBuffer(postProcessed.Bytes())
-			} else {
-				return -1, err
-			}
-		}
-
-		message = NewMessage(mType, postProcessed.Bytes())
-	} else {
-		message = NewMessage(mType, p)
-	}
+	message := NewMessage(mType, p)
 
 	if encodedMessage, err := message.Encode(); err == nil {
-		if n, err := self.EncryptionCodec.Encode(w, encodedMessage); err == nil {
+		if n, err := self.Encrypter.Encode(w, encodedMessage); err == nil {
 			if err == nil {
 				log.Debugf("[%s] Wrote %d bytes (%d encoded, %d data)",
 					mType.String(),

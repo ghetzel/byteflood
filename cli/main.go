@@ -87,13 +87,29 @@ func main() {
 					Usage: `The port the client should listen on`,
 				},
 				cli.BoolFlag{
-					Name:  `upnp, U`,
+					Name:  `upnp, u`,
 					Usage: `Automatically forward this port using UPnP`,
+				},
+				cli.IntFlag{
+					Name:  `upload-limit, U`,
+					Usage: `Limit uploads to this many bytes per second`,
+				},
+				cli.IntFlag{
+					Name:  `download-limit, D`,
+					Usage: `Limit downloads to this many bytes per second`,
 				},
 			},
 			Action: func(c *cli.Context) {
 				if localPeer, err := makeLocalPeer(&config, c); err == nil {
 					localPeer.EnableUpnp = c.Bool(`upnp`)
+
+					if v := c.Int(`download-limit`); v > 0 {
+						localPeer.DownloadBytesPerSecond = v
+					}
+
+					if v := c.Int(`upload-limit`); v > 0 {
+						localPeer.UploadBytesPerSecond = v
+					}
 
 					if err := localPeer.Listen(); err != nil {
 						log.Fatal(err)
@@ -115,6 +131,14 @@ func main() {
 					Name:  `port, p`,
 					Usage: `The port the client should listen on`,
 				},
+				cli.IntFlag{
+					Name:  `upload-limit, U`,
+					Usage: `Limit uploads to this many bytes per second`,
+				},
+				cli.IntFlag{
+					Name:  `download-limit, D`,
+					Usage: `Limit downloads to this many bytes per second`,
+				},
 			},
 			ArgsUsage: `ADDRESS:PORT`,
 			Action: func(c *cli.Context) {
@@ -123,6 +147,14 @@ func main() {
 				if host, portStr, err := net.SplitHostPort(address); err == nil {
 					if port, err := stringutil.ConvertToInteger(portStr); err == nil {
 						if localPeer, err := makeLocalPeer(&config, c); err == nil {
+							if v := c.Int(`download-limit`); v > 0 {
+								localPeer.DownloadBytesPerSecond = v
+							}
+
+							if v := c.Int(`upload-limit`); v > 0 {
+								localPeer.UploadBytesPerSecond = v
+							}
+
 							if remotePeer, err := localPeer.ConnectTo(host, int(port)); err == nil {
 								log.Infof("Connected to peer: %s", remotePeer.String())
 

@@ -43,6 +43,8 @@ vendors:
   rev: 0d12bf811670bf6a1a63828dfbd003eded177fce
 - path: github.com/steveyen/gtreap
   rev: 0abe01ef9be25c4aedc174758ec2d917314d6d70
+- path: github.com/stretchr/objx
+  rev: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
 - path: github.com/stretchr/testify
   rev: 18a02ba4a312f95da08ff4cfc0055750ce50ae9e
 - path: github.com/urfave/negroni
@@ -57,6 +59,8 @@ vendors:
   rev: f5a6bd43051d3f1f5dd3e0dbd531721aa5e75d28
 - path: golang.org/x/text
   rev: 5c6cf4f9a2357d38515014cea8c488ed22bdab90
+- path: golang.org/x/time
+  rev: f51c12702a4d776e4c1fa9b0fabab841babae631
 - path: google.golang.org/appengine
   rev: ca59ef35f409df61fa4a5f8290ff289b37eccfb8
 - path: gopkg.in/check.v1
