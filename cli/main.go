@@ -161,7 +161,7 @@ func main() {
 								if file, err := os.Open(c.Args().Get(1)); err == nil {
 									_, err := io.Copy(remotePeer, file)
 
-									if err := remotePeer.Close(); err != nil {
+									if err := remotePeer.Finalize(); err != nil {
 										log.Warningf("Stream close failed: %v", err)
 									}
 
@@ -175,14 +175,6 @@ func main() {
 								} else {
 									log.Fatal(err)
 								}
-								// if n, err := remotePeer.SendMessage(
-								// 	peer.CommandType,
-								// 	[]byte(now[:]),
-								// ); err == nil {
-								// 	log.Infof("Wrote %d bytes to peer", n)
-								// } else {
-								// 	log.Fatalf("Failed to write to peer: %v", err)
-								// }
 							} else {
 								log.Fatal(err)
 							}

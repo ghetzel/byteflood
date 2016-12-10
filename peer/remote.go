@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-var RemotePeerMultipartEndAckTimeout = 2000 * time.Millisecond
+var RemotePeerDataFinalizeAckTimeout = 2000 * time.Millisecond
 
 type RemotePeer struct {
 	io.ReadWriteCloser
@@ -84,21 +84,20 @@ func (self *RemotePeer) GetWriteRateLimiter(w io.Writer) io.Writer {
 	}
 }
 
+// Starts the per-peer services a LocalPeer needs to provide to interact with a RemotePeer.
 func (self *RemotePeer) Start(localPeer *LocalPeer) {
 	log.Debugf("[%s] Waiting for messages...", self.String())
 
 	for {
 		if message, err := self.ReadMessage(self.connection); err == nil {
 			switch message.Type {
-			case CommandType:
-				log.Debugf("[%s] COMMAND: %s", self.String(), string(message.Data[:]))
-			case MultipartStart:
-				log.Debugf("[%s] MPSTART: Starting multipart receive...", self.String())
+			case DataStart:
+				log.Debugf("[%s]   START: Starting multipart receive...", self.String())
 				self.readStreamHasher = sha256.New()
 				self.dataMessageCounter = 0
 				self.dataMessageBytes = 0
 
-			case DataType:
+			case DataBlock:
 				log.Debugf("[%s]    DATA: %d bytes", self.String(), len(message.Data))
 
 				if message.Data != nil {
@@ -110,25 +109,25 @@ func (self *RemotePeer) Start(localPeer *LocalPeer) {
 					}
 				}
 
-			case MultipartEnd:
+			case DataFinalize:
 				expected := message.Data
 				actual := self.readStreamHasher.Sum(nil)
 
-				log.Debugf("[%s]   MPEND: Multipart receive complete (saw %d data packets, %d bytes): ",
+				log.Debugf("[%s]   FINAL: Multipart receive complete (saw %d data packets, %d bytes): ",
 					self.String(),
 					self.dataMessageCounter,
 					self.dataMessageBytes)
 
-				log.Debugf("[%s]   MPEND:   expected: %x", self.String(), expected)
-				log.Debugf("[%s]   MPEND:     actual: %x", self.String(), actual)
+				log.Debugf("[%s]   FINAL:   expected: %x", self.String(), expected)
+				log.Debugf("[%s]   FINAL:     actual: %x", self.String(), actual)
 
-				if bytes.Compare(expected, actual) == 0 {
-					log.Debugf("[%s]   MPEND: Transfer successful", self.String())
-					self.WriteMessage(self.connection, Acknowledgement, []byte{1})
-				} else {
-					log.Errorf("[%s]   MPEND: Transfer failed", self.String())
-					self.WriteMessage(self.connection, Acknowledgement, []byte{0})
-				}
+				// if bytes.Compare(expected, actual) == 0 {
+				// 	log.Debugf("[%s]   FINAL: Transfer successful", self.String())
+				// 	self.WriteMessage(self.connection, Acknowledgement, []byte{1})
+				// } else {
+				// 	log.Errorf("[%s]   FINAL: Transfer failed", self.String())
+				// 	self.WriteMessage(self.connection, Acknowledgement, []byte{0})
+				// }
 
 				self.readStreamHasher = nil
 
@@ -232,10 +231,10 @@ func (self *RemotePeer) WriteMessage(w io.Writer, mType MessageType, p []byte) (
 
 			return len(p), err
 		} else {
-			return -1, err
+			return 0, err
 		}
 	} else {
-		return -1, err
+		return 0, err
 	}
 }
 
@@ -247,34 +246,40 @@ func (self *RemotePeer) Read(p []byte) (int, error) {
 	message := <-self.messages
 
 	switch message.Type {
-	case DataType:
+	case DataBlock:
 		return copy(p, message.Data), nil
+	case DataFinalize:
+		return 0, io.EOF
 	default:
-		return -1, fmt.Errorf("Reader interface only implemented for DataType messages")
+		return 0, fmt.Errorf("Reader interface only implemented for DataBlock messages")
 	}
 }
 
 func (self *RemotePeer) Write(p []byte) (int, error) {
 	if !self.isWritingDataStream {
-		if _, err := self.WriteMessage(self.connection, MultipartStart, nil); err == nil {
+		if _, err := self.WriteMessage(self.connection, DataStart, nil); err == nil {
 			self.isWritingDataStream = true
 			self.writeStreamHasher = sha256.New()
 		} else {
-			return -1, err
+			return 0, err
 		}
 	}
 
-	n, err := self.WriteMessage(self.connection, DataType, p)
+	n, err := self.WriteMessage(self.connection, DataBlock, p)
 
 	// append data to running hash
 	if self.writeStreamHasher != nil {
 		io.Copy(self.writeStreamHasher, bytes.NewBuffer(p))
 	}
-
 	return n, err
 }
 
 func (self *RemotePeer) Close() error {
+	log.Debugf("Got close")
+	return nil
+}
+
+func (self *RemotePeer) Finalize() error {
 	if self.isWritingDataStream {
 		sum := []byte{}
 
@@ -286,27 +291,27 @@ func (self *RemotePeer) Close() error {
 		self.writeStreamHasher = nil
 
 		log.Debugf("Sending multipart close: %x", sum)
-		_, err := self.WriteMessage(self.connection, MultipartEnd, sum)
+		_, err := self.WriteMessage(self.connection, DataFinalize, sum)
 
 		if err != nil {
 			log.Errorf("Failed to send multipart message termination")
 		}
 
 		// wait for acknowledgement that the message termination was received
-		select {
-		case ack := <-self.messages:
-			if ack.Type != Acknowledgement {
-				return fmt.Errorf("Invalid acknowledgement message type %d", ack.Type)
-			}
+		// select {
+		// case ack := <-self.messages:
+		// 	if ack.Type != Acknowledgement {
+		// 		return fmt.Errorf("Invalid acknowledgement message type %d", ack.Type)
+		// 	}
 
-			if ack.Data != nil && ack.Data[0] == 1 {
-				log.Debugf("Remote peer acknowledges successful transfer")
-			} else {
-				log.Warningf("Remote peer acknowledges unsuccessful transfer")
-			}
-		case <-time.After(RemotePeerMultipartEndAckTimeout):
-			return fmt.Errorf("Timed out waiting for multipart acknowledgement, waited %s", RemotePeerMultipartEndAckTimeout)
-		}
+		// 	if ack.Data != nil && ack.Data[0] == 1 {
+		// 		log.Debugf("Remote peer acknowledges successful transfer")
+		// 	} else {
+		// 		log.Warningf("Remote peer acknowledges unsuccessful transfer")
+		// 	}
+		// case <-time.After(RemotePeerDataFinalizeAckTimeout):
+		// 	return fmt.Errorf("Timed out waiting for multipart acknowledgement, waited %s", RemotePeerDataFinalizeAckTimeout)
+		// }
 
 		return err
 	} else {

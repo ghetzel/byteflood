@@ -9,22 +9,19 @@ import (
 type MessageType int
 
 const (
-	CommandType MessageType = iota
-	DataType
-	MultipartStart
-	MultipartEnd
-	Acknowledgement
+	Acknowledgement MessageType = iota
+	DataStart
+	DataBlock
+	DataFinalize
 )
 
 func (self MessageType) String() string {
 	switch self {
-	case CommandType:
-		return `command`
-	case DataType:
+	case DataBlock:
 		return `data`
-	case MultipartStart:
+	case DataStart:
 		return `mp-start`
-	case MultipartEnd:
+	case DataFinalize:
 		return `mp-end`
 	case Acknowledgement:
 		return `ack`
