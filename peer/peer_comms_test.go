@@ -93,8 +93,8 @@ func TestPeerConnect(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	fromPeer2.SendMessage(CommandType, []byte{0x42})
-	fromPeer1.SendMessage(CommandType, []byte{0x41})
+	fromPeer2.SendMessage(DataBlock, []byte{0x42})
+	fromPeer1.SendMessage(DataBlock, []byte{0x41})
 
 	time.Sleep(100 * time.Millisecond)
 

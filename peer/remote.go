@@ -224,10 +224,12 @@ func (self *RemotePeer) WriteMessage(w io.Writer, mType MessageType, p []byte) (
 
 	message := NewMessage(mType, p)
 
+    // encode the message for transport
 	if encodedMessage, err := message.Encode(); err == nil {
 		encodedMessageR := bytes.NewReader(encodedMessage)
 
-		// write cleartext to encrypter
+		// write encoded message (cleartext) to encrypter, which will in turn write
+        // the ciphertext and protocol data to the writer specified above
 		if n, err := io.Copy(self.Encrypter, encodedMessageR); err == nil {
 			log.Debugf("[%s] Encrypted %d bytes (%d encoded, %d data)",
 				mType.String(),

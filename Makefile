@@ -21,7 +21,7 @@ fmt:
 
 test:
 	# go test -v .
-	# go test -v ./peer
+	go test -v ./peer
 	# go test -v ./scanner
 	go test -v ./encryption
 
