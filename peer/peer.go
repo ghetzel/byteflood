@@ -2,7 +2,7 @@ package peer
 
 import (
 	"fmt"
-	"github.com/ghetzel/byteflood/codecs"
+	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/op/go-logging"
@@ -241,9 +241,16 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 
 			log.Debugf("Message size is %d for peer %s", remotePeer.MessageSize, remotePeer.String())
 
-			remotePeer.Encrypter = codecs.NewCryptoboxCodec(
+			remotePeer.Encrypter = encryption.NewEncrypter(
 				remotePeeringRequest.PublicKey[:32],
 				self.privateKey[:32],
+				nil,
+			)
+
+			remotePeer.Decrypter = encryption.NewDecrypter(
+				remotePeeringRequest.PublicKey[:32],
+				self.privateKey[:32],
+				nil,
 			)
 
 			self.sessions[remotePeer.UUID()] = remotePeer

@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/ghetzel/byteflood"
-	"github.com/ghetzel/byteflood/codecs"
+	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/scanner"
 	"github.com/ghetzel/cli"
@@ -159,7 +159,9 @@ func main() {
 								log.Infof("Connected to peer: %s", remotePeer.String())
 
 								if file, err := os.Open(c.Args().Get(1)); err == nil {
-									_, err := io.Copy(remotePeer, file)
+									if n, err := io.Copy(remotePeer, file); err != nil {
+										log.Fatalf("Error during write (wrote %d bytes): %v", n, err)
+									}
 
 									if err := remotePeer.Finalize(); err != nil {
 										log.Warningf("Stream close failed: %v", err)
@@ -167,10 +169,6 @@ func main() {
 
 									if err := remotePeer.Disconnect(); err != nil {
 										log.Errorf("Disconnect failed: %v", err)
-									}
-
-									if err != nil {
-										log.Fatal(err)
 									}
 								} else {
 									log.Fatal(err)
@@ -212,7 +210,7 @@ func main() {
 			ArgsUsage: `BASENAME`,
 			Action: func(c *cli.Context) {
 				if c.NArg() > 0 {
-					if err := codecs.CryptoboxGenerateKeypair(
+					if err := encryption.GenerateKeypair(
 						fmt.Sprintf("%s.pub", c.Args().First()),
 						fmt.Sprintf("%s.key", c.Args().First()),
 					); err != nil {
@@ -229,7 +227,7 @@ func main() {
 }
 
 func makeLocalPeer(config *byteflood.Configuration, c *cli.Context) (*peer.LocalPeer, error) {
-	if publicKey, privateKey, err := codecs.CryptoboxLoadKeyfiles(
+	if publicKey, privateKey, err := encryption.LoadKeyfiles(
 		c.GlobalString(`public-key`),
 		c.GlobalString(`private-key`),
 	); err == nil {

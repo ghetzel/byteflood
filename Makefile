@@ -21,8 +21,9 @@ fmt:
 
 test:
 	# go test -v .
-	go test -v ./peer
+	# go test -v ./peer
 	# go test -v ./scanner
+	go test -v ./encryption
 
 dockrun:
 	docker run -it -v $(PWD):/host ubuntu /host/bin/byteflood -c /host/examples/tuned-video.yml seed /host/tests/peer2/

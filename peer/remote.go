@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"fmt"
-	"github.com/ghetzel/byteflood/codecs"
+	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/satori/go.uuid"
 	"hash"
@@ -19,7 +19,8 @@ type RemotePeer struct {
 	io.ReadWriteCloser
 	Peer
 	MessageSize         int
-	Encrypter           codecs.Codec
+	Encrypter           *encryption.Encrypter
+	Decrypter           *encryption.Decrypter
 	Messages            chan *Message
 	publicKey           []byte
 	id                  uuid.UUID
@@ -122,11 +123,11 @@ func (self *RemotePeer) Start(localPeer *LocalPeer) {
 				log.Debugf("[%s]   FINAL:     actual: %x", self.String(), actual)
 
 				// if bytes.Compare(expected, actual) == 0 {
-				// 	log.Debugf("[%s]   FINAL: Transfer successful", self.String())
-				// 	self.WriteMessage(self.connection, Acknowledgement, []byte{1})
+				//  log.Debugf("[%s]   FINAL: Transfer successful", self.String())
+				//  self.WriteMessage(self.connection, Acknowledgement, []byte{1})
 				// } else {
-				// 	log.Errorf("[%s]   FINAL: Transfer failed", self.String())
-				// 	self.WriteMessage(self.connection, Acknowledgement, []byte{0})
+				//  log.Errorf("[%s]   FINAL: Transfer failed", self.String())
+				//  self.WriteMessage(self.connection, Acknowledgement, []byte{0})
 				// }
 
 				self.readStreamHasher = nil
@@ -195,9 +196,12 @@ func (self *RemotePeer) ReadMessage(reader io.Reader) (*Message, error) {
 	// imposes rate limiting on reads (if configured)
 	reader = self.GetReadRateLimiter(reader)
 
-	if decryptedPayload, err := self.Encrypter.Decode(reader); err == nil {
+	// ensures that the decrypter is using the reader we've specified
+	self.Decrypter.SetSource(reader)
+
+	if cleartext, err := self.Decrypter.ReadPacket(); err == nil {
 		// decode the decrypted message payload
-		if message, err := DecodeMessage(decryptedPayload); err == nil {
+		if message, err := DecodeMessage(cleartext); err == nil {
 			return message, nil
 		} else {
 			return nil, err
@@ -215,22 +219,24 @@ func (self *RemotePeer) WriteMessage(w io.Writer, mType MessageType, p []byte) (
 	// imposes rate limiting on writes (if configured)
 	w = self.GetWriteRateLimiter(w)
 
+	// ensures that the encrypter is using the writer we've specified
+	self.Encrypter.SetTarget(w)
+
 	message := NewMessage(mType, p)
 
 	if encodedMessage, err := message.Encode(); err == nil {
-		if n, err := self.Encrypter.Encode(w, encodedMessage); err == nil {
-			if err == nil {
-				log.Debugf("[%s] Wrote %d bytes (%d encoded, %d data)",
-					mType.String(),
-					n,
-					len(encodedMessage),
-					len(message.Data))
-			} else {
-				log.Debugf("[%s] write error: %v", mType.String(), err)
-			}
+		encodedMessageR := bytes.NewReader(encodedMessage)
 
-			return len(p), err
+		// write cleartext to encrypter
+		if n, err := io.Copy(self.Encrypter, encodedMessageR); err == nil {
+			log.Debugf("[%s] Encrypted %d bytes (%d encoded, %d data)",
+				mType.String(),
+				n,
+				len(encodedMessage),
+				len(message.Data))
+			return int(n), err
 		} else {
+			log.Debugf("[%s] write error: %v", mType.String(), err)
 			return 0, err
 		}
 	} else {
@@ -267,10 +273,18 @@ func (self *RemotePeer) Write(p []byte) (int, error) {
 
 	n, err := self.WriteMessage(self.connection, DataBlock, p)
 
+	// if the final written size is larger than what we put in, then we will assume that our data
+	// is in that payload.  smaller sizes (as well as an error) will indicate an error and be
+	// returned to the caller as-is
+	if n > len(p) {
+		n = len(p)
+	}
+
 	// append data to running hash
 	if self.writeStreamHasher != nil {
 		io.Copy(self.writeStreamHasher, bytes.NewBuffer(p))
 	}
+
 	return n, err
 }
 
@@ -300,17 +314,17 @@ func (self *RemotePeer) Finalize() error {
 		// wait for acknowledgement that the message termination was received
 		// select {
 		// case ack := <-self.messages:
-		// 	if ack.Type != Acknowledgement {
-		// 		return fmt.Errorf("Invalid acknowledgement message type %d", ack.Type)
-		// 	}
+		//  if ack.Type != Acknowledgement {
+		//      return fmt.Errorf("Invalid acknowledgement message type %d", ack.Type)
+		//  }
 
-		// 	if ack.Data != nil && ack.Data[0] == 1 {
-		// 		log.Debugf("Remote peer acknowledges successful transfer")
-		// 	} else {
-		// 		log.Warningf("Remote peer acknowledges unsuccessful transfer")
-		// 	}
+		//  if ack.Data != nil && ack.Data[0] == 1 {
+		//      log.Debugf("Remote peer acknowledges successful transfer")
+		//  } else {
+		//      log.Warningf("Remote peer acknowledges unsuccessful transfer")
+		//  }
 		// case <-time.After(RemotePeerDataFinalizeAckTimeout):
-		// 	return fmt.Errorf("Timed out waiting for multipart acknowledgement, waited %s", RemotePeerDataFinalizeAckTimeout)
+		//  return fmt.Errorf("Timed out waiting for multipart acknowledgement, waited %s", RemotePeerDataFinalizeAckTimeout)
 		// }
 
 		return err
