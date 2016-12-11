@@ -224,12 +224,12 @@ func (self *RemotePeer) WriteMessage(w io.Writer, mType MessageType, p []byte) (
 
 	message := NewMessage(mType, p)
 
-    // encode the message for transport
+	// encode the message for transport
 	if encodedMessage, err := message.Encode(); err == nil {
 		encodedMessageR := bytes.NewReader(encodedMessage)
 
 		// write encoded message (cleartext) to encrypter, which will in turn write
-        // the ciphertext and protocol data to the writer specified above
+		// the ciphertext and protocol data to the writer specified above
 		if n, err := io.Copy(self.Encrypter, encodedMessageR); err == nil {
 			log.Debugf("[%s] Encrypted %d bytes (%d encoded, %d data)",
 				mType.String(),
@@ -263,26 +263,33 @@ func (self *RemotePeer) Read(p []byte) (int, error) {
 	}
 }
 
-func (self *RemotePeer) Write(p []byte) (int, error) {
+// Starts a checked transfer.  All subsequent writes (until FinishChecked is called) will be hashed
+// and sent as one logical transaction.
+func (self *RemotePeer) BeginChecked() error {
 	if !self.isWritingDataStream {
 		if _, err := self.WriteMessage(self.connection, DataStart, nil); err == nil {
 			self.isWritingDataStream = true
 			self.writeStreamHasher = sha256.New()
+			return nil
 		} else {
-			return 0, err
+			return err
 		}
+	} else {
+		return fmt.Errorf("A checked transfer is already in progress")
 	}
+}
 
+func (self *RemotePeer) Write(p []byte) (int, error) {
 	n, err := self.WriteMessage(self.connection, DataBlock, p)
 
-	// if the final written size is larger than what we put in, then we will assume that our data
-	// is in that payload.  smaller sizes (as well as an error) will indicate an error and be
-	// returned to the caller as-is
-	if n > len(p) {
+	// if the message was written without error and it wrote more data than was requested,
+	// tell the caller that all of their data was written (but not more).  Callers are not
+	// expecting io.Writer to have written more than it received.
+	if err == nil && n > len(p) {
 		n = len(p)
 	}
 
-	// append data to running hash
+	// append data to running hash if we're in the middle of a checked transfer
 	if self.writeStreamHasher != nil {
 		io.Copy(self.writeStreamHasher, bytes.NewBuffer(p))
 	}
@@ -295,7 +302,7 @@ func (self *RemotePeer) Close() error {
 	return nil
 }
 
-func (self *RemotePeer) Finalize() error {
+func (self *RemotePeer) FinishChecked() error {
 	if self.isWritingDataStream {
 		sum := []byte{}
 
@@ -306,28 +313,8 @@ func (self *RemotePeer) Finalize() error {
 		self.isWritingDataStream = false
 		self.writeStreamHasher = nil
 
-		log.Debugf("Sending multipart close: %x", sum)
+		log.Debugf("Completed checked transfer: %x", sum)
 		_, err := self.WriteMessage(self.connection, DataFinalize, sum)
-
-		if err != nil {
-			log.Errorf("Failed to send multipart message termination")
-		}
-
-		// wait for acknowledgement that the message termination was received
-		// select {
-		// case ack := <-self.messages:
-		//  if ack.Type != Acknowledgement {
-		//      return fmt.Errorf("Invalid acknowledgement message type %d", ack.Type)
-		//  }
-
-		//  if ack.Data != nil && ack.Data[0] == 1 {
-		//      log.Debugf("Remote peer acknowledges successful transfer")
-		//  } else {
-		//      log.Warningf("Remote peer acknowledges unsuccessful transfer")
-		//  }
-		// case <-time.After(RemotePeerDataFinalizeAckTimeout):
-		//  return fmt.Errorf("Timed out waiting for multipart acknowledgement, waited %s", RemotePeerDataFinalizeAckTimeout)
-		// }
 
 		return err
 	} else {

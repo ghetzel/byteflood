@@ -158,20 +158,30 @@ func main() {
 							if remotePeer, err := localPeer.ConnectTo(host, int(port)); err == nil {
 								log.Infof("Connected to peer: %s", remotePeer.String())
 
-								if file, err := os.Open(c.Args().Get(1)); err == nil {
-									if n, err := io.Copy(remotePeer, file); err != nil {
-										log.Fatalf("Error during write (wrote %d bytes): %v", n, err)
-									}
+								if c.NArg() > 1 {
+									if file, err := os.Open(c.Args().Get(1)); err == nil {
+										if err := remotePeer.BeginChecked(); err != nil {
+											log.Fatalf("Error starting checked transfer: %v", err)
+										}
 
-									if err := remotePeer.Finalize(); err != nil {
-										log.Warningf("Stream close failed: %v", err)
-									}
+										if n, err := io.Copy(remotePeer, file); err != nil {
+											log.Fatalf("Error during write (wrote %d bytes): %v", n, err)
+										}
 
-									if err := remotePeer.Disconnect(); err != nil {
-										log.Errorf("Disconnect failed: %v", err)
+										if err := remotePeer.FinishChecked(); err != nil {
+											log.Warningf("Checked transfer finalize failed: %v", err)
+										}
+
+										if err := remotePeer.Disconnect(); err != nil {
+											log.Errorf("Disconnect failed: %v", err)
+										}
+									} else {
+										log.Fatal(err)
 									}
 								} else {
-									log.Fatal(err)
+									if n, err := io.Copy(remotePeer, os.Stdin); err != nil {
+										log.Fatalf("Error during write (wrote %d bytes): %v", n, err)
+									}
 								}
 							} else {
 								log.Fatal(err)

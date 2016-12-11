@@ -63,7 +63,51 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	return
 }
 
-func TestPeerConnect(t *testing.T) {
+func TestPeerSmallTransfer(t *testing.T) {
+	assert := require.New(t)
+	peer1messages := make([]PeerMessage, 0)
+	peer2messages := make([]PeerMessage, 0)
+
+	var err error
+	peer1, peer2 := makePeerPair()
+
+	fromPeer2, err := peer1.ConnectTo(peer2.Address, peer2.Port)
+	assert.Nil(err)
+
+	fromPeer1, err := peer2.ConnectTo(peer1.Address, peer1.Port)
+	assert.Nil(err)
+
+	go func() {
+		for m := range peer1.Messages {
+			log.Debugf("peer1: msg: %+v", m)
+			peer1messages = append(peer1messages, m)
+		}
+	}()
+
+	go func() {
+		for m := range peer2.Messages {
+			log.Debugf("peer2: msg: %+v", m)
+			peer2messages = append(peer2messages, m)
+		}
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	fromPeer2.SendMessage(DataBlock, []byte{0x42})
+	fromPeer1.SendMessage(DataBlock, []byte{0x41})
+
+	time.Sleep(100 * time.Millisecond)
+
+	assert.Equal(1, len(peer1messages))
+	assert.Equal(fromPeer2.ID(), peer1messages[0].Peer.ID())
+	assert.Equal([]byte{0x41}, peer1messages[0].Message.Data)
+
+	assert.Equal(1, len(peer2messages))
+	assert.Equal(fromPeer1.ID(), peer2messages[0].Peer.ID())
+	assert.Equal([]byte{0x42}, peer2messages[0].Message.Data)
+}
+
+func TestPeerCheckedTransfer(t *testing.T) {
 	assert := require.New(t)
 	peer1messages := make([]PeerMessage, 0)
 	peer2messages := make([]PeerMessage, 0)
