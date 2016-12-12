@@ -22,6 +22,8 @@ const (
 var log = logging.MustGetLogger(`byteflood.peer`)
 var logproxy = util.NewLogProxy(`byteflood.peer`, `info`)
 
+var LocalPeerMessageBufferSize int = 512
+
 type Peer interface {
 	ID() []byte
 	UUID() uuid.UUID
@@ -68,7 +70,7 @@ func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, err
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
 		MessageSize:          DEFAULT_PEER_MESSAGE_SIZE,
-		Messages:             make(chan PeerMessage),
+		Messages:             make(chan PeerMessage, LocalPeerMessageBufferSize),
 		id:                   localID,
 		sessions:             make(map[uuid.UUID]*RemotePeer),
 		listening:            make(chan bool),
