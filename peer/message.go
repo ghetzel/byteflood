@@ -13,7 +13,9 @@ type MessageType int
 const (
 	Acknowledgement MessageType = iota
 	DataStart
+	DataProceed
 	DataBlock
+	DataTerminate
 	DataFinalize
 	DataFailed
 )
@@ -34,16 +36,20 @@ const (
 
 func (self MessageType) String() string {
 	switch self {
-	case DataBlock:
-		return `data`
 	case DataStart:
-		return `mp-start`
+		return `transfer-start`
+	case DataProceed:
+		return `transfer-proceed`
+	case DataBlock:
+		return `data-block`
+	case DataTerminate:
+		return `transfer-terminate`
 	case DataFinalize:
-		return `mp-end`
+		return `transfer-final`
 	case DataFailed:
-		return `mp-fail`
+		return `transfer-failed`
 	case Acknowledgement:
-		return `ack`
+		return `acknowledgement`
 	default:
 		return `invalid`
 	}
@@ -51,9 +57,11 @@ func (self MessageType) String() string {
 
 type Message struct {
 	io.Reader
-	Type     MessageType
-	Encoding MessageEncoding
-	Data     []byte
+	Type           MessageType
+	Encoding       MessageEncoding
+	Data           []byte
+	actualSize     int
+	actualChecksum []byte
 }
 
 func NewMessage(mt MessageType, data []byte) *Message {

@@ -14,44 +14,32 @@ import (
 )
 
 var RemotePeerDataFinalizeAckTimeout = 2000 * time.Millisecond
+var RemotePeerMessageBufferSize int = 512
 
 type RemotePeer struct {
 	io.ReadWriteCloser
 	Peer
-	MessageSize             int
-	Encrypter               *encryption.Encrypter
-	Decrypter               *encryption.Decrypter
-	Messages                chan *Message
-	publicKey               []byte
-	id                      uuid.UUID
-	connection              *net.TCPConn
-	messages                chan *Message
-	isWritingDataStream     bool
-	dataStreamSizeBytes     int
-	dataStreamReceivedBytes int
-	readStreamHasher        hash.Hash
-	writeStreamHasher       hash.Hash
-	dataMessageCounter      int
-	dataMessageBytes        int
-	readLimiter             *util.RateLimitingReadWriter
-	writeLimiter            *util.RateLimitingReadWriter
-}
-
-type PeerMessage struct {
-	FromPeer *RemotePeer
-	Message  *Message
+	Encrypter                      *encryption.Encrypter
+	Decrypter                      *encryption.Decrypter
+	publicKey                      []byte
+	id                             uuid.UUID
+	connection                     *net.TCPConn
+	outboundTransferActive         bool
+	shouldTerminateCheckedTransfer bool
+	outboundTransferTotalBytes     int
+	outboundTransferBytesWritten   int
+	outboundTransferChecksum       hash.Hash
+	readLimiter                    *util.RateLimitingReadWriter
+	writeLimiter                   *util.RateLimitingReadWriter
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
 	if err := request.Validate(); err == nil {
 		if id, err := uuid.FromBytes(request.ID); err == nil {
 			return &RemotePeer{
-				MessageSize: request.MessageSize,
-				publicKey:   request.PublicKey,
-				id:          id,
-				connection:  connection,
-				messages:    make(chan *Message),
-				Messages:    make(chan *Message),
+				publicKey:  request.PublicKey,
+				id:         id,
+				connection: connection,
 			}, nil
 		} else {
 			return nil, err
@@ -59,6 +47,22 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 	} else {
 		return nil, err
 	}
+}
+
+func (self *RemotePeer) GetPublicKey() []byte {
+	return self.publicKey
+}
+
+func (self *RemotePeer) ID() string {
+	return self.id.String()
+}
+
+func (self *RemotePeer) String() string {
+	return self.ID()
+}
+
+func (self *RemotePeer) UUID() uuid.UUID {
+	return self.id
 }
 
 func (self *RemotePeer) SetReadRateLimit(bytesPerSecond int, burstSize int) {
@@ -87,169 +91,14 @@ func (self *RemotePeer) GetWriteRateLimiter(w io.Writer) io.Writer {
 	}
 }
 
-// Starts the per-peer services a LocalPeer needs to provide to interact with a RemotePeer.
-func (self *RemotePeer) Start(localPeer *LocalPeer) {
-	log.Debugf("[%s] Waiting for messages...", self.String())
-
-	for {
-		if message, err := self.ReadMessage(self.connection); err == nil {
-			switch message.Type {
-			case DataStart:
-				log.Debugf("[%s]   START: Starting multipart receive...", self.String())
-				self.readStreamHasher = sha256.New()
-				self.dataMessageCounter = 0
-				self.dataMessageBytes = 0
-
-				if v, ok := message.Value().(uint64); ok {
-					self.dataStreamSizeBytes = int(v)
-				} else {
-					log.Errorf("Invalid checked transfer header: malformed size")
-					continue
-				}
-
-			case DataBlock:
-				log.Debugf("[%s]    DATA: %d bytes", self.String(), len(message.Data))
-
-				if message.Data != nil {
-					self.dataMessageCounter += 1
-					self.dataMessageBytes += len(message.Data)
-
-					// if this data block overruns what we're expecting, replace this message with a DataFailed
-					// message.
-					//
-					// TODO: Tell the remote peer stop stop sending us data
-					//
-					if self.dataStreamSizeBytes > 0 && self.dataMessageBytes > self.dataStreamSizeBytes {
-						msg := fmt.Sprintf("Checked transfer too long: writes have exceeded %d bytes", self.dataStreamSizeBytes)
-						log.Errorf(msg)
-
-						message, _ = NewMessageEncoded(
-							DataFailed,
-							msg,
-							StringEncoding,
-						)
-					} else {
-						if self.readStreamHasher != nil {
-							self.readStreamHasher.Write(message.Data)
-						}
-					}
-
-				}
-
-			case DataFinalize:
-				expected := message.Data
-				actual := self.readStreamHasher.Sum(nil)
-
-				log.Debugf("[%s]   FINAL: Checked transfer complete (saw %d data packets, %d bytes): ",
-					self.String(),
-					self.dataMessageCounter,
-					self.dataMessageBytes)
-
-				log.Debugf("[%s]   FINAL:   expected: %x", self.String(), expected)
-				log.Debugf("[%s]   FINAL:     actual: %x", self.String(), actual)
-
-				if self.dataMessageBytes == self.dataStreamSizeBytes {
-					if bytes.Compare(expected, actual) == 0 {
-						log.Debugf("[%s]   FINAL: Transfer successful (received %d bytes)", self.String(), self.dataStreamSizeBytes)
-						// self.WriteMessage(self.connection, NewMessage(Acknowledgement, []byte{1}))
-					} else {
-						log.Errorf("[%s]   FINAL: checksum mismatch", self.String())
-
-						// replace this message with a DataFailed message
-						message, _ = NewMessageEncoded(
-							DataFailed,
-							fmt.Sprintf("checksum mismatch"),
-							StringEncoding,
-						)
-						// self.WriteMessage(self.connection, NewMessage(Acknowledgement, []byte{0}))
-					}
-				} else {
-					log.Errorf("[%s]   FINAL: size mismatch", self.String())
-
-					// replace this message with a DataFailed message
-					message, _ = NewMessageEncoded(
-						DataFailed,
-						fmt.Sprintf("size mismatch"),
-						StringEncoding,
-					)
-				}
-
-				self.dataStreamSizeBytes = 0
-				self.dataMessageBytes = 0
-				self.dataMessageCounter = 0
-				self.readStreamHasher = nil
-
-			case DataFailed:
-				log.Debugf("[%s] DATFAIL: Transfer failed: %v", self.String(), message.Value())
-
-				self.dataStreamSizeBytes = 0
-				self.dataMessageBytes = 0
-				self.dataMessageCounter = 0
-				self.readStreamHasher = nil
-
-			case Acknowledgement:
-				log.Debugf("[%s]     ACK: Acknowledge %x", self.String(), message.Data)
-
-			default:
-				log.Debugf("[%s] INVALID: Unknown message type, data: %d bytes", self.String(), len(message.Data))
-				continue
-			}
-
-			// send message to internal message chan (non-blocking)
-			select {
-			case self.messages <- message:
-				break
-			default:
-				break
-			}
-
-			// ALSO send message to external message chan (non-blocking)
-			select {
-			case localPeer.Messages <- PeerMessage{
-				FromPeer: self,
-				Message:  message,
-			}:
-				break
-			default:
-				break
-			}
-		} else {
-			if err == io.EOF {
-				log.Errorf("[%s] remote peer disconnected", self.String())
-			} else {
-				log.Errorf("[%s] error receiving message: %v", self.String(), err)
-			}
-
-			defer localPeer.RemovePeer(self.id)
-			return
-		}
-	}
-}
-
-func (self *RemotePeer) GetPublicKey() []byte {
-	return self.publicKey
-}
-
-func (self *RemotePeer) String() string {
-	return self.id.String()
-}
-
-func (self *RemotePeer) ID() []byte {
-	return self.id.Bytes()
-}
-
-func (self *RemotePeer) UUID() uuid.UUID {
-	return self.id
-}
-
 func (self *RemotePeer) Disconnect() error {
 	log.Infof("Disconnecting from %s", self.String())
 	return self.connection.Close()
 }
 
-func (self *RemotePeer) ReadMessage(reader io.Reader) (*Message, error) {
+func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 	// imposes rate limiting on reads (if configured)
-	reader = self.GetReadRateLimiter(reader)
+	reader := self.GetReadRateLimiter(self.connection)
 
 	// ensures that the decrypter is using the reader we've specified
 	self.Decrypter.SetSource(reader)
@@ -266,16 +115,12 @@ func (self *RemotePeer) ReadMessage(reader io.Reader) (*Message, error) {
 	}
 }
 
-func (self *RemotePeer) ReceiveMessage() (*Message, error) {
-	return self.ReadMessage(self.connection)
-}
-
-func (self *RemotePeer) WriteMessage(w io.Writer, message *Message) (int, error) {
+func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 	// imposes rate limiting on writes (if configured)
-	w = self.GetWriteRateLimiter(w)
+	writer := self.GetWriteRateLimiter(self.connection)
 
 	// ensures that the encrypter is using the writer we've specified
-	self.Encrypter.SetTarget(w)
+	self.Encrypter.SetTarget(writer)
 
 	// encode the message for transport
 	if encodedMessage, err := message.Encode(); err == nil {
@@ -284,14 +129,15 @@ func (self *RemotePeer) WriteMessage(w io.Writer, message *Message) (int, error)
 		// write encoded message (cleartext) to encrypter, which will in turn write
 		// the ciphertext and protocol data to the writer specified above
 		if n, err := io.Copy(self.Encrypter, encodedMessageR); err == nil {
-			log.Debugf("[%s] Encrypted %d bytes (%d encoded, %d data)",
+			log.Debugf("[%s] WRITE: [%s] Encrypted %d bytes (%d encoded, %d data)",
+				self.String(),
 				message.Type.String(),
 				n,
 				len(encodedMessage),
 				len(message.Data))
 			return int(n), err
 		} else {
-			log.Debugf("[%s] write error: %v", message.Type.String(), err)
+			log.Debugf("[%s] WRITE: [%s] error: %v", message.Type.String(), err)
 			return 0, err
 		}
 	} else {
@@ -299,34 +145,37 @@ func (self *RemotePeer) WriteMessage(w io.Writer, message *Message) (int, error)
 	}
 }
 
-func (self *RemotePeer) SendMessage(message *Message) (int, error) {
-	return self.WriteMessage(self.connection, message)
-}
-
-func (self *RemotePeer) Read(p []byte) (int, error) {
-	message := <-self.messages
-
-	switch message.Type {
-	case DataBlock:
-		return copy(p, message.Data), nil
-	case DataFinalize:
-		return 0, io.EOF
-	default:
-		return 0, fmt.Errorf("Reader interface only implemented for DataBlock messages")
-	}
-}
-
 // Starts a checked transfer.  All subsequent writes (until FinishChecked is called) will be hashed
-// and sent as one logical transaction.
+// and sent as one logical transaction.  If a non-zero size is specified, the receiving peer will
+// verify that the received data is exactly that length.  If size is zero, this verification will not
+// be performed. It is recommended that if the size is known beforehand that it should be sent.
+//
 func (self *RemotePeer) BeginChecked(size int) error {
-	if !self.isWritingDataStream {
+	// only we we aren't already performing a transfer...
+	if !self.outboundTransferActive {
+		// encode and send the transfer start header
 		if message, err := NewMessageEncoded(DataStart, size, BinaryLEUint64); err == nil {
-			if _, err := self.WriteMessage(self.connection, message); err == nil {
-				self.isWritingDataStream = true
-				self.dataStreamSizeBytes = size
-				self.dataStreamReceivedBytes = 0
-				self.writeStreamHasher = sha256.New()
-				return nil
+			if _, err := self.SendMessage(message); err == nil {
+				// transfers are answered with a go/no-go reply
+				if message, err := self.ReceiveMessage(); err == nil {
+					switch message.Type {
+					case DataProceed:
+						self.outboundTransferActive = true
+						self.outboundTransferTotalBytes = size
+						self.outboundTransferBytesWritten = 0
+						self.outboundTransferChecksum = sha256.New()
+						return nil
+
+					case DataTerminate:
+						return fmt.Errorf("Remote peer refused transfer: %v", message.Value())
+
+					default:
+						return fmt.Errorf("Remote peer sent an invalid reply: %s", message.Type.String())
+
+					}
+				} else {
+					return err
+				}
 			} else {
 				return err
 			}
@@ -340,12 +189,19 @@ func (self *RemotePeer) BeginChecked(size int) error {
 
 func (self *RemotePeer) Write(p []byte) (int, error) {
 	// append data to running hash if we're in the middle of a checked transfer
-	if self.isWritingDataStream {
+	if self.outboundTransferActive {
+		// check if we should be terminating an in-progress transfer
+		if self.shouldTerminateCheckedTransfer {
+			err := fmt.Errorf("Received transfer termination from remote peer")
+			self.shouldTerminateCheckedTransfer = false
+			return 0, self.FinishChecked(err)
+		}
+
 		// make sure we're not trying to write more than we should
-		if (self.dataStreamReceivedBytes + len(p)) > self.dataStreamSizeBytes {
+		if (self.outboundTransferBytesWritten + len(p)) > self.outboundTransferTotalBytes {
 			err := fmt.Errorf(
 				"write exceeds declared size (%d bytes)",
-				self.dataStreamSizeBytes,
+				self.outboundTransferTotalBytes,
 			)
 
 			// send failure termination to peer and return error
@@ -353,17 +209,17 @@ func (self *RemotePeer) Write(p []byte) (int, error) {
 			return 0, err
 		} else {
 			// write to rolling checksum
-			if _, err := io.Copy(self.writeStreamHasher, bytes.NewBuffer(p)); err != nil {
+			if _, err := io.Copy(self.outboundTransferChecksum, bytes.NewBuffer(p)); err != nil {
 				return 0, fmt.Errorf("checksum error: %v", err)
 			}
 
 			// increment bytes written counter
-			self.dataStreamReceivedBytes += len(p)
+			self.outboundTransferBytesWritten += len(p)
 		}
 	}
 
-	// actually send the data block message to the peer
-	n, err := self.WriteMessage(self.connection, NewMessage(DataBlock, p))
+	// send the data block message to the peer
+	n, err := self.SendMessage(NewMessage(DataBlock, p))
 
 	if err == nil {
 		// if the message was written without error and it wrote more data than was requested,
@@ -392,29 +248,30 @@ func (self *RemotePeer) Close() error {
 //
 func (self *RemotePeer) FinishChecked(errs ...error) error {
 	defer func() {
-		self.isWritingDataStream = false
-		self.writeStreamHasher = nil
+		self.outboundTransferActive = false
+		self.outboundTransferChecksum = nil
 	}()
 
-	if self.isWritingDataStream {
+	// if we're actually in a transfer...
+	if self.outboundTransferActive {
+		// if this call is error-free
 		if len(errs) == 0 {
 			sum := []byte{}
 
-			if self.writeStreamHasher != nil {
-				sum = self.writeStreamHasher.Sum(nil)
+			// sum the running hash
+			if self.outboundTransferChecksum != nil {
+				sum = self.outboundTransferChecksum.Sum(nil)
 			}
 
+			// send the transfer termination (successful)
 			log.Debugf("Completed checked transfer: %x", sum)
-			_, err := self.WriteMessage(self.connection, NewMessage(DataFinalize, sum))
+			_, err := self.SendMessage(NewMessage(DataFinalize, sum))
 
 			return err
 		} else {
+			// encode and send the failed transfer termination with error message
 			if errMsg, err := NewMessageEncoded(DataFailed, errs[0].Error(), StringEncoding); err == nil {
-				_, err := self.WriteMessage(
-					self.connection,
-					errMsg,
-				)
-
+				_, err := self.SendMessage(errMsg)
 				return err
 			} else {
 				return err
@@ -423,4 +280,85 @@ func (self *RemotePeer) FinishChecked(errs ...error) error {
 	} else {
 		return nil
 	}
+}
+
+func (self *RemotePeer) WriteChecked(send []byte) error {
+	// start the checked transfer
+	if err := self.BeginChecked(len(send)); err != nil {
+		return err
+	}
+
+	// send the data
+	if _, err := io.Copy(self, bytes.NewBuffer(send)); err != nil {
+		return err
+	}
+
+	// complete the checked transfer
+	if err := self.FinishChecked(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (self *RemotePeer) ReadChecked() ([]byte, error) {
+	var responseHeader *Message
+	var expectedSize int
+	response := bytes.NewBuffer(nil)
+
+messageLoop:
+	for {
+		if message, err := self.ReceiveMessage(); err == nil {
+			switch message.Type {
+			case DataStart:
+				if responseHeader == nil {
+					if v, ok := message.Value().(uint64); ok {
+						expectedSize = int(v)
+						responseHeader = message
+					} else {
+						return nil, fmt.Errorf("Malformed checked transfer header")
+					}
+				} else {
+					return nil, fmt.Errorf("Received duplicate checked transfer header")
+				}
+
+			case DataBlock:
+				if message.Data != nil {
+					response.Write(message.Data)
+				}
+
+			case DataFinalize:
+				if expectedSize == 0 || message.actualSize == expectedSize {
+					if bytes.Compare(message.Data, message.actualChecksum) != 0 {
+						return nil, fmt.Errorf("checksum mismatch")
+					} else {
+						break messageLoop
+					}
+				} else {
+					return nil, fmt.Errorf("size mismatch; expected: %d, got: %d", expectedSize, message.actualSize)
+				}
+
+			case DataFailed:
+				msg, _ := message.Value().(string)
+				return nil, fmt.Errorf(msg)
+
+			default:
+				return nil, fmt.Errorf("Invalid response")
+			}
+		} else {
+			return nil, err
+		}
+	}
+
+	return response.Bytes(), nil
+}
+
+// Performs a transaction with another peer by performing a checked transfer with them, then
+// reading a response and returning it.
+func (self *RemotePeer) Transact(send []byte) ([]byte, error) {
+	if err := self.WriteChecked(send); err != nil {
+		return nil, err
+	}
+
+	return self.ReadChecked()
 }
