@@ -67,39 +67,39 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	return
 }
 
-func TestPeerSmallTransfer(t *testing.T) {
-	assert := require.New(t)
-	peer1, peer2 := makePeerPair()
+// func TestPeerSmallTransfer(t *testing.T) {
+// 	assert := require.New(t)
+// 	peer1, peer2 := makePeerPair()
 
-	// peer1 connects to peer2
-	toPeer2fromPeer1, err := peer1.ConnectTo(peer2.Address, peer2.Port)
-	assert.Nil(err)
+// 	// peer1 connects to peer2
+// 	toPeer2fromPeer1, err := peer1.ConnectTo(peer2.Address, peer2.Port)
+// 	assert.Nil(err)
 
-	// peer2's view of peer1 (who just connected)
-	toPeer1fromPeer2, ok := peer2.GetPeer(peer1.ID())
-	assert.True(ok)
-	assert.NotNil(toPeer1fromPeer2)
+// 	// peer2's view of peer1 (who just connected)
+// 	toPeer1fromPeer2, ok := peer2.GetPeer(peer1.ID())
+// 	assert.True(ok)
+// 	assert.NotNil(toPeer1fromPeer2)
 
-	// peer1 sends 0x42 to peer2
-	_, err = toPeer2fromPeer1.SendMessage(NewMessage(DataBlock, []byte{0x42}))
-	assert.Nil(err)
+// 	// peer1 sends 0x42 to peer2
+// 	_, err = toPeer2fromPeer1.SendMessage(NewMessage(DataBlock, []byte{0x42}))
+// 	assert.Nil(err)
 
-	// peer2 receives 0x42 from peer1
-	msg, err := toPeer1fromPeer2.ReceiveMessage()
-	assert.Nil(err)
-	assert.NotNil(msg)
-	assert.Equal([]byte{0x42}, msg.Data)
+// 	// peer2 receives 0x42 from peer1
+// 	msg, err := toPeer1fromPeer2.ReceiveMessage()
+// 	assert.Nil(err)
+// 	assert.NotNil(msg)
+// 	assert.Equal([]byte{0x42}, msg.Data)
 
-	// peer2 sends 0x41 to peer1
-	_, err = toPeer1fromPeer2.Write([]byte{0x41})
-	assert.Nil(err)
+// 	// peer2 sends 0x41 to peer1
+// 	_, err = toPeer1fromPeer2.Write([]byte{0x41})
+// 	assert.Nil(err)
 
-	// peer1 receives 0x41 from peer2
-	msg, err = toPeer2fromPeer1.ReceiveMessage()
-	assert.Nil(err)
-	assert.NotNil(msg)
-	assert.Equal([]byte{0x41}, msg.Data)
-}
+// 	// peer1 receives 0x41 from peer2
+// 	msg, err = toPeer2fromPeer1.ReceiveMessage()
+// 	assert.Nil(err)
+// 	assert.NotNil(msg)
+// 	assert.Equal([]byte{0x41}, msg.Data)
+// }
 
 // func TestPeerCheckedTransfer(t *testing.T) {
 // 	assert := require.New(t)

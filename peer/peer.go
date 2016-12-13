@@ -7,7 +7,6 @@ import (
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/op/go-logging"
 	"github.com/satori/go.uuid"
-	"io"
 	"net"
 	"time"
 )
@@ -267,7 +266,7 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 
 			// start automatically receiving messages from this peer if we're supposed to
 			if self.AutoReceiveMessages {
-				go self.ReceiveMessages(remotePeer)
+				go remotePeer.ReceiveMessages(self)
 			}
 
 			return remotePeer, nil
@@ -296,91 +295,6 @@ func (self *LocalPeer) RemovePeer(id string) {
 
 		log.Debugf("%d peers registered", len(self.sessions))
 	}
-}
-
-// Receives messages from the given peer on an ongoing basis.  Returns an error
-// representing a disconnect or other connection error.  This function never returns
-// nil and is intended to be long-running on a per-peer basis.
-//
-func (self *LocalPeer) ReceiveMessages(remotePeer *RemotePeer) error {
-	log.Debugf("Receiving messages from %s", remotePeer.ID())
-
-	for {
-		if message, err := remotePeer.ReceiveMessage(); err == nil {
-			var replyErr error
-			log.Debugf("[%s] Message Type: %s", remotePeer.ID(), message.Type.String())
-
-			// Acknowledgement MessageType = iota
-			// DataStart
-			// DataProceed
-			// DataBlock
-			// DataTerminate
-			// DataFinalize
-			// DataFailed
-
-			switch message.Type {
-			case DataStart:
-				v, ok := message.Value().(uint64)
-
-				if !ok {
-					v = 0
-				}
-
-				// create a new transfer
-				remotePeer.activeTransfer = NewTransfer(remotePeer, int(v))
-
-				// TODO: local can reject by sending DataTerminate w/ an optional string reason
-				//       based on a to-be-determined file receive policy
-
-				// give peer the go-ahead to start writing data
-				_, err = remotePeer.SendMessage(NewMessage(DataProceed, nil))
-
-			case DataProceed:
-				// this is explicitly waited for by RemotePeer, nothing to do here
-
-			case DataBlock:
-				if remotePeer.activeTransfer != nil {
-					_, replyErr = remotePeer.activeTransfer.Write(message.Data)
-				}
-
-				if replyErr != nil {
-					if m, err := NewMessageEncoded(DataTerminate, err.Error(), StringEncoding); err == nil {
-						_, replyErr = remotePeer.SendMessage(m)
-					} else {
-						replyErr = err
-					}
-				}
-
-			case DataFinalize:
-				if remotePeer.activeTransfer != nil {
-					if err := remotePeer.activeTransfer.Verify(message.Data); err == nil {
-						// if the transfer was successful, inform the peer with an Acknowledgement
-						_, replyErr = remotePeer.SendMessage(NewMessage(Acknowledgement, nil))
-					} else {
-						log.Errorf("[%s] Trasnfer failed verification: %v", remotePeer.String(), err)
-
-						// if the transfer failed verification, reply with a failure message
-						if m, err := NewMessageEncoded(DataFailed, err.Error(), StringEncoding); err == nil {
-							_, replyErr = remotePeer.SendMessage(m)
-						} else {
-							replyErr = err
-						}
-					}
-
-					remotePeer.activeTransfer = nil
-				}
-			}
-
-			if replyErr != nil {
-				log.Errorf("[%s] Send reply failed: %v", replyErr)
-			}
-		} else if err == io.EOF {
-			log.Infof("Remote peer disconnected")
-			return io.EOF
-		}
-	}
-
-	return fmt.Errorf("Protocol Error")
 }
 
 func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {

@@ -1,14 +1,42 @@
 vendors:
 - path: github.com/blevesearch/bleve
-  rev: c351931701d7d4aa58e41cb735a68400a4e88b29
+  rev: 3b2bc30b544cd4589cf3ad8c04030329b143dce9
+- path: github.com/blevesearch/blevex
+  rev: 74982cb46454f14f9f2dc7b5ec63ad6c9b7a3286
 - path: github.com/blevesearch/go-porterstemmer
   rev: 23a2c8e5cf1f380f27722c6d2ae8896431dc7d0e
 - path: github.com/blevesearch/segment
   rev: 762005e7a34fd909a84586299f1dd457371d36ee
 - path: github.com/boltdb/bolt
   rev: 0d9f544bb94aac29c185968483459ef74d6deb5d
+- path: github.com/cockroachdb/c-jemalloc
+  rev: f2755b08090c954a7de3addde2a8ed009607dbe9
+- path: github.com/cockroachdb/c-lz4
+  rev: 834d3303c9e84b1045bc57c3eb3723ee8cb4d33b
+- path: github.com/cockroachdb/c-rocksdb
+  rev: 894d369c4ea259b65f75563feeb06bea322a8450
+- path: github.com/cockroachdb/c-snappy
+  rev: c0cd3c9ce92f195001595e1fbbe66f045daad34f
+- path: github.com/couchbase/goforestdb
+  rev: 9846a5dc7ed928cabffcdeea1f1ed5741ff30973
+- path: github.com/couchbaselabs/c-forestdb
+  rev: 1b1267468faaae75b9789a5ef87c7ad6bd3dfed6
+- path: github.com/couchbaselabs/c-snappy
+  rev: a52f87e8ffc55ee69e3cf67813fc55d05520da6e
+- path: github.com/cznic/b
+  rev: bcff30a622dbdcb425aba904792de1df606dab7c
+- path: github.com/cznic/mathutil
+  rev: 4609a45a9e61188d0d69a5d8ad42600c3df35002
+- path: github.com/cznic/strutil
+  rev: 1eb03e3cc9d345307a45ec82bd3016cde4bd4464
 - path: github.com/davecgh/go-spew
   rev: 346938d642f2ec3594ed81d874461961cd0faa76
+- path: github.com/facebookgo/ensure
+  rev: b4ab57deab51ee655ae4bd85281f0715a068016d
+- path: github.com/facebookgo/stack
+  rev: 751773369052141c013c6e827a71e8f35c07879c
+- path: github.com/facebookgo/subset
+  rev: 8dac2c3c48703541e481feddf22975953d4ff842
 - path: github.com/fatih/structs
   rev: dc3312cb1a4513a366c4c9e622ad55c32df12ed3
 - path: github.com/ghetzel/cli
@@ -18,17 +46,23 @@ vendors:
 - path: github.com/ghetzel/pivot
   rev: d0b59d9e55e33a84dceedb7b06d8d8cd4d3bd531
 - path: github.com/ghodss/yaml
-  rev: a54de18a07046d8c4b26e9327698a2ebb9285b36
+  rev: 04f313413ffd65ce25f2541bfd2b2ceec5c0908c
 - path: github.com/golang/protobuf
   rev: 8ee79997227bf9b34611aee7946ae64735e6fd93
-- path: github.com/hashicorp/yamux
-  rev: d1caa6c97c9fc1cc9e83bbe34d0603f9ff0ce8bd
+- path: github.com/golang/snappy
+  rev: d9eb7a3d35ec988b8585d4a0068e462c27d28380
 - path: github.com/huin/goupnp
   rev: 949b8a77532ae1076171f4d112a5eb41354cb340
 - path: github.com/jbenet/go-base58
   rev: 6237cf65f3a6f7111cd8a42be3590df99a66bc7d
+- path: github.com/jmhodges/levigo
+  rev: c42d9e0ca023e2198120196f842701bb4c55d7b9
 - path: github.com/julienschmidt/httprouter
   rev: 5dd70ee059943e81987a817fa1a755b11dd119c1
+- path: github.com/onsi/ginkgo
+  rev: 00054c0bb96fc880d4e0be1b90937fad438c5290
+- path: github.com/onsi/gomega
+  rev: f1f0f388b31eca4e2cbe7a6dd8a3a1dfddda5b1c
 - path: github.com/op/go-logging
   rev: 970db520ece77730c7e4724c61121037378659d9
 - path: github.com/pmezard/go-difflib
@@ -43,28 +77,32 @@ vendors:
   rev: 0d12bf811670bf6a1a63828dfbd003eded177fce
 - path: github.com/steveyen/gtreap
   rev: 0abe01ef9be25c4aedc174758ec2d917314d6d70
-- path: github.com/stretchr/objx
-  rev: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
 - path: github.com/stretchr/testify
   rev: 18a02ba4a312f95da08ff4cfc0055750ce50ae9e
+- path: github.com/syndtr/goleveldb
+  rev: 6b4daa5362b502898ddf367c5c11deb9e7a5c727
+- path: github.com/tecbot/gorocksdb
+  rev: 17991d3138a879b166adebf86f7c84da3c1517a7
 - path: github.com/urfave/negroni
   rev: cd9734011043904139c24dbad9a71b21f1586f36
 - path: github.com/vmihailenco/msgpack
   rev: 94af6ea04d2da6a09d6914ca79b8fb94f3acbba4
 - path: golang.org/x/crypto
-  rev: 95cb608f365d51e0e69abc646ec90c0e26fb427f
+  rev: 9a6f0a01987842989747adff311d80750ba25530
 - path: golang.org/x/net
-  rev: 6cdc0daab091c43fc46193327e0047b4f883c613
+  rev: cfae461cedfdcab6e261a26eb77db53695623303
+- path: golang.org/x/sync
+  rev: 450f422ab23cf9881c94e2db30cac0eb1b7cf80c
 - path: golang.org/x/sys
-  rev: f5a6bd43051d3f1f5dd3e0dbd531721aa5e75d28
+  rev: 478fcf54317e52ab69f40bb4c7a1520288d7f7ea
 - path: golang.org/x/text
-  rev: 5c6cf4f9a2357d38515014cea8c488ed22bdab90
+  rev: 47a200a05c8b3fd1b698571caecbb68beb2611ec
 - path: golang.org/x/time
   rev: f51c12702a4d776e4c1fa9b0fabab841babae631
 - path: google.golang.org/appengine
   rev: ca59ef35f409df61fa4a5f8290ff289b37eccfb8
 - path: gopkg.in/check.v1
-  rev: aa8c43564278bc4c58e8ca51bfc5f1c149925cf0
+  rev: 20d25e2804050c1cd24a7eea1e7a6447dd0e74ec
 - path: gopkg.in/mgo.v2
   rev: 3f83fa5005286a7fe593b055f0d7771a7dce4655
 - path: gopkg.in/vmihailenco/msgpack.v2

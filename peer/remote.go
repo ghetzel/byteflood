@@ -2,7 +2,6 @@ package peer
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"fmt"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
@@ -10,6 +9,7 @@ import (
 	"hash"
 	"io"
 	"net"
+	"os"
 	"time"
 )
 
@@ -162,34 +162,54 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 	}
 }
 
-// Starts a checked transfer.  All subsequent writes (until FinishChecked is called) will be hashed
-// and sent as one logical transaction.  If a non-zero size is specified, the receiving peer will
+// Starts an outbound transfer. If a non-zero size is specified, the receiving peer will
 // verify that the received data is exactly that length.  If size is zero, this verification will not
 // be performed. It is recommended that if the size is known beforehand that it should be sent.
 //
-func (self *RemotePeer) BeginChecked(size int) error {
-	// only we we aren't already performing a transfer...
-	if !self.outboundTransferActive {
-		// encode and send the transfer start header
-		if message, err := NewMessageEncoded(DataStart, size, BinaryLEUint64); err == nil {
-			if _, err := self.SendMessage(message); err == nil {
-				// transfers are answered with a go/no-go reply
-				message := self.WaitNextMessage()
+//
+func (self *RemotePeer) CreateTransfer(size int) (*OutboundTransfer, error) {
+	transfer := NewOutboundTransfer(self, size)
 
-				switch message.Type {
-				case DataProceed:
-					self.outboundTransferActive = true
-					self.outboundTransferTotalBytes = size
-					self.outboundTransferBytesWritten = 0
-					self.outboundTransferChecksum = sha256.New()
-					return nil
+	if err := transfer.Initialize(); err == nil {
+		return transfer, nil
+	} else {
+		return nil, err
+	}
+}
 
-				case DataTerminate:
-					return fmt.Errorf("Remote peer refused transfer: %v", message.Value())
+func (self *RemotePeer) TransferStream(stream io.Reader) error {
+	if transfer, err := self.CreateTransfer(0); err == nil {
+		if _, err := io.Copy(transfer, stream); err == nil {
+			return transfer.Close()
+		} else {
+			return err
+		}
+	} else {
+		return err
+	}
+}
 
-				default:
-					return fmt.Errorf("Remote peer sent an invalid reply: %s", message.Type.String())
+func (self *RemotePeer) TransferData(send []byte) error {
+	if transfer, err := self.CreateTransfer(len(send)); err == nil {
+		// send the data
+		if _, err := io.Copy(transfer, bytes.NewBuffer(send)); err == nil {
+			return transfer.Close()
+		} else {
+			return err
+		}
+	} else {
+		return err
+	}
+}
 
+func (self *RemotePeer) TransferFile(path string) error {
+	if file, err := os.Open(path); err == nil {
+		if stat, err := file.Stat(); err == nil {
+			if transfer, err := self.CreateTransfer(int(stat.Size())); err == nil {
+				if _, err := io.Copy(transfer, file); err == nil {
+					return transfer.Close()
+				} else {
+					return err
 				}
 			} else {
 				return err
@@ -198,182 +218,83 @@ func (self *RemotePeer) BeginChecked(size int) error {
 			return err
 		}
 	} else {
-		return fmt.Errorf("A checked transfer is already in progress")
+		return err
 	}
 }
 
-func (self *RemotePeer) Write(p []byte) (int, error) {
-	// append data to running hash if we're in the middle of a checked transfer
-	if self.outboundTransferActive {
-		// check if we should be terminating an in-progress transfer
-		if self.shouldTerminateCheckedTransfer {
-			err := fmt.Errorf("Received transfer termination from remote peer")
-			self.shouldTerminateCheckedTransfer = false
-			return 0, self.FinishChecked(err)
-		}
-
-		// make sure we're not trying to write more than we should
-		if (self.outboundTransferBytesWritten + len(p)) > self.outboundTransferTotalBytes {
-			err := fmt.Errorf(
-				"write exceeds declared size (%d bytes)",
-				self.outboundTransferTotalBytes,
-			)
-
-			// send failure termination to peer and return error
-			self.FinishChecked(err)
-			return 0, err
-		} else {
-			// write to rolling checksum
-			if _, err := io.Copy(self.outboundTransferChecksum, bytes.NewBuffer(p)); err != nil {
-				return 0, fmt.Errorf("checksum error: %v", err)
-			}
-
-			// increment bytes written counter
-			self.outboundTransferBytesWritten += len(p)
-		}
-	}
-
-	// send the data block message to the peer
-	n, err := self.SendMessage(NewMessage(DataBlock, p))
-
-	if err == nil {
-		// if the message was written without error and it wrote more data than was requested,
-		// tell the caller that all of their data was written (but not more).  Callers are not
-		// expecting io.Writer to have written more than it received.
-		if n > len(p) {
-			n = len(p)
-		}
-	} else {
-		// writing the data block failed somehow, inform the peer and stop the transfer
-		self.FinishChecked(err)
-	}
-
-	return n, err
-}
-
-func (self *RemotePeer) Close() error {
-	log.Debugf("Got close")
-	return nil
-}
-
-// Send a checked transfer termination message.  If an error is specified, the message type
-// will indicate failure and include the error message.  If no error is given, the message
-// type will indicate success and the message data will be the data checksum being summed
-// during the write.
+// Receives messages from the given peer on an ongoing basis.  Returns an error
+// representing a disconnect or other connection error.  This function never returns
+// nil and is intended to be long-running on a per-peer basis.
 //
-func (self *RemotePeer) FinishChecked(errs ...error) error {
-	defer func() {
-		self.outboundTransferActive = false
-		self.outboundTransferChecksum = nil
-	}()
+func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
+	log.Debugf("Receiving messages from %s", self.ID())
 
-	// if we're actually in a transfer...
-	if self.outboundTransferActive {
-		// if this call is error-free
-		if len(errs) == 0 {
-			sum := []byte{}
-
-			// sum the running hash
-			if self.outboundTransferChecksum != nil {
-				sum = self.outboundTransferChecksum.Sum(nil)
-			}
-
-			// send the transfer termination (successful)
-			log.Debugf("Completed checked transfer: %x", sum)
-			_, err := self.SendMessage(NewMessage(DataFinalize, sum))
-
-			return err
-		} else {
-			// encode and send the failed transfer termination with error message
-			if errMsg, err := NewMessageEncoded(DataFailed, errs[0].Error(), StringEncoding); err == nil {
-				_, err := self.SendMessage(errMsg)
-				return err
-			} else {
-				return err
-			}
-		}
-	} else {
-		return nil
-	}
-}
-
-func (self *RemotePeer) WriteChecked(send []byte) error {
-	// start the checked transfer
-	if err := self.BeginChecked(len(send)); err != nil {
-		return err
-	}
-
-	// send the data
-	if _, err := io.Copy(self, bytes.NewBuffer(send)); err != nil {
-		return err
-	}
-
-	// complete the checked transfer
-	if err := self.FinishChecked(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (self *RemotePeer) ReadChecked() ([]byte, error) {
-	var responseHeader *Message
-	var expectedSize int
-	response := bytes.NewBuffer(nil)
-
-messageLoop:
 	for {
 		if message, err := self.ReceiveMessage(); err == nil {
+			var replyErr error
+			log.Debugf("[%s] Message Type: %s", self.ID(), message.Type.String())
+
 			switch message.Type {
 			case DataStart:
-				if responseHeader == nil {
-					if v, ok := message.Value().(uint64); ok {
-						expectedSize = int(v)
-						responseHeader = message
-					} else {
-						return nil, fmt.Errorf("Malformed checked transfer header")
-					}
-				} else {
-					return nil, fmt.Errorf("Received duplicate checked transfer header")
+				v, ok := message.Value().(uint64)
+
+				if !ok {
+					v = 0
 				}
 
+				// create a new transfer
+				self.activeTransfer = NewTransfer(self, int(v))
+
+				// TODO: local can reject by sending DataTerminate w/ an optional string reason
+				//       based on a to-be-determined file receive policy
+
+				// give peer the go-ahead to start writing data
+				_, err = self.SendMessage(NewMessage(DataProceed, nil))
+
+			case DataProceed:
+				// this is explicitly waited for by RemotePeer, nothing to do here
+
 			case DataBlock:
-				if message.Data != nil {
-					response.Write(message.Data)
+				if self.activeTransfer != nil {
+					_, replyErr = self.activeTransfer.Write(message.Data)
+				}
+
+				if replyErr != nil {
+					if m, err := NewMessageEncoded(DataTerminate, err.Error(), StringEncoding); err == nil {
+						_, replyErr = self.SendMessage(m)
+					} else {
+						replyErr = err
+					}
 				}
 
 			case DataFinalize:
-				if expectedSize == 0 || message.actualSize == expectedSize {
-					if bytes.Compare(message.Data, message.actualChecksum) != 0 {
-						return nil, fmt.Errorf("checksum mismatch")
+				if self.activeTransfer != nil {
+					if err := self.activeTransfer.Verify(message.Data); err == nil {
+						// if the transfer was successful, inform the peer with an Acknowledgement
+						_, replyErr = self.SendMessage(NewMessage(Acknowledgement, nil))
 					} else {
-						break messageLoop
+						log.Errorf("[%s] Transfer failed verification: %v", self.String(), err)
+
+						// if the transfer failed verification, reply with a failure message
+						if m, err := NewMessageEncoded(DataFailed, err.Error(), StringEncoding); err == nil {
+							_, replyErr = self.SendMessage(m)
+						} else {
+							replyErr = err
+						}
 					}
-				} else {
-					return nil, fmt.Errorf("size mismatch; expected: %d, got: %d", expectedSize, message.actualSize)
+
+					self.activeTransfer = nil
 				}
-
-			case DataFailed:
-				msg, _ := message.Value().(string)
-				return nil, fmt.Errorf(msg)
-
-			default:
-				return nil, fmt.Errorf("Invalid response")
 			}
-		} else {
-			return nil, err
+
+			if replyErr != nil {
+				log.Errorf("[%s] Send reply failed: %v", replyErr)
+			}
+		} else if err == io.EOF {
+			log.Infof("Remote peer disconnected")
+			return io.EOF
 		}
 	}
 
-	return response.Bytes(), nil
-}
-
-// Performs a transaction with another peer by performing a checked transfer with them, then
-// reading a response and returning it.
-func (self *RemotePeer) Transact(send []byte) ([]byte, error) {
-	if err := self.WriteChecked(send); err != nil {
-		return nil, err
-	}
-
-	return self.ReadChecked()
+	return fmt.Errorf("Protocol Error")
 }
