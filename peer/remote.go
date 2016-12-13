@@ -29,8 +29,11 @@ type RemotePeer struct {
 	outboundTransferTotalBytes     int
 	outboundTransferBytesWritten   int
 	outboundTransferChecksum       hash.Hash
+	activeTransfer                 *Transfer
+	isWaitingForNextMessage        bool
 	readLimiter                    *util.RateLimitingReadWriter
 	writeLimiter                   *util.RateLimitingReadWriter
+	messages                       chan *Message
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
@@ -40,6 +43,7 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 				publicKey:  request.PublicKey,
 				id:         id,
 				connection: connection,
+				messages:   make(chan *Message),
 			}, nil
 		} else {
 			return nil, err
@@ -106,6 +110,14 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 	if cleartext, err := self.Decrypter.ReadPacket(); err == nil {
 		// decode the decrypted message payload
 		if message, err := DecodeMessage(cleartext); err == nil {
+			if self.isWaitingForNextMessage {
+				self.isWaitingForNextMessage = false
+				select {
+				case self.messages <- message:
+				default:
+				}
+			}
+
 			return message, nil
 		} else {
 			return nil, err
@@ -113,6 +125,11 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 	} else {
 		return nil, err
 	}
+}
+
+func (self *RemotePeer) WaitNextMessage() *Message {
+	self.isWaitingForNextMessage = true
+	return <-self.messages
 }
 
 func (self *RemotePeer) SendMessage(message *Message) (int, error) {
@@ -157,24 +174,22 @@ func (self *RemotePeer) BeginChecked(size int) error {
 		if message, err := NewMessageEncoded(DataStart, size, BinaryLEUint64); err == nil {
 			if _, err := self.SendMessage(message); err == nil {
 				// transfers are answered with a go/no-go reply
-				if message, err := self.ReceiveMessage(); err == nil {
-					switch message.Type {
-					case DataProceed:
-						self.outboundTransferActive = true
-						self.outboundTransferTotalBytes = size
-						self.outboundTransferBytesWritten = 0
-						self.outboundTransferChecksum = sha256.New()
-						return nil
+				message := self.WaitNextMessage()
 
-					case DataTerminate:
-						return fmt.Errorf("Remote peer refused transfer: %v", message.Value())
+				switch message.Type {
+				case DataProceed:
+					self.outboundTransferActive = true
+					self.outboundTransferTotalBytes = size
+					self.outboundTransferBytesWritten = 0
+					self.outboundTransferChecksum = sha256.New()
+					return nil
 
-					default:
-						return fmt.Errorf("Remote peer sent an invalid reply: %s", message.Type.String())
+				case DataTerminate:
+					return fmt.Errorf("Remote peer refused transfer: %v", message.Value())
 
-					}
-				} else {
-					return err
+				default:
+					return fmt.Errorf("Remote peer sent an invalid reply: %s", message.Type.String())
+
 				}
 			} else {
 				return err

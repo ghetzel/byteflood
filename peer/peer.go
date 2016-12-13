@@ -169,12 +169,7 @@ func (self *LocalPeer) Listen() error {
 					// verify that we want to proceed with this connection...
 					if self.PermitConnectionFrom(conn) {
 						// perform peer handshake and registration
-						if remotePeer, err := self.RegisterPeer(conn, true); err == nil {
-							// start automatically receiving messages from this peer if we're supposed to
-							if self.AutoReceiveMessages {
-								go self.ReceiveMessages(remotePeer)
-							}
-
+						if _, err := self.RegisterPeer(conn, true); err == nil {
 							// this skips the fail-closed disconnect below
 							continue
 						} else {
@@ -270,6 +265,11 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 				log.Debugf("  Uploads capped at %d Bps", self.UploadBytesPerSecond)
 			}
 
+			// start automatically receiving messages from this peer if we're supposed to
+			if self.AutoReceiveMessages {
+				go self.ReceiveMessages(remotePeer)
+			}
+
 			return remotePeer, nil
 		} else {
 			return nil, err
@@ -307,6 +307,7 @@ func (self *LocalPeer) ReceiveMessages(remotePeer *RemotePeer) error {
 
 	for {
 		if message, err := remotePeer.ReceiveMessage(); err == nil {
+			var replyErr error
 			log.Debugf("[%s] Message Type: %s", remotePeer.ID(), message.Type.String())
 
 			// Acknowledgement MessageType = iota
@@ -319,12 +320,59 @@ func (self *LocalPeer) ReceiveMessages(remotePeer *RemotePeer) error {
 
 			switch message.Type {
 			case DataStart:
-				err = self.StartReceivingTransfer(remotePeer, message)
+				v, ok := message.Value().(uint64)
+
+				if !ok {
+					v = 0
+				}
+
+				// create a new transfer
+				remotePeer.activeTransfer = NewTransfer(remotePeer, int(v))
+
+				// TODO: local can reject by sending DataTerminate w/ an optional string reason
+				//       based on a to-be-determined file receive policy
+
+				// give peer the go-ahead to start writing data
+				_, err = remotePeer.SendMessage(NewMessage(DataProceed, nil))
+
+			case DataProceed:
+				// this is explicitly waited for by RemotePeer, nothing to do here
+
 			case DataBlock:
+				if remotePeer.activeTransfer != nil {
+					_, replyErr = remotePeer.activeTransfer.Write(message.Data)
+				}
+
+				if replyErr != nil {
+					if m, err := NewMessageEncoded(DataTerminate, err.Error(), StringEncoding); err == nil {
+						_, replyErr = remotePeer.SendMessage(m)
+					} else {
+						replyErr = err
+					}
+				}
+
+			case DataFinalize:
+				if remotePeer.activeTransfer != nil {
+					if err := remotePeer.activeTransfer.Verify(message.Data); err == nil {
+						// if the transfer was successful, inform the peer with an Acknowledgement
+						_, replyErr = remotePeer.SendMessage(NewMessage(Acknowledgement, nil))
+					} else {
+						log.Errorf("[%s] Trasnfer failed verification: %v", remotePeer.String(), err)
+
+						// if the transfer failed verification, reply with a failure message
+						if m, err := NewMessageEncoded(DataFailed, err.Error(), StringEncoding); err == nil {
+							_, replyErr = remotePeer.SendMessage(m)
+						} else {
+							replyErr = err
+						}
+					}
+
+					remotePeer.activeTransfer = nil
+				}
 			}
 
-			if err != nil {
-				log.Errorf("[%s] Send failed: %v", err)
+			if replyErr != nil {
+				log.Errorf("[%s] Send reply failed: %v", replyErr)
 			}
 		} else if err == io.EOF {
 			log.Infof("Remote peer disconnected")
@@ -333,15 +381,6 @@ func (self *LocalPeer) ReceiveMessages(remotePeer *RemotePeer) error {
 	}
 
 	return fmt.Errorf("Protocol Error")
-}
-
-func (self *LocalPeer) StartReceivingTransfer(remotePeer *RemotePeer, message *Message) (*Transfer, error) {
-	transfer := NewTransfer(remotePeer, )
-
-	_, err = remotePeer.SendMessage(NewMessage(DataProceed, nil))
-
-
-	// TODO: local can reject by sending DataTerminate w/ an optional string reason
 }
 
 func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {
