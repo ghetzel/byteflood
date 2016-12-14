@@ -11,7 +11,7 @@ import (
 type MessageType int
 
 const (
-	Acknowledgement MessageType = iota
+	Acknowledgment MessageType = iota
 	DataStart
 	DataProceed
 	DataBlock
@@ -49,7 +49,7 @@ func (self MessageType) String() string {
 		return `transfer-final`
 	case DataFailed:
 		return `transfer-failed`
-	case Acknowledgement:
+	case Acknowledgment:
 		return `acknowledgement`
 	case Service:
 		return `service`

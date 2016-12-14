@@ -4,19 +4,20 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
-	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/op/go-logging"
 	"github.com/satori/go.uuid"
 	"net"
+	"net/http"
+	"strings"
 	"time"
 )
 
 const (
+	DEFAULT_SERVICE_ADDR           = `:0`
 	DEFAULT_PEER_SERVER_PORT       = 0
 	DEFAULT_UPNP_DISCOVERY_TIMEOUT = (30 * time.Second)
 	DEFAULT_UPNP_MAPPING_DURATION  = (8760 * time.Hour)
 	BF_UPNP_SERVICE_NAME           = `byteflood`
-	DEFAULT_PEER_MESSAGE_SIZE      = 32768
 )
 
 var log = logging.MustGetLogger(`byteflood.peer`)
@@ -33,6 +34,7 @@ type LocalPeer struct {
 	Peer
 	EnableUpnp             bool
 	Address                string
+	ServiceAddress         string
 	Port                   int
 	UpnpMappingDuration    time.Duration
 	UpnpDiscoveryTimeout   time.Duration
@@ -45,6 +47,7 @@ type LocalPeer struct {
 	listening              chan bool
 	publicKey              []byte
 	privateKey             []byte
+	serviceProxy           *Server
 }
 
 func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, error) {
@@ -64,6 +67,7 @@ func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, err
 
 	return &LocalPeer{
 		Port:                 DEFAULT_PEER_SERVER_PORT,
+		ServiceAddress:       DEFAULT_SERVICE_ADDR,
 		EnableUpnp:           false,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
@@ -97,19 +101,14 @@ func (self *LocalPeer) WaitListen() <-chan bool {
 }
 
 func (self *LocalPeer) Listen() error {
+	// start the service proxy
+	if err := self.StartServiceProxy(); err != nil {
+		return err
+	}
+
 	if self.Port == 0 {
-		if randomSocket, err := net.Listen(`tcp6`, `:0`); err == nil {
-			_, p, _ := net.SplitHostPort(randomSocket.Addr().String())
-
-			if v, err := stringutil.ConvertToInteger(p); err == nil {
-				self.Port = int(v)
-			} else {
-				return err
-			}
-
-			if err := randomSocket.Close(); err != nil {
-				return err
-			}
+		if p, err := ephemeralPort(); err == nil {
+			self.Port = p
 		} else {
 			return err
 		}
@@ -202,6 +201,42 @@ func (self *LocalPeer) PermitConnectionFrom(conn net.Conn) bool {
 	return true
 }
 
+func (self *LocalPeer) StartServiceProxy() error {
+	// local API/proxy service
+	if strings.HasSuffix(self.ServiceAddress, `:0`) {
+		if p, err := ephemeralPort(); err == nil {
+			self.ServiceAddress = fmt.Sprintf(
+				"%s:%d",
+				strings.TrimSuffix(self.ServiceAddress, `:0`),
+				p,
+			)
+		} else {
+			return err
+		}
+	}
+
+	self.serviceProxy = NewServer(self, self.ServiceAddress)
+	if err := self.serviceProxy.Serve(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (self *LocalPeer) Server() *Server {
+	return self.serviceProxy
+}
+
+func (self *LocalPeer) ServiceRequest(remotePeer *RemotePeer, request *http.Request) (*http.Response, error) {
+	request.URL.Host = self.ServiceAddress
+	request.Header.Set(`X-Byteflood-PeerID`, remotePeer.ID())
+
+	// TODO: only permit certain paths (e.g.: remote peers should not be able to query all of my peers)
+
+	log.Debugf("[%s] Proxying request: %s %s", remotePeer.ID(), request.Method, request.URL.String())
+	return http.DefaultClient.Do(request)
+}
+
 func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*RemotePeer, error) {
 	var remotePeeringRequest *PeeringRequest
 
@@ -237,8 +272,14 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 		}
 	}
 
+	// Common to both sides of the connection...
+	// -----------------------------------------
+
 	if remotePeeringRequest != nil {
 		if remotePeer, err := NewRemotePeerFromRequest(remotePeeringRequest, conn); err == nil {
+			// setup encryption and decryption
+			//
+
 			remotePeer.Encrypter = encryption.NewEncrypter(
 				remotePeeringRequest.PublicKey[:32],
 				self.privateKey[:32],
@@ -252,13 +293,14 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 			)
 
 			self.sessions[remotePeer.String()] = remotePeer
-			log.Debugf("Remote peer %s registered", remotePeer.String())
 
+			// setup download rate limiting
 			if self.DownloadBytesPerSecond > 0 {
 				remotePeer.SetReadRateLimit(self.DownloadBytesPerSecond, self.DownloadBytesPerSecond)
 				log.Debugf("  Downloads capped at %d Bps", self.DownloadBytesPerSecond)
 			}
 
+			// setup upload rate limiting
 			if self.UploadBytesPerSecond > 0 {
 				remotePeer.SetWriteRateLimit(self.UploadBytesPerSecond, self.UploadBytesPerSecond)
 				log.Debugf("  Uploads capped at %d Bps", self.UploadBytesPerSecond)
@@ -269,6 +311,7 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 				go remotePeer.ReceiveMessages(self)
 			}
 
+			log.Debugf("Remote peer %s registered", remotePeer.String())
 			return remotePeer, nil
 		} else {
 			return nil, err

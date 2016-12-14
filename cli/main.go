@@ -39,6 +39,10 @@ func main() {
 			Value: `~/.config/byteflood/config.yml`,
 		},
 		cli.StringFlag{
+			Name:  `id, I`,
+			Usage: `Specify this client's ID`,
+		},
+		cli.StringFlag{
 			Name:  `public-key, k`,
 			Usage: `The path to the file containing the local public key`,
 			Value: `~/.config/byteflood/keys/peer.pub`,
@@ -225,6 +229,10 @@ func makeLocalPeer(config *byteflood.Configuration, c *cli.Context) (*peer.Local
 		c.GlobalString(`public-key`),
 		c.GlobalString(`private-key`),
 	); err == nil {
+		if v := c.GlobalString(`id`); v != `` {
+			config.ID = v
+		}
+
 		if localPeer, err := peer.CreatePeer(
 			config.ID,
 			publicKey,
