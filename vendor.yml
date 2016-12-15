@@ -23,6 +23,8 @@ vendors:
   rev: 8ee79997227bf9b34611aee7946ae64735e6fd93
 - path: github.com/huin/goupnp
   rev: 949b8a77532ae1076171f4d112a5eb41354cb340
+- path: github.com/inconshreveable/muxado
+  rev: fc182d90f26ea93f36ef05b643c7f4ea604c370b
 - path: github.com/jbenet/go-base58
   rev: 6237cf65f3a6f7111cd8a42be3590df99a66bc7d
 - path: github.com/julienschmidt/httprouter

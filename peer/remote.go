@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
-	"github.com/multiformats/go-multistream"
+	"github.com/inconshreveable/muxado"
 	"github.com/satori/go.uuid"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"time"
@@ -16,8 +17,7 @@ import (
 var DataFinalizeAckTimeout = 2000 * time.Millisecond
 var MessageBufferSize = 512
 var BadMessageThreshold = 10
-var ServiceRequestBufferSize = 1048576
-var ServiceResponseBufferSize = 1048576
+var ServiceReceiveBufferSize = 1048576
 var ServiceMessageDispatchTimeout = 500 * time.Millisecond
 var ServiceResponseTimeout = 5 * time.Second
 
@@ -35,18 +35,19 @@ type RemotePeer struct {
 	publicKey               []byte
 	readLimiter             *util.RateLimitingReadWriter
 	writeLimiter            *util.RateLimitingReadWriter
-	serviceBuffer           io.ReadWriteCloser
+	serviceReceiveBuffer    *bytes.Buffer
+	serviceSession          muxado.Session
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
 	if err := request.Validate(); err == nil {
 		if id, err := uuid.FromBytes(request.ID); err == nil {
 			return &RemotePeer{
-				publicKey:     request.PublicKey,
-				id:            id,
-				connection:    connection,
-				messages:      make(chan *Message),
-				serviceBuffer: NewClosableBuffer(nil),
+				publicKey:            request.PublicKey,
+				id:                   id,
+				connection:           connection,
+				messages:             make(chan *Message),
+				serviceReceiveBuffer: bytes.NewBuffer(make([]byte, ServiceReceiveBufferSize)),
 			}, nil
 		} else {
 			return nil, err
@@ -112,6 +113,15 @@ func (self *RemotePeer) Write(p []byte) (int, error) {
 	} else {
 		return 0, err
 	}
+}
+
+func (self *RemotePeer) Read(p []byte) (int, error) {
+	return self.serviceReceiveBuffer.Read(p)
+}
+
+func (self *RemotePeer) Close() error {
+	log.Debugf("Got close")
+	return nil
 }
 
 // Disconnect from this peer and close the connection.
@@ -347,7 +357,7 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 				}
 
 			case Service:
-				_, replyErr = self.serviceBuffer.Write(message.Data)
+				self.serviceReceiveBuffer.Write(message.Data)
 			}
 
 			if replyErr != nil {
@@ -372,12 +382,18 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 }
 
 func (self *RemotePeer) startServiceMultiplexer() {
-	mux := multistream.NewMultistreamMuxer()
+	self.serviceSession = muxado.Client(self, nil)
 
-	mux.AddHandler(`/api`, func(proto string, rwc io.ReadWriteCloser) error {
-		log.Debugf("%s: Got api request", proto)
-		return rwc.Close()
-	})
-
-	mux.Handle(self.serviceBuffer)
+	for {
+		if stream, err := self.serviceSession.Accept(); err == nil {
+			if data, err := ioutil.ReadAll(stream); err == nil {
+				log.Debugf("Service Message: %+v", data)
+			} else {
+				log.Errorf("Service read error: %v", err)
+			}
+		} else {
+			log.Errorf("Service error: %v", err)
+			return
+		}
+	}
 }
