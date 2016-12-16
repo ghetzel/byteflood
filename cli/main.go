@@ -103,6 +103,10 @@ func main() {
 					Name:  `download-limit, D`,
 					Usage: `Limit downloads to this many bytes per second`,
 				},
+				cli.StringSliceFlag{
+					Name: `peer, P`,
+					Usage: `Specify the address of a peer to connect to`,
+				},
 			},
 			Action: func(c *cli.Context) {
 				if localPeer, err := makeLocalPeer(&config, c); err == nil {
@@ -116,7 +120,9 @@ func main() {
 						localPeer.UploadBytesPerSecond = v
 					}
 
-					if err := localPeer.Listen(); err != nil {
+					localPeer.PeerAddresses = c.StringSlice(`peer`)
+
+					if err := localPeer.Run(); err != nil {
 						log.Fatal(err)
 					}
 				} else {

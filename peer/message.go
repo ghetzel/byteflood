@@ -20,6 +20,8 @@ const (
 	DataFailed
 	ServiceRequest
 	ServiceResponse
+	Heartbeat
+	HeartbeatAck
 )
 
 type MessageEncoding int
@@ -56,6 +58,10 @@ func (self MessageType) String() string {
 		return `service-request`
 	case ServiceResponse:
 		return `service-response`
+	case Heartbeat:
+		return `heartbeat`
+	case HeartbeatAck:
+		return `heartbeat-ack`
 	default:
 		return `invalid`
 	}

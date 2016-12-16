@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
+	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/op/go-logging"
 	"github.com/satori/go.uuid"
 	"net"
@@ -12,7 +13,7 @@ import (
 )
 
 const (
-	DEFAULT_SERVICE_ADDR           = `:0`
+	DEFAULT_MGMT_ADDR              = ``
 	DEFAULT_PEER_SERVER_PORT       = 0
 	DEFAULT_UPNP_DISCOVERY_TIMEOUT = (30 * time.Second)
 	DEFAULT_UPNP_MAPPING_DURATION  = (8760 * time.Hour)
@@ -21,6 +22,9 @@ const (
 
 var log = logging.MustGetLogger(`byteflood.peer`)
 var logproxy = util.NewLogProxy(`byteflood.peer`, `info`)
+var PeerMonitorRetryMultiplier = 2
+var PeerMonitorRetryMultiplierMax = 512
+var PeerMonitorRetryMax = -1
 
 type Peer interface {
 	ID() string
@@ -33,8 +37,9 @@ type LocalPeer struct {
 	Peer
 	EnableUpnp             bool
 	Address                string
-	ServiceAddress         string
+	ManagementAddress      string
 	Port                   int
+	PeerAddresses          []string
 	UpnpMappingDuration    time.Duration
 	UpnpDiscoveryTimeout   time.Duration
 	UploadBytesPerSecond   int
@@ -46,7 +51,8 @@ type LocalPeer struct {
 	listening              chan bool
 	publicKey              []byte
 	privateKey             []byte
-	serviceProxy           *Server
+	peerServer             *PeerServer
+	mgmtServer             *ManagementServer
 }
 
 func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, error) {
@@ -66,7 +72,7 @@ func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, err
 
 	return &LocalPeer{
 		Port:                 DEFAULT_PEER_SERVER_PORT,
-		ServiceAddress:       DEFAULT_SERVICE_ADDR,
+		ManagementAddress:    DEFAULT_MGMT_ADDR,
 		EnableUpnp:           false,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
@@ -99,10 +105,7 @@ func (self *LocalPeer) WaitListen() <-chan bool {
 	return self.listening
 }
 
-func (self *LocalPeer) Listen() error {
-	// start the service proxy
-	go self.StartServiceProxy()
-
+func (self *LocalPeer) Run() error {
 	if self.Port == 0 {
 		if p, err := ephemeralPort(); err == nil {
 			self.Port = p
@@ -111,6 +114,37 @@ func (self *LocalPeer) Listen() error {
 		}
 	}
 
+	errchan := make(chan error)
+
+	// start the local management server
+	go func() {
+		errchan <- self.RunManagementServer()
+	}()
+
+	// start the peer server (HTTP-over-cryptotransport)
+	go func() {
+		errchan <- self.RunPeerServer()
+	}()
+
+	// start listening for new connections
+	go func() {
+		errchan <- self.RunPeerListener()
+	}()
+
+	// reach out and connect to our peers
+	go func() {
+		if err := self.ConnectToAll(); err != nil {
+			errchan <- err
+		}
+	}()
+
+	select {
+	case err := <-errchan:
+		return err
+	}
+}
+
+func (self *LocalPeer) RunPeerListener() error {
 	if self.EnableUpnp && self.Port > 0 {
 		log.Infof("Setting up UPnP port mapping...")
 
@@ -198,31 +232,48 @@ func (self *LocalPeer) PermitConnectionFrom(conn net.Conn) bool {
 	return true
 }
 
-func (self *LocalPeer) StartServiceProxy() error {
+func (self *LocalPeer) RunPeerServer() error {
+	if p, err := ephemeralPort(); err == nil {
+		self.peerServer = NewPeerServer(self, fmt.Sprintf("127.0.0.1:%d", p))
+
+		// run peer server (long running)
+		return self.peerServer.Serve()
+	} else {
+		return err
+	}
+}
+
+func (self *LocalPeer) PeerServer() *PeerServer {
+	return self.peerServer
+}
+
+func (self *LocalPeer) RunManagementServer() error {
 	// local API/proxy service
-	if strings.HasSuffix(self.ServiceAddress, `:0`) {
+	if strings.HasSuffix(self.ManagementAddress, `:0`) {
 		if p, err := ephemeralPort(); err == nil {
-			self.ServiceAddress = fmt.Sprintf(
+			self.ManagementAddress = fmt.Sprintf(
 				"%s:%d",
-				strings.TrimSuffix(self.ServiceAddress, `:0`),
+				strings.TrimSuffix(self.ManagementAddress, `:0`),
 				p,
 			)
 		} else {
 			return err
 		}
+	} else if self.ManagementAddress == `` {
+		self.ManagementAddress = fmt.Sprintf("127.0.0.1:%d", self.Port+1)
 	}
 
-	self.serviceProxy = NewServer(self, self.ServiceAddress)
+	self.mgmtServer = NewManagementServer(self, self.ManagementAddress)
 
-	if err := self.serviceProxy.Serve(); err != nil {
+	if err := self.mgmtServer.ListenAndServe(); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (self *LocalPeer) Server() *Server {
-	return self.serviceProxy
+func (self *LocalPeer) ManagementServer() *ManagementServer {
+	return self.mgmtServer
 }
 
 func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*RemotePeer, error) {
@@ -307,6 +358,16 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 	}
 }
 
+func (self *LocalPeer) GetPeers() []*RemotePeer {
+	peers := make([]*RemotePeer, 0)
+
+	for _, peer := range self.sessions {
+		peers = append(peers, peer)
+	}
+
+	return peers
+}
+
 func (self *LocalPeer) GetPeer(id string) (*RemotePeer, bool) {
 	remotePeer, ok := self.sessions[id]
 	return remotePeer, ok
@@ -327,6 +388,8 @@ func (self *LocalPeer) RemovePeer(id string) {
 }
 
 func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {
+	log.Debugf("Connecting to %s:%d", addr, port)
+
 	// open a TCP socket to the given addr/port
 	if raddr, err := net.ResolveTCPAddr(`tcp`, fmt.Sprintf("%s:%d", addr, port)); err == nil {
 		if conn, err := net.DialTCP(`tcp`, nil, raddr); err == nil {
@@ -346,6 +409,52 @@ func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {
 	} else {
 		return nil, err
 	}
+}
+
+func (self *LocalPeer) ConnectToAndMonitor(addr string, port int) {
+	retryWaitSec := 1
+	retries := 0
+
+	for retries = 0; PeerMonitorRetryMax < 0 || retries < PeerMonitorRetryMax; retries++ {
+		if remotePeer, err := self.ConnectTo(addr, port); err == nil {
+			retryWaitSec = 1
+			retries = 0
+
+			for {
+				if err := remotePeer.Heartbeat(); err != nil {
+					log.Warningf("[%s] Heartbeat to peer failed: %v", remotePeer.ID(), err)
+					break
+				}
+
+				time.Sleep(remotePeer.HeartbeatInterval)
+			}
+		}
+
+		time.Sleep(time.Duration(retryWaitSec) * time.Second)
+
+		// exponential backoff up to a maximum delay
+		if v := (retryWaitSec * PeerMonitorRetryMultiplier); v <= PeerMonitorRetryMultiplierMax {
+			retryWaitSec *= PeerMonitorRetryMultiplier
+		}
+	}
+
+	log.Errorf("Connection to peer at %s:%d has failed after, %d attempts", addr, port, retries)
+}
+
+func (self *LocalPeer) ConnectToAll() error {
+	for _, peerAddr := range self.PeerAddresses {
+		if addr, port, err := net.SplitHostPort(peerAddr); err == nil {
+			if v, err := stringutil.ConvertToInteger(port); err == nil {
+				go self.ConnectToAndMonitor(addr, int(v))
+			} else {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (self *LocalPeer) Stop() chan bool {

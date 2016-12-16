@@ -17,7 +17,16 @@ clean:
 	rm -rf vendor bin
 
 fmt:
-	gofmt -w .
+	gofmt -w *.go
+	gofmt -w ./peer
+	gofmt -w ./encryption
+	gofmt -w ./scanner
+	gofmt -w ./util
+	go vet *.go
+	go vet ./peer/..
+	go vet ./encryption/..
+	go vet ./scanner/..
+	go vet ./util/..
 
 test:
 	# go test -v .

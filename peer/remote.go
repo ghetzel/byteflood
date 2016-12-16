@@ -14,18 +14,17 @@ import (
 	"time"
 )
 
-var DataFinalizeAckTimeout = 2000 * time.Millisecond
-var MessageBufferSize = 512
 var BadMessageThreshold = 10
-var ServiceReceiveBufferSize = 1048576
-var ServiceMessageDispatchTimeout = 500 * time.Millisecond
 var ServiceResponseTimeout = 5 * time.Second
+var DefaultHeartbeatInterval = 1 * time.Second
+var DefaultHeartbeatAckTimeout = 3 * time.Second
 
 type RemotePeer struct {
-	io.ReadWriteCloser
 	Peer
 	Encrypter               *encryption.Encrypter
 	Decrypter               *encryption.Decrypter
+	HeartbeatInterval       time.Duration
+	HeartbeatAckTimeout     time.Duration
 	activeTransfer          *Transfer
 	connection              *net.TCPConn
 	id                      uuid.UUID
@@ -35,22 +34,20 @@ type RemotePeer struct {
 	publicKey               []byte
 	readLimiter             *util.RateLimitingReadWriter
 	writeLimiter            *util.RateLimitingReadWriter
-	serviceReceiveReader    io.Reader
-	serviceReceiveWriter    io.Writer
-	serviceServer           *Server
+	heartbeatCount          int
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
 	if err := request.Validate(); err == nil {
 		if id, err := uuid.FromBytes(request.ID); err == nil {
-			remotePeer := &RemotePeer{
-				publicKey:  request.PublicKey,
-				id:         id,
-				connection: connection,
-				messages:   make(chan *Message),
-			}
-
-			return remotePeer, nil
+			return &RemotePeer{
+				HeartbeatInterval:   DefaultHeartbeatInterval,
+				HeartbeatAckTimeout: DefaultHeartbeatAckTimeout,
+				publicKey:           request.PublicKey,
+				id:                  id,
+				connection:          connection,
+				messages:            make(chan *Message),
+			}, nil
 		} else {
 			return nil, err
 		}
@@ -73,6 +70,13 @@ func (self *RemotePeer) String() string {
 
 func (self *RemotePeer) UUID() uuid.UUID {
 	return self.id
+}
+
+func (self *RemotePeer) ToMap() map[string]interface{} {
+	return map[string]interface{}{
+		`id`:         self.ID(),
+		`public_key`: fmt.Sprintf("%x", self.GetPublicKey()),
+	}
 }
 
 func (self *RemotePeer) Write(p []byte) (int, error) {
@@ -143,6 +147,24 @@ func (self *RemotePeer) getWriteRateLimiter(w io.Writer) io.Writer {
 		return self.writeLimiter
 	} else {
 		return w
+	}
+}
+
+// Run a continuous periodic heartbeat to ensure remote peer connection is available
+func (self *RemotePeer) Heartbeat() error {
+	if outMessage, err := NewMessageEncoded(Heartbeat, self.heartbeatCount, BinaryLEUint64); err == nil {
+		if _, err := self.SendMessage(outMessage); err != nil {
+			if _, err := self.WaitNextMessageByType(self.HeartbeatAckTimeout, HeartbeatAck); err == nil {
+				self.heartbeatCount += 1
+				return nil
+			} else {
+				return err
+			}
+		} else {
+			return err
+		}
+	} else {
+		return err
 	}
 }
 
@@ -232,7 +254,7 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 				len(message.Data))
 			return int(n), err
 		} else {
-			log.Debugf("[%s] SEND: [%s] error: %v", message.Type.String(), err)
+			log.Debugf("[%s] SEND: [%s] error: %v", self.ID(), message.Type.String(), err)
 			return 0, err
 		}
 	} else {
@@ -332,20 +354,28 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 
 			switch message.Type {
 			case DataStart:
-				v, ok := message.Value().(uint64)
+				if self.activeTransfer == nil {
+					v, ok := message.Value().(uint64)
 
-				if !ok {
-					v = 0
+					if !ok {
+						v = 0
+					}
+
+					// create a new transfer
+					self.activeTransfer = NewTransfer(self, int(v))
+
+					// TODO: local can reject by sending DataTerminate w/ an optional string reason
+					//       based on a to-be-determined file receive policy
+
+					// give peer the go-ahead to start writing data
+					_, err = self.SendMessage(NewMessage(DataProceed, nil))
+				} else {
+					if m, err := NewMessageEncoded(DataTerminate, "A transfer is already in progress with this peer", StringEncoding); err == nil {
+						_, replyErr = self.SendMessage(m)
+					} else {
+						replyErr = err
+					}
 				}
-
-				// create a new transfer
-				self.activeTransfer = NewTransfer(self, int(v))
-
-				// TODO: local can reject by sending DataTerminate w/ an optional string reason
-				//       based on a to-be-determined file receive policy
-
-				// give peer the go-ahead to start writing data
-				_, err = self.SendMessage(NewMessage(DataProceed, nil))
 
 			case DataProceed:
 				// this is explicitly waited for by RemotePeer, nothing to do here
@@ -353,6 +383,8 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 			case DataBlock:
 				if self.activeTransfer != nil {
 					_, replyErr = self.activeTransfer.Write(message.Data)
+				} else {
+					log.Warningf("Received %d byte block outside of an active transfer", len(message.Data))
 				}
 
 				if replyErr != nil {
@@ -380,16 +412,22 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 					}
 
 					self.activeTransfer = nil
+				} else {
+					log.Warningf("Received DataFinalize outside of an active transfer")
 				}
 
 			case ServiceRequest:
 				responseBuffer := bytes.NewBuffer(nil)
 
-				if err := localPeer.Server().HandleRequest(self, responseBuffer, message.Data); err == nil {
+				if err := localPeer.PeerServer().HandleRequest(self, responseBuffer, message.Data); err == nil {
 					_, replyErr = self.SendMessage(NewMessage(ServiceResponse, responseBuffer.Bytes()))
 				} else {
 					replyErr = err
 				}
+
+			case Heartbeat:
+				message.Type = HeartbeatAck
+				_, replyErr = self.SendMessage(message)
 			}
 
 			if replyErr != nil {
