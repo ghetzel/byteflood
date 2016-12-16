@@ -1,15 +1,15 @@
 package peer
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
-	"github.com/inconshreveable/muxado"
 	"github.com/satori/go.uuid"
 	"io"
-	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"time"
 )
@@ -35,20 +35,22 @@ type RemotePeer struct {
 	publicKey               []byte
 	readLimiter             *util.RateLimitingReadWriter
 	writeLimiter            *util.RateLimitingReadWriter
-	serviceReceiveBuffer    *bytes.Buffer
-	serviceSession          muxado.Session
+	serviceReceiveReader    io.Reader
+	serviceReceiveWriter    io.Writer
+	serviceServer           *Server
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
 	if err := request.Validate(); err == nil {
 		if id, err := uuid.FromBytes(request.ID); err == nil {
-			return &RemotePeer{
-				publicKey:            request.PublicKey,
-				id:                   id,
-				connection:           connection,
-				messages:             make(chan *Message),
-				serviceReceiveBuffer: bytes.NewBuffer(make([]byte, ServiceReceiveBufferSize)),
-			}, nil
+			remotePeer := &RemotePeer{
+				publicKey:  request.PublicKey,
+				id:         id,
+				connection: connection,
+				messages:   make(chan *Message),
+			}
+
+			return remotePeer, nil
 		} else {
 			return nil, err
 		}
@@ -71,6 +73,45 @@ func (self *RemotePeer) String() string {
 
 func (self *RemotePeer) UUID() uuid.UUID {
 	return self.id
+}
+
+func (self *RemotePeer) Write(p []byte) (int, error) {
+	_, err := self.SendMessage(NewMessage(ServiceRequest, p))
+	return len(p), err
+}
+
+func (self *RemotePeer) ServiceRequest(method string, path string, body io.Reader, headers map[string]string) (*http.Response, error) {
+	if request, err := http.NewRequest(method, fmt.Sprintf("byteflood://%s%s", self.ID(), path), body); err == nil {
+		if headers != nil {
+			for k, v := range headers {
+				request.Header.Set(k, v)
+			}
+		}
+
+		buffer := bytes.NewBuffer(nil)
+
+		if err := request.Write(buffer); err == nil {
+			if _, err := self.SendMessage(NewMessage(ServiceRequest, buffer.Bytes())); err == nil {
+				if message, err := self.WaitNextMessageByType(ServiceResponseTimeout, ServiceResponse); err == nil {
+					responseBuffer := bytes.NewBuffer(message.Data)
+
+					if response, err := http.ReadResponse(bufio.NewReader(responseBuffer), request); err == nil {
+						return response, nil
+					} else {
+						return nil, err
+					}
+				} else {
+					return nil, err
+				}
+			} else {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
 }
 
 // Specify a limit (in bytes per second) to impose on data downloaded from this peer.  Up to burstSize
@@ -103,25 +144,6 @@ func (self *RemotePeer) getWriteRateLimiter(w io.Writer) io.Writer {
 	} else {
 		return w
 	}
-}
-
-// Writes that occur directly on RemotePeer are sent along as Service messages
-//
-func (self *RemotePeer) Write(p []byte) (int, error) {
-	if _, err := self.SendMessage(NewMessage(Service, p)); err == nil {
-		return len(p), nil
-	} else {
-		return 0, err
-	}
-}
-
-func (self *RemotePeer) Read(p []byte) (int, error) {
-	return self.serviceReceiveBuffer.Read(p)
-}
-
-func (self *RemotePeer) Close() error {
-	log.Debugf("Got close")
-	return nil
 }
 
 // Disconnect from this peer and close the connection.
@@ -202,7 +224,7 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 		// write encoded message (cleartext) to encrypter, which will in turn write
 		// the ciphertext and protocol data to the writer specified above
 		if n, err := io.Copy(self.Encrypter, encodedMessageR); err == nil {
-			log.Debugf("[%s] WRITE: [%s] Encrypted %d bytes (%d encoded, %d data)",
+			log.Debugf("[%s] SEND: [%s] Encrypted %d bytes (%d encoded, %d data)",
 				self.String(),
 				message.Type.String(),
 				n,
@@ -210,7 +232,7 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 				len(message.Data))
 			return int(n), err
 		} else {
-			log.Debugf("[%s] WRITE: [%s] error: %v", message.Type.String(), err)
+			log.Debugf("[%s] SEND: [%s] error: %v", message.Type.String(), err)
 			return 0, err
 		}
 	} else {
@@ -283,6 +305,12 @@ func (self *RemotePeer) TransferFile(path string) error {
 	}
 }
 
+// Things that are running on and for the benefit of LocalPeer
+//
+// These functions are started from LocalPeer when a RemotePeer connects to it.
+//
+// ================================================================================================
+
 // Receives messages from the given peer on an ongoing basis.  Returns an error
 // representing a disconnect or other connection error.  This function never returns
 // nil and is intended to be long-running on a per-peer basis.
@@ -294,15 +322,13 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 	// any condition that causes this function to return should also cause a disconnect
 	defer self.Disconnect()
 
-	go self.startServiceMultiplexer()
-
 	for {
 		if message, err := self.ReceiveMessage(); err == nil {
 			errorCount = 0
 
 			var replyErr error
 
-			log.Debugf("[%s] Received Message Type: %s", self.ID(), message.Type.String())
+			log.Debugf("[%s] RECV: message-type=%s, payload=%d bytes", self.ID(), message.Type.String(), len(message.Data))
 
 			switch message.Type {
 			case DataStart:
@@ -356,8 +382,14 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 					self.activeTransfer = nil
 				}
 
-			case Service:
-				self.serviceReceiveBuffer.Write(message.Data)
+			case ServiceRequest:
+				responseBuffer := bytes.NewBuffer(nil)
+
+				if err := localPeer.Server().HandleRequest(self, responseBuffer, message.Data); err == nil {
+					_, replyErr = self.SendMessage(NewMessage(ServiceResponse, responseBuffer.Bytes()))
+				} else {
+					replyErr = err
+				}
 			}
 
 			if replyErr != nil {
@@ -379,21 +411,4 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 	}
 
 	return fmt.Errorf("Protocol Error")
-}
-
-func (self *RemotePeer) startServiceMultiplexer() {
-	self.serviceSession = muxado.Client(self, nil)
-
-	for {
-		if stream, err := self.serviceSession.Accept(); err == nil {
-			if data, err := ioutil.ReadAll(stream); err == nil {
-				log.Debugf("Service Message: %+v", data)
-			} else {
-				log.Errorf("Service read error: %v", err)
-			}
-		} else {
-			log.Errorf("Service error: %v", err)
-			return
-		}
-	}
 }

@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 )
 
 var log = logging.MustGetLogger(`main`)
@@ -185,6 +186,66 @@ func main() {
 				}
 			},
 		}, {
+			Name:  `request`,
+			Usage: `[TEST] Connect to a remote peer`,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  `address, a`,
+					Usage: `The address the client should listen on`,
+					Value: `0.0.0.0`,
+				},
+				cli.IntFlag{
+					Name:  `port, p`,
+					Usage: `The port the client should listen on`,
+				},
+			},
+			Action: func(c *cli.Context) {
+				if c.NArg() == 3 {
+					address := c.Args().First()
+					method := c.Args().Get(1)
+					path := c.Args().Get(2)
+
+					if host, portStr, err := net.SplitHostPort(address); err == nil {
+						if port, err := stringutil.ConvertToInteger(portStr); err == nil {
+							if localPeer, err := makeLocalPeer(&config, c); err == nil {
+								if remotePeer, err := localPeer.ConnectTo(host, int(port)); err == nil {
+									log.Infof("Connected to peer: %s", remotePeer.String())
+
+									if response, err := remotePeer.ServiceRequest(method, path, nil, nil); err == nil {
+										log.Infof("Response: HTTP %s", response.Status)
+										log.Infof("    Length: %d", response.ContentLength)
+
+										for k, v := range response.Header {
+											log.Infof("    Header: %s=%s", k, strings.Join(v, ` `))
+										}
+
+										io.Copy(os.Stdout, response.Body)
+
+										if response.StatusCode < 400 {
+											os.Exit(0)
+										} else {
+											os.Exit(1)
+										}
+									} else {
+										log.Fatal(err)
+									}
+								} else {
+									log.Fatal(err)
+								}
+							} else {
+								log.Fatal(err)
+							}
+						} else {
+							log.Fatal(err)
+						}
+					} else {
+						log.Fatal(err)
+					}
+				} else {
+					log.Fatalf("Requires 3 arguments: PEERADDR METHOD PATH")
+				}
+			},
+		}, {
 			Name:  `scan`,
 			Usage: `Scans all configured source directories for changes`,
 			Action: func(c *cli.Context) {
@@ -246,7 +307,7 @@ func makeLocalPeer(config *byteflood.Configuration, c *cli.Context) (*peer.Local
 
 			go func(p *peer.LocalPeer) {
 				for _ = range signalChan {
-					<-p.Close()
+					<-p.Stop()
 					break
 				}
 

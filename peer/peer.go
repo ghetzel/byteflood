@@ -7,7 +7,6 @@ import (
 	"github.com/op/go-logging"
 	"github.com/satori/go.uuid"
 	"net"
-	"net/http"
 	"strings"
 	"time"
 )
@@ -102,9 +101,7 @@ func (self *LocalPeer) WaitListen() <-chan bool {
 
 func (self *LocalPeer) Listen() error {
 	// start the service proxy
-	if err := self.StartServiceProxy(); err != nil {
-		return err
-	}
+	go self.StartServiceProxy()
 
 	if self.Port == 0 {
 		if p, err := ephemeralPort(); err == nil {
@@ -216,6 +213,7 @@ func (self *LocalPeer) StartServiceProxy() error {
 	}
 
 	self.serviceProxy = NewServer(self, self.ServiceAddress)
+
 	if err := self.serviceProxy.Serve(); err != nil {
 		return err
 	}
@@ -227,16 +225,6 @@ func (self *LocalPeer) Server() *Server {
 	return self.serviceProxy
 }
 
-func (self *LocalPeer) ServiceRequest(remotePeer *RemotePeer, request *http.Request) (*http.Response, error) {
-	request.URL.Host = self.ServiceAddress
-	request.Header.Set(`X-Byteflood-PeerID`, remotePeer.ID())
-
-	// TODO: only permit certain paths (e.g.: remote peers should not be able to query all of my peers)
-
-	log.Debugf("[%s] Proxying request: %s %s", remotePeer.ID(), request.Method, request.URL.String())
-	return http.DefaultClient.Do(request)
-}
-
 func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*RemotePeer, error) {
 	var remotePeeringRequest *PeeringRequest
 
@@ -245,7 +233,6 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 	//
 	if remoteInitiated {
 		// read, then write
-
 		log.Debugf("Got new peering request, parsing...")
 		if pReq, err := ParsePeeringRequest(conn); err == nil {
 			log.Debugf("Replying with our peering request...")
@@ -259,9 +246,9 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 		}
 	} else {
 		// write, then read
-		log.Debugf("Sending out peering request...")
+		log.Debugf("Sending peering request to %s", conn.RemoteAddr().String())
 		if err := GenerateAndWritePeeringRequest(conn, self); err == nil {
-			log.Debugf("Reading reply peering request...")
+			log.Debugf("Reading peering request reply from %s", conn.RemoteAddr().String())
 			if pReq, err := ParsePeeringRequest(conn); err == nil {
 				remotePeeringRequest = pReq
 			} else {
@@ -311,7 +298,6 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 				go remotePeer.ReceiveMessages(self)
 			}
 
-			log.Debugf("Remote peer %s registered", remotePeer.String())
 			return remotePeer, nil
 		} else {
 			return nil, err
@@ -362,7 +348,7 @@ func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {
 	}
 }
 
-func (self *LocalPeer) Close() chan bool {
+func (self *LocalPeer) Stop() chan bool {
 	done := make(chan bool)
 
 	go func() {

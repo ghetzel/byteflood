@@ -18,7 +18,8 @@ const (
 	DataTerminate
 	DataFinalize
 	DataFailed
-	Service
+	ServiceRequest
+	ServiceResponse
 )
 
 type MessageEncoding int
@@ -51,8 +52,10 @@ func (self MessageType) String() string {
 		return `transfer-failed`
 	case Acknowledgment:
 		return `acknowledgement`
-	case Service:
-		return `service`
+	case ServiceRequest:
+		return `service-request`
+	case ServiceResponse:
+		return `service-response`
 	default:
 		return `invalid`
 	}
