@@ -25,16 +25,16 @@ type RemotePeer struct {
 	Decrypter               *encryption.Decrypter
 	HeartbeatInterval       time.Duration
 	HeartbeatAckTimeout     time.Duration
-	activeTransfer          *Transfer
+	inboundTransfer         *Transfer
 	connection              *net.TCPConn
 	id                      uuid.UUID
 	isWaitingForNextMessage bool
-	nextMessageType         int
-	messages                chan *Message
+	messageQueues           map[string]chan *Message
 	publicKey               []byte
 	readLimiter             *util.RateLimitingReadWriter
 	writeLimiter            *util.RateLimitingReadWriter
 	heartbeatCount          int
+	badMessageCount         int
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
@@ -46,7 +46,20 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 				publicKey:           request.PublicKey,
 				id:                  id,
 				connection:          connection,
-				messages:            make(chan *Message),
+				messageQueues: map[string]chan *Message{
+					``:     make(chan *Message),
+					Acknowledgment.String():  make(chan *Message),
+					DataStart.String():       make(chan *Message),
+					DataProceed.String():     make(chan *Message),
+					DataBlock.String():       make(chan *Message),
+					DataTerminate.String():   make(chan *Message),
+					DataFinalize.String():    make(chan *Message),
+					DataFailed.String():      make(chan *Message),
+					ServiceRequest.String():  make(chan *Message),
+					ServiceResponse.String(): make(chan *Message),
+					Heartbeat.String():       make(chan *Message),
+					HeartbeatAck.String():    make(chan *Message),
+				},
 			}, nil
 		} else {
 			return nil, err
@@ -187,12 +200,6 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 	if cleartext, err := self.Decrypter.ReadPacket(); err == nil {
 		// decode the decrypted message payload
 		if message, err := DecodeMessage(cleartext); err == nil {
-			if self.isWaitingForNextMessage {
-				if self.nextMessageType < 0 || message.Type == MessageType(self.nextMessageType) {
-					self.messages <- message
-				}
-			}
-
 			return message, nil
 		} else {
 			return nil, err
@@ -206,28 +213,30 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 // error will be returned if no message is received within that duration.
 //
 func (self *RemotePeer) WaitNextMessage(timeout time.Duration) (*Message, error) {
-	self.isWaitingForNextMessage = true
-
-	defer func() {
-		self.isWaitingForNextMessage = false
-		self.nextMessageType = -1
-	}()
-
-	if timeout != 0 {
-		select {
-		case message := <-self.messages:
-			return message, nil
-		case <-time.After(timeout):
-			return nil, fmt.Errorf("Timed out waiting for next message")
-		}
-	} else {
-		return <-self.messages, nil
-	}
+	return self.WaitNextMessageByType(timeout, NullMessage)
 }
 
 func (self *RemotePeer) WaitNextMessageByType(timeout time.Duration, messageType MessageType) (*Message, error) {
-	self.nextMessageType = int(messageType)
-	return self.WaitNextMessage(timeout)
+	self.isWaitingForNextMessage = true
+	var message *Message
+	var err error
+
+	if q, ok := self.messageQueues[messageType.String()]; ok {
+		if timeout != 0 {
+			select {
+			case message = <-q:
+			case <-time.After(timeout):
+				err = fmt.Errorf("Timed out waiting for next message")
+			}
+		} else {
+			message = <-q
+		}
+	} else {
+		err = fmt.Errorf("Invalid message queue for message type %q", messageType.String())
+	}
+
+	self.isWaitingForNextMessage = false
+	return message, err
 }
 
 // Sends a message packet to this peer.
@@ -339,114 +348,141 @@ func (self *RemotePeer) TransferFile(path string) error {
 //
 func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 	log.Debugf("Receiving messages from %s", self.ID())
-	var errorCount int
 
 	// any condition that causes this function to return should also cause a disconnect
 	defer self.Disconnect()
+	defer localPeer.RemovePeer(self.ID())
 
 	for {
-		if message, err := self.ReceiveMessage(); err == nil {
-			errorCount = 0
-
-			var replyErr error
-
-			log.Debugf("[%s] RECV: message-type=%s, payload=%d bytes", self.ID(), message.Type.String(), len(message.Data))
-
-			switch message.Type {
-			case DataStart:
-				if self.activeTransfer == nil {
-					v, ok := message.Value().(uint64)
-
-					if !ok {
-						v = 0
-					}
-
-					// create a new transfer
-					self.activeTransfer = NewTransfer(self, int(v))
-
-					// TODO: local can reject by sending DataTerminate w/ an optional string reason
-					//       based on a to-be-determined file receive policy
-
-					// give peer the go-ahead to start writing data
-					_, err = self.SendMessage(NewMessage(DataProceed, nil))
-				} else {
-					if m, err := NewMessageEncoded(DataTerminate, "A transfer is already in progress with this peer", StringEncoding); err == nil {
-						_, replyErr = self.SendMessage(m)
-					} else {
-						replyErr = err
-					}
-				}
-
-			case DataProceed:
-				// this is explicitly waited for by RemotePeer, nothing to do here
-
-			case DataBlock:
-				if self.activeTransfer != nil {
-					_, replyErr = self.activeTransfer.Write(message.Data)
-				} else {
-					log.Warningf("Received %d byte block outside of an active transfer", len(message.Data))
-				}
-
-				if replyErr != nil {
-					if m, err := NewMessageEncoded(DataTerminate, err.Error(), StringEncoding); err == nil {
-						_, replyErr = self.SendMessage(m)
-					} else {
-						replyErr = err
-					}
-				}
-
-			case DataFinalize:
-				if self.activeTransfer != nil {
-					if err := self.activeTransfer.Verify(message.Data); err == nil {
-						// if the transfer was successful, inform the peer with an Acknowledgment
-						_, replyErr = self.SendMessage(NewMessage(Acknowledgment, nil))
-					} else {
-						log.Errorf("[%s] Transfer failed verification: %v", self.String(), err)
-
-						// if the transfer failed verification, reply with a failure message
-						if m, err := NewMessageEncoded(DataFailed, err.Error(), StringEncoding); err == nil {
-							_, replyErr = self.SendMessage(m)
-						} else {
-							replyErr = err
-						}
-					}
-
-					self.activeTransfer = nil
-				} else {
-					log.Warningf("Received DataFinalize outside of an active transfer")
-				}
-
-			case ServiceRequest:
-				responseBuffer := bytes.NewBuffer(nil)
-
-				if err := localPeer.PeerServer().HandleRequest(self, responseBuffer, message.Data); err == nil {
-					_, replyErr = self.SendMessage(NewMessage(ServiceResponse, responseBuffer.Bytes()))
-				} else {
-					replyErr = err
-				}
-
-			case Heartbeat:
-				message.Type = HeartbeatAck
-				_, replyErr = self.SendMessage(message)
-			}
-
-			if replyErr != nil {
-				log.Errorf("[%s] Send reply failed: %v", self.ID(), replyErr)
-			}
-		} else if err == io.EOF {
-			log.Infof("Remote peer disconnected")
-			return io.EOF
-		} else {
-			log.Errorf("error receiving message: %v", err)
-			errorCount += 1
-
-			if errorCount < BadMessageThreshold {
-				continue
-			} else {
-				return err
-			}
+		if _, err := self.ReceiveMessagesIterate(localPeer); err != nil {
+			return err
 		}
 	}
 
 	return fmt.Errorf("Protocol Error")
+}
+
+func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, error) {
+	if message, err := self.ReceiveMessage(); err == nil {
+		self.badMessageCount = 0
+
+		var replyErr error
+
+		log.Debugf("[%s] RECV: message-type=%s, payload=%d bytes", self.ID(), message.Type.String(), len(message.Data))
+
+		switch message.Type {
+		case DataStart:
+			if self.inboundTransfer == nil {
+				v, ok := message.Value().(uint64)
+
+				if !ok {
+					v = 0
+				}
+
+				// create a new inbound transfer
+				self.inboundTransfer = NewTransfer(self, int(v))
+
+				// TODO: local can reject by sending DataTerminate w/ an optional string reason
+				//       based on a to-be-determined file receive policy
+
+				// give peer the go-ahead to start writing data
+				_, err = self.SendMessage(NewMessage(DataProceed, nil))
+			} else {
+				if m, err := NewMessageEncoded(DataTerminate, "A transfer is already in progress with this peer", StringEncoding); err == nil {
+					_, replyErr = self.SendMessage(m)
+				} else {
+					replyErr = err
+				}
+			}
+
+		case DataProceed:
+			// this is explicitly waited for by RemotePeer, nothing to do here
+
+		case DataBlock:
+			if self.inboundTransfer != nil {
+				_, replyErr = self.inboundTransfer.Write(message.Data)
+			} else {
+				log.Warningf("Received %d byte block outside of an active transfer", len(message.Data))
+			}
+
+			if replyErr != nil {
+				if m, err := NewMessageEncoded(DataTerminate, err.Error(), StringEncoding); err == nil {
+					_, replyErr = self.SendMessage(m)
+				} else {
+					replyErr = err
+				}
+			}
+
+		case DataFinalize:
+			if self.inboundTransfer != nil {
+				if err := self.inboundTransfer.Verify(message.Data); err == nil {
+					// if the transfer was successful, inform the peer with an Acknowledgment
+					_, replyErr = self.SendMessage(NewMessage(Acknowledgment, nil))
+				} else {
+					log.Errorf("[%s] Transfer failed verification: %v", self.String(), err)
+
+					// if the transfer failed verification, reply with a failure message
+					if m, err := NewMessageEncoded(DataFailed, err.Error(), StringEncoding); err == nil {
+						_, replyErr = self.SendMessage(m)
+					} else {
+						replyErr = err
+					}
+				}
+
+				self.inboundTransfer = nil
+			} else {
+				log.Warningf("Received DataFinalize outside of an active transfer")
+			}
+
+		case ServiceRequest:
+			responseBuffer := bytes.NewBuffer(nil)
+
+			if err := localPeer.PeerServer().HandleRequest(self, responseBuffer, message.Data); err == nil {
+				_, replyErr = self.SendMessage(NewMessage(ServiceResponse, responseBuffer.Bytes()))
+			} else {
+				replyErr = err
+			}
+
+		case Heartbeat:
+			message.Type = HeartbeatAck
+			_, replyErr = self.SendMessage(message)
+		}
+
+		if replyErr != nil {
+			log.Errorf("[%s] Send reply failed: %v", self.ID(), replyErr)
+		}
+
+		if self.isWaitingForNextMessage {
+			anyQueue, _ := self.messageQueues[``]
+
+			select {
+			case anyQueue <- message:
+				log.Debugf("[%s] MSGQ: Dispatching %s to ANY queue", self.ID(), message.Type.String())
+			default:
+			}
+
+			typeQueue, _ := self.messageQueues[message.Type.String()]
+			select {
+			case typeQueue <- message:
+				log.Debugf("[%s] MSGQ: Dispatching %s to typed queue", self.ID(), message.Type.String())
+			default:
+			}
+		}
+
+		return message, nil
+
+	} else if err == io.EOF {
+		log.Infof("Remote peer disconnected")
+
+		return nil, io.EOF
+	} else {
+		log.Errorf("error receiving message: %v", err)
+		self.badMessageCount += 1
+
+		if self.badMessageCount >= BadMessageThreshold {
+			return nil, err
+		}
+
+		return nil, nil
+	}
 }

@@ -3,12 +3,12 @@ package peer
 import (
 	// "bytes"
 	"crypto/rand"
-	// "crypto/sha256"
+	"crypto/sha256"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/nacl/box"
 	// "io"
-	// "sync"
 	"testing"
+	"time"
 )
 
 func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
@@ -18,7 +18,7 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 			[]byte(publicKey[:]),
 			[]byte(privateKey[:]),
 		); err == nil {
-			localPeer.AutoReceiveMessages = false
+			localPeer.AutoReceiveMessages = true
 			peer1 = localPeer
 		} else {
 			panic(err)
@@ -33,7 +33,7 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 			[]byte(publicKey[:]),
 			[]byte(privateKey[:]),
 		); err == nil {
-			localPeer.AutoReceiveMessages = false
+			localPeer.AutoReceiveMessages = true
 			peer2 = localPeer
 		} else {
 			panic(err)
@@ -43,13 +43,13 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	}
 
 	go func() {
-		if err := peer1.Listen(); err != nil {
+		if err := peer1.Run(); err != nil {
 			panic(err)
 		}
 	}()
 
 	go func() {
-		if err := peer2.Listen(); err != nil {
+		if err := peer2.Run(); err != nil {
 			panic(err)
 		}
 	}()
@@ -67,81 +67,91 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	return
 }
 
-// func TestPeerSmallTransfer(t *testing.T) {
-// 	assert := require.New(t)
-// 	peer1, peer2 := makePeerPair()
+func _TestPeerSmallTransfer(t *testing.T) {
+	assert := require.New(t)
+	peer1, peer2 := makePeerPair()
 
-// 	// peer1 connects to peer2
-// 	toPeer2fromPeer1, err := peer1.ConnectTo(peer2.Address, peer2.Port)
-// 	assert.Nil(err)
+	// peer1 connects to peer2
+	peer2fromPeer1, err := peer1.ConnectTo(peer2.Address, peer2.Port)
+	assert.Nil(err)
 
-// 	// peer2's view of peer1 (who just connected)
-// 	toPeer1fromPeer2, ok := peer2.GetPeer(peer1.ID())
-// 	assert.True(ok)
-// 	assert.NotNil(toPeer1fromPeer2)
+	// peer2's view of peer1 (who just connected)
+	peer1fromPeer2, ok := peer2.GetPeer(peer1.ID())
+	assert.True(ok)
+	assert.NotNil(peer1fromPeer2)
 
-// 	// peer1 sends 0x42 to peer2
-// 	_, err = toPeer2fromPeer1.SendMessage(NewMessage(DataBlock, []byte{0x42}))
-// 	assert.Nil(err)
+	// peer1 sends 0x42 to peer2
+	_, err = peer2fromPeer1.SendMessage(NewMessage(DataBlock, []byte{0x42}))
+	assert.Nil(err)
 
-// 	// peer2 receives 0x42 from peer1
-// 	msg, err := toPeer1fromPeer2.ReceiveMessage()
-// 	assert.Nil(err)
-// 	assert.NotNil(msg)
-// 	assert.Equal([]byte{0x42}, msg.Data)
+	// peer2 receives 0x42 from peer1
+	msg, err := peer1fromPeer2.WaitNextMessage(time.Second)
+	assert.Nil(err)
+	assert.NotNil(msg)
+	assert.Equal([]byte{0x42}, msg.Data)
 
-// 	// peer2 sends 0x41 to peer1
-// 	_, err = toPeer1fromPeer2.Write([]byte{0x41})
-// 	assert.Nil(err)
+	// peer2 sends 0x41 to peer1
+	_, err = peer1fromPeer2.Write([]byte{0x41})
+	assert.Nil(err)
 
-// 	// peer1 receives 0x41 from peer2
-// 	msg, err = toPeer2fromPeer1.ReceiveMessage()
-// 	assert.Nil(err)
-// 	assert.NotNil(msg)
-// 	assert.Equal([]byte{0x41}, msg.Data)
-// }
+	// peer1 receives 0x41 from peer2
+	msg, err = peer2fromPeer1.WaitNextMessage(time.Second)
+	assert.Nil(err)
+	assert.NotNil(msg)
+	assert.Equal([]byte{0x41}, msg.Data)
+}
 
-// func TestPeerCheckedTransfer(t *testing.T) {
-// 	assert := require.New(t)
-// 	peer1messages := make([]PeerMessage, 0)
+func TestPeerCheckedTransfer(t *testing.T) {
+	assert := require.New(t)
+	peer1, peer2 := makePeerPair()
 
-// 	var err error
-// 	var wg sync.WaitGroup
-// 	peer1, peer2 := makePeerPair()
+	// peer1 connects to peer2
+	peer2fromPeer1, err := peer1.ConnectTo(peer2.Address, peer2.Port)
+	assert.Nil(err)
 
-// 	toPeer1fromPeer2, err := peer2.ConnectTo(peer1.Address, peer1.Port)
-// 	assert.Nil(err)
+	time.Sleep(time.Second)
 
-// 	go messagePump(peer1, &peer1messages, &wg, DataProceed, DataFinalize, DataFailed)
+	// peer2's view of peer1 (who just connected)
+	peer1fromPeer2, ok := peer2.GetPeer(peer1.ID())
+	assert.True(ok)
+	assert.NotNil(peer1fromPeer2)
 
-// 	// generate and checksum ~10MB of data
-// 	data := make([]byte, (1024*1024*10)+773)
-// 	rand.Read(data)
-// 	sum := sha256.Sum256(data)
+	// this is the data we want to send
+	data := make([]byte, 2048)
+	rand.Read(data)
+	sum := sha256.Sum256(data)
 
-// 	err = toPeer1fromPeer2.BeginChecked(len(data))
+	go func() {
+		// peer1 sends data to peer2
+		err = peer2fromPeer1.TransferData(data)
+		assert.Nil(err)
+	}()
 
-// 	assert.Nil(err)
+	var header, block, trailer *Message
 
-// 	_, err = io.Copy(toPeer1fromPeer2, bytes.NewBuffer(data))
-// 	assert.Nil(err)
+	// peer2: receive the header
+	header, err = peer1fromPeer2.WaitNextMessageByType(3*time.Second, DataStart)
+	assert.Nil(err)
+	assert.NotNil(header)
+	assert.Equal(DataStart, header.Type)
+	assert.Equal(BinaryLEUint64, header.Encoding)
+	assert.Equal(uint64(len(data)), header.Value())
 
-// 	err = toPeer1fromPeer2.FinishChecked()
-// 	assert.Nil(err)
+	// peer2: iterate to receive data block, trailer, and final ack
+	block, err = peer1fromPeer2.WaitNextMessageByType(3*time.Second, DataBlock)
+	assert.Nil(err)
+	assert.NotNil(block)
+	assert.Equal(DataBlock, block.Type)
+	assert.Equal(RawEncoding, block.Encoding)
+	assert.Equal(2048, len(block.Data))
 
-// 	wg.Wait()
-
-// 	// verify DataStart message
-// 	assert.Equal(3, len(peer1messages))
-// 	assert.Equal(DataStart, peer1messages[0].Message.Type)
-// 	assert.Equal(BinaryLEUint64, peer1messages[0].Message.Encoding)
-// 	assert.Equal(uint64(len(data)), peer1messages[0].Message.Value())
-
-// 	// verify DataFinalize message
-// 	assert.Equal(DataFinalize, peer1messages[len(peer1messages)-1].Message.Type)
-// 	assert.Equal(RawEncoding, peer1messages[len(peer1messages)-1].Message.Encoding)
-// 	assert.Equal([]byte(sum[:]), peer1messages[len(peer1messages)-1].Message.Value())
-// }
+	trailer, err = peer1fromPeer2.WaitNextMessageByType(3*time.Second, DataFinalize)
+	assert.Nil(err)
+	assert.NotNil(trailer)
+	assert.Equal(DataFinalize, trailer.Type)
+	assert.Equal(RawEncoding, trailer.Encoding)
+	assert.Equal([]byte(sum[:]), trailer.Value())
+}
 
 // func TestPeerLongCheckedTransfer(t *testing.T) {
 // 	assert := require.New(t)

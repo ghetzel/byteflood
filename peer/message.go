@@ -11,7 +11,8 @@ import (
 type MessageType int
 
 const (
-	Acknowledgment MessageType = iota
+	NullMessage MessageType = iota
+	Acknowledgment
 	DataStart
 	DataProceed
 	DataBlock
@@ -63,7 +64,7 @@ func (self MessageType) String() string {
 	case HeartbeatAck:
 		return `heartbeat-ack`
 	default:
-		return `invalid`
+		return ``
 	}
 }
 
