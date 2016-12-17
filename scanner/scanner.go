@@ -23,6 +23,8 @@ var log = logging.MustGetLogger(`byteflood/scanner`)
 
 const FileFingerprintSize = 16777216
 
+var DefaultCollectionName = `metadata`
+
 type File struct {
 	Name     string
 	Metadata map[string]interface{}
@@ -185,7 +187,7 @@ func (self *Directory) scanFile(name string) (*File, error) {
 	}
 
 	if self.scanner != nil {
-		if err := self.scanner.PersistRecord(`metadata`, file.ID(), file.Metadata); err != nil {
+		if err := self.scanner.PersistRecord(file.ID(), file.Metadata); err != nil {
 			return nil, err
 		}
 	}
@@ -196,6 +198,7 @@ func (self *Directory) scanFile(name string) (*File, error) {
 type Scanner struct {
 	Directories []*Directory
 	DatabaseURI string
+	Collection  string
 	db          backends.Backend
 }
 
@@ -203,6 +206,7 @@ func NewScanner() *Scanner {
 	return &Scanner{
 		Directories: make([]*Directory, 0),
 		DatabaseURI: `boltdb:///~/.local/share/byteflood/db`,
+		Collection:  DefaultCollectionName,
 	}
 }
 
@@ -220,12 +224,20 @@ func (self *Scanner) AddDirectory(path string, options ScanOptions) {
 	self.Directories = append(self.Directories, NewDirectory(self, path, options))
 }
 
-func (self *Scanner) PersistRecord(collection string, id string, data map[string]interface{}) error {
-	log.Debugf("Writing %s/%s", collection, id)
+func (self *Scanner) PersistRecord(id string, data map[string]interface{}) error {
+	log.Debugf("Writing %s/%s", self.Collection, id)
 
-	return self.db.Insert(collection, dal.NewRecordSet(
+	return self.db.Insert(self.Collection, dal.NewRecordSet(
 		dal.NewRecord(id).SetFields(data),
 	))
+}
+
+func (self *Scanner) QueryRecords(filterString string) (*dal.RecordSet, error) {
+	if index := self.db.WithSearch(); index != nil {
+		return index.QueryString(self.Collection, filterString)
+	} else {
+		return nil, fmt.Errorf("Backend type %T does not support searching", self.db)
+	}
 }
 
 func (self *Scanner) Scan() error {

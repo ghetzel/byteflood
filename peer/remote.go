@@ -47,7 +47,6 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 				id:                  id,
 				connection:          connection,
 				messageQueues: map[string]chan *Message{
-					``:     make(chan *Message),
 					Acknowledgment.String():  make(chan *Message),
 					DataStart.String():       make(chan *Message),
 					DataProceed.String():     make(chan *Message),
@@ -59,6 +58,7 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 					ServiceResponse.String(): make(chan *Message),
 					Heartbeat.String():       make(chan *Message),
 					HeartbeatAck.String():    make(chan *Message),
+					``: make(chan *Message),
 				},
 			}, nil
 		} else {

@@ -6,6 +6,7 @@ import (
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/scanner"
+	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/op/go-logging"
@@ -283,6 +284,34 @@ func main() {
 					}
 				} else {
 					log.Fatalf("Must specify a base filename")
+				}
+			},
+		}, {
+			Name: `testshares`,
+			Usage: `[TEST] Test working with share views`,
+			Action: func(c *cli.Context) {
+				if c.NArg() == 0 {
+					log.Fatalf("Must specify a base filter to test a share")
+				}
+
+				s := scanner.NewScanner()
+
+				if err := s.Initialize(); err == nil {
+					share := shares.NewShare(s, c.Args().First())
+
+					log.Infof("Share Length: %d", share.Length())
+
+					if c.NArg() > 1 {
+						if records, err := share.Find(c.Args().Get(1)); err == nil {
+							for i, record := range records {
+								log.Infof("%03d: %+v", i, record)
+							}
+						}else{
+							log.Fatal(err)
+						}
+					}
+				} else {
+					log.Fatal(err)
 				}
 			},
 		},

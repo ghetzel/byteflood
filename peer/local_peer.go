@@ -9,6 +9,7 @@ import (
 	"github.com/satori/go.uuid"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -48,6 +49,7 @@ type LocalPeer struct {
 	id                     uuid.UUID
 	upnpPortMapping        *PortMapping
 	sessions               map[string]*RemotePeer
+	sessionLock            sync.Mutex
 	listening              chan bool
 	publicKey              []byte
 	privateKey             []byte
@@ -330,7 +332,9 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 				nil,
 			)
 
+			self.sessionLock.Lock()
 			self.sessions[remotePeer.String()] = remotePeer
+			self.sessionLock.Unlock()
 
 			// setup download rate limiting
 			if self.DownloadBytesPerSecond > 0 {
