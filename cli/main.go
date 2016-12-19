@@ -9,13 +9,20 @@ import (
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/op/go-logging"
 	"io"
 	"net"
 	"os"
 	"os/signal"
+	"text/tabwriter"
+	"encoding/json"
+	"github.com/ghodss/yaml"
+	"encoding/xml"
 	"strings"
 )
+
+const DEFAULT_FORMAT = `text`
 
 var log = logging.MustGetLogger(`main`)
 
@@ -26,7 +33,7 @@ func main() {
 	app.Version = `0.0.1`
 	app.EnableBashCompletion = false
 
-	var config byteflood.Configuration
+	var config *byteflood.Configuration
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
@@ -41,18 +48,17 @@ func main() {
 			Value: `~/.config/byteflood/config.yml`,
 		},
 		cli.StringFlag{
-			Name:  `id, I`,
-			Usage: `Specify this client's ID`,
+			Name:  `config-dir, C`,
+			Usage: `The path to a directory containing additional configuration files`,
+			Value: `~/.config/byteflood/conf.d/`,
 		},
 		cli.StringFlag{
 			Name:  `public-key, k`,
 			Usage: `The path to the file containing the local public key`,
-			Value: `~/.config/byteflood/keys/peer.pub`,
 		},
 		cli.StringFlag{
 			Name:  `private-key, K`,
 			Usage: `The path to the file containing the local private key`,
-			Value: `~/.config/byteflood/keys/peer.key`,
 		},
 	}
 
@@ -68,11 +74,25 @@ func main() {
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
 		log.Infof("Loading configuration from %s", c.String(`config`))
 
-		if cf, err := byteflood.LoadConfig(c.String(`config`)); err == nil {
+		if v := c.GlobalString(`public-key`); v != `` {
+			byteflood.DefaultConfig.PublicKey = v
+		}
+
+		if v := c.GlobalString(`private-key`); v != `` {
+			byteflood.DefaultConfig.PrivateKey = v
+		}
+
+		if cf, err := byteflood.LoadConfigDefaults(c.String(`config`)); err == nil {
 			config = cf
 		} else {
 			log.Fatal(err)
 		}
+
+		if err := byteflood.MergeConfigDirectory(config, c.String(`config-dir`)); err != nil {
+			log.Fatal(err)
+		}
+
+		log.Debugf("Loaded configuration:\n%s\n", config.String())
 
 		return nil
 	}
@@ -110,7 +130,7 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				if localPeer, err := makeLocalPeer(&config, c); err == nil {
+				if localPeer, err := makeLocalPeer(config, c); err == nil {
 					localPeer.EnableUpnp = c.Bool(`upnp`)
 
 					if v := c.Int(`download-limit`); v > 0 {
@@ -158,7 +178,7 @@ func main() {
 
 				if host, portStr, err := net.SplitHostPort(address); err == nil {
 					if port, err := stringutil.ConvertToInteger(portStr); err == nil {
-						if localPeer, err := makeLocalPeer(&config, c); err == nil {
+						if localPeer, err := makeLocalPeer(config, c); err == nil {
 							if v := c.Int(`download-limit`); v > 0 {
 								localPeer.DownloadBytesPerSecond = v
 							}
@@ -214,7 +234,7 @@ func main() {
 
 					if host, portStr, err := net.SplitHostPort(address); err == nil {
 						if port, err := stringutil.ConvertToInteger(portStr); err == nil {
-							if localPeer, err := makeLocalPeer(&config, c); err == nil {
+							if localPeer, err := makeLocalPeer(config, c); err == nil {
 								if remotePeer, err := localPeer.ConnectTo(host, int(port)); err == nil {
 									log.Infof("Connected to peer: %s", remotePeer.String())
 
@@ -314,6 +334,52 @@ func main() {
 					log.Fatal(err)
 				}
 			},
+		}, {
+			Name: `query`,
+			Usage: `Query the metadata database.`,
+			ArgsUsage: `FILTER`,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  `format, f`,
+					Usage: `The output format to use when printing results`,
+					Value: DEFAULT_FORMAT,
+				},
+				cli.StringSliceFlag{
+					Name: `field, F`,
+					Usage: `Additional fields to include in output tables in addition to ID and path`,
+				},
+			},
+			Action: func(c *cli.Context) {
+				s := scanner.NewScanner()
+
+				if err := s.Initialize(); err == nil {
+					if rs, err := s.QueryRecords(c.Args().First()); err == nil {
+						printWithFormat(c.String(`format`), rs, func() {
+							tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
+
+							for _, record := range rs.Records {
+								values := make([]interface{}, 0)
+
+								values = append(values, record.ID)
+
+								for _, fieldName := range c.StringSlice(`field`) {
+									if v := maputil.DeepGet(record.Fields, strings.Split(fieldName, `.`), nil); v != nil {
+										values = append(values, v)
+									}
+								}
+
+								fmt.Fprintf(tw, strings.TrimSpace(strings.Repeat("%v\t", len(values)))+"\n", values...)
+							}
+
+							tw.Flush()
+						})
+					} else {
+						log.Fatal(err)
+					}
+				} else {
+					log.Fatal(err)
+				}
+			},
 		},
 	}
 
@@ -322,15 +388,10 @@ func main() {
 
 func makeLocalPeer(config *byteflood.Configuration, c *cli.Context) (*peer.LocalPeer, error) {
 	if publicKey, privateKey, err := encryption.LoadKeyfiles(
-		c.GlobalString(`public-key`),
-		c.GlobalString(`private-key`),
+		config.PublicKey,
+		config.PrivateKey,
 	); err == nil {
-		if v := c.GlobalString(`id`); v != `` {
-			config.ID = v
-		}
-
 		if localPeer, err := peer.CreatePeer(
-			config.ID,
 			publicKey,
 			privateKey,
 		); err == nil {
@@ -355,5 +416,38 @@ func makeLocalPeer(config *byteflood.Configuration, c *cli.Context) (*peer.Local
 		}
 	} else {
 		return nil, err
+	}
+}
+
+
+func printWithFormat(format string, data interface{}, fallbackFunc ...func()) {
+	var output []byte
+	var err error
+
+	switch format {
+	case `json`:
+		output, err = json.MarshalIndent(data, ``, `  `)
+	case `yaml`:
+		output, err = yaml.Marshal(data)
+	case `xml`:
+		output, err = xml.MarshalIndent(data, ``, `  `)
+	default:
+		if len(fallbackFunc) > 0 {
+			f := fallbackFunc[0]
+			f()
+			return
+		} else if data != nil {
+			if v, err := stringutil.ToString(data); err == nil {
+				output = []byte(v[:])
+			} else {
+				log.Fatal(err)
+			}
+		}
+	}
+
+	if err == nil {
+		fmt.Println(string(output[:]))
+	} else {
+		log.Fatal(err)
 	}
 }

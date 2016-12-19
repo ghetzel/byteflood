@@ -23,14 +23,16 @@ vendors:
   rev: 8ee79997227bf9b34611aee7946ae64735e6fd93
 - path: github.com/huin/goupnp
   rev: 949b8a77532ae1076171f4d112a5eb41354cb340
+- path: github.com/imdario/mergo
+  rev: 50d4dbd4eb0e84778abe37cefef140271d96fade
 - path: github.com/inconshreveable/muxado
   rev: fc182d90f26ea93f36ef05b643c7f4ea604c370b
 - path: github.com/jbenet/go-base58
   rev: 6237cf65f3a6f7111cd8a42be3590df99a66bc7d
 - path: github.com/julienschmidt/httprouter
   rev: 5dd70ee059943e81987a817fa1a755b11dd119c1
-- path: github.com/multiformats/go-multistream
-  rev: b4a4ad9422aa66c32dce09d8d0fa15587d5f67b2
+- path: github.com/mohae/deepcopy
+  rev: a40e8fd6a88555ab2b3f07a29db9e893598362a2
 - path: github.com/op/go-logging
   rev: 970db520ece77730c7e4724c61121037378659d9
 - path: github.com/pmezard/go-difflib
@@ -45,6 +47,8 @@ vendors:
   rev: 0d12bf811670bf6a1a63828dfbd003eded177fce
 - path: github.com/steveyen/gtreap
   rev: 0abe01ef9be25c4aedc174758ec2d917314d6d70
+- path: github.com/stretchr/objx
+  rev: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
 - path: github.com/stretchr/testify
   rev: 18a02ba4a312f95da08ff4cfc0055750ce50ae9e
 - path: github.com/urfave/negroni
@@ -69,5 +73,7 @@ vendors:
   rev: 3f83fa5005286a7fe593b055f0d7771a7dce4655
 - path: gopkg.in/vmihailenco/msgpack.v2
   rev: 94af6ea04d2da6a09d6914ca79b8fb94f3acbba4
+- path: gopkg.in/yaml.v1
+  rev: 9f9df34309c04878acc86042b16630b0f696e1de
 - path: gopkg.in/yaml.v2
   rev: a5b47d31c556af34a302ce5d659e6fea44d90de0

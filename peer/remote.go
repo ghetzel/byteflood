@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
-	"github.com/satori/go.uuid"
+	"github.com/jbenet/go-base58"
 	"io"
 	"net"
 	"net/http"
@@ -27,7 +27,6 @@ type RemotePeer struct {
 	HeartbeatAckTimeout     time.Duration
 	inboundTransfer         *Transfer
 	connection              *net.TCPConn
-	id                      uuid.UUID
 	isWaitingForNextMessage bool
 	messageQueues           map[string]chan *Message
 	publicKey               []byte
@@ -39,31 +38,26 @@ type RemotePeer struct {
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
 	if err := request.Validate(); err == nil {
-		if id, err := uuid.FromBytes(request.ID); err == nil {
-			return &RemotePeer{
-				HeartbeatInterval:   DefaultHeartbeatInterval,
-				HeartbeatAckTimeout: DefaultHeartbeatAckTimeout,
-				publicKey:           request.PublicKey,
-				id:                  id,
-				connection:          connection,
-				messageQueues: map[string]chan *Message{
-					Acknowledgment.String():  make(chan *Message),
-					DataStart.String():       make(chan *Message),
-					DataProceed.String():     make(chan *Message),
-					DataBlock.String():       make(chan *Message),
-					DataTerminate.String():   make(chan *Message),
-					DataFinalize.String():    make(chan *Message),
-					DataFailed.String():      make(chan *Message),
-					ServiceRequest.String():  make(chan *Message),
-					ServiceResponse.String(): make(chan *Message),
-					Heartbeat.String():       make(chan *Message),
-					HeartbeatAck.String():    make(chan *Message),
-					``: make(chan *Message),
-				},
-			}, nil
-		} else {
-			return nil, err
-		}
+		return &RemotePeer{
+			HeartbeatInterval:   DefaultHeartbeatInterval,
+			HeartbeatAckTimeout: DefaultHeartbeatAckTimeout,
+			publicKey:           request.PublicKey,
+			connection:          connection,
+			messageQueues: map[string]chan *Message{
+				Acknowledgment.String():  make(chan *Message),
+				DataStart.String():       make(chan *Message),
+				DataProceed.String():     make(chan *Message),
+				DataBlock.String():       make(chan *Message),
+				DataTerminate.String():   make(chan *Message),
+				DataFinalize.String():    make(chan *Message),
+				DataFailed.String():      make(chan *Message),
+				ServiceRequest.String():  make(chan *Message),
+				ServiceResponse.String(): make(chan *Message),
+				Heartbeat.String():       make(chan *Message),
+				HeartbeatAck.String():    make(chan *Message),
+				``: make(chan *Message),
+			},
+		}, nil
 	} else {
 		return nil, err
 	}
@@ -74,15 +68,11 @@ func (self *RemotePeer) GetPublicKey() []byte {
 }
 
 func (self *RemotePeer) ID() string {
-	return self.id.String()
+	return base58.Encode(self.publicKey[:])
 }
 
 func (self *RemotePeer) String() string {
 	return self.ID()
-}
-
-func (self *RemotePeer) UUID() uuid.UUID {
-	return self.id
 }
 
 func (self *RemotePeer) ToMap() map[string]interface{} {

@@ -10,19 +10,17 @@ import (
 var PeeringRequestMaxInitialRead = 32768
 
 type PeeringRequest struct {
-	ID        []byte
 	PublicKey []byte
 }
 
-func NewPeeringRequest(id []byte, publicKey []byte) *PeeringRequest {
+func NewPeeringRequest(publicKey []byte) *PeeringRequest {
 	return &PeeringRequest{
-		ID:        id,
 		PublicKey: publicKey,
 	}
 }
 
 func GenerateAndWritePeeringRequest(w io.Writer, peer Peer) error {
-	peeringRequest := NewPeeringRequest(peer.UUID().Bytes(), peer.GetPublicKey())
+	peeringRequest := NewPeeringRequest(peer.GetPublicKey())
 	_, err := peeringRequest.WriteTo(w)
 	return err
 }
@@ -48,10 +46,6 @@ func (self *PeeringRequest) WriteTo(w io.Writer) (int, error) {
 }
 
 func (self *PeeringRequest) Validate() error {
-	if self.ID == nil {
-		return fmt.Errorf("Invalid peer ID")
-	}
-
 	if self.PublicKey == nil {
 		return fmt.Errorf("Invalid peer public key")
 	}

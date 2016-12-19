@@ -5,8 +5,8 @@ import (
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/jbenet/go-base58"
 	"github.com/op/go-logging"
-	"github.com/satori/go.uuid"
 	"net"
 	"strings"
 	"sync"
@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DEFAULT_MGMT_ADDR              = ``
+	DEFAULT_MGMT_ADDR              = `:50451`
 	DEFAULT_PEER_SERVER_PORT       = 0
 	DEFAULT_UPNP_DISCOVERY_TIMEOUT = (30 * time.Second)
 	DEFAULT_UPNP_MAPPING_DURATION  = (8760 * time.Hour)
@@ -29,7 +29,6 @@ var PeerMonitorRetryMax = -1
 
 type Peer interface {
 	ID() string
-	UUID() uuid.UUID
 	String() string
 	GetPublicKey() []byte
 }
@@ -46,7 +45,6 @@ type LocalPeer struct {
 	UploadBytesPerSecond   int
 	DownloadBytesPerSecond int
 	AutoReceiveMessages    bool
-	id                     uuid.UUID
 	upnpPortMapping        *PortMapping
 	sessions               map[string]*RemotePeer
 	sessionLock            sync.Mutex
@@ -57,21 +55,7 @@ type LocalPeer struct {
 	mgmtServer             *ManagementServer
 }
 
-func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, error) {
-	var localID uuid.UUID
-
-	if id == `` {
-		localID = uuid.NewV4()
-	} else {
-		if i, err := uuid.FromString(id); err == nil {
-			localID = i
-		} else {
-			return nil, err
-		}
-	}
-
-	log.Infof("Local Peer ID: %s", localID.String())
-
+func CreatePeer(publicKey []byte, privateKey []byte) (*LocalPeer, error) {
 	return &LocalPeer{
 		Port:                 DEFAULT_PEER_SERVER_PORT,
 		ManagementAddress:    DEFAULT_MGMT_ADDR,
@@ -79,7 +63,6 @@ func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, err
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
 		AutoReceiveMessages:  true,
-		id:                   localID,
 		sessions:             make(map[string]*RemotePeer),
 		listening:            make(chan bool),
 		publicKey:            publicKey,
@@ -88,15 +71,11 @@ func CreatePeer(id string, publicKey []byte, privateKey []byte) (*LocalPeer, err
 }
 
 func (self *LocalPeer) ID() string {
-	return self.id.String()
+	return base58.Encode(self.publicKey[:])
 }
 
 func (self *LocalPeer) String() string {
 	return self.ID()
-}
-
-func (self *LocalPeer) UUID() uuid.UUID {
-	return self.id
 }
 
 func (self *LocalPeer) GetPublicKey() []byte {
@@ -108,6 +87,8 @@ func (self *LocalPeer) WaitListen() <-chan bool {
 }
 
 func (self *LocalPeer) Run() error {
+	log.Infof("Local Peer ID: %s", self.ID())
+
 	if self.Port == 0 {
 		if p, err := ephemeralPort(); err == nil {
 			self.Port = p

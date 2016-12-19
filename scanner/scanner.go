@@ -109,6 +109,7 @@ func (self *File) normalizeLoaderName(loader metadata.Loader) string {
 
 type Directory struct {
 	Path        string       `json:"path"`
+	Label       string       `json:"label"`
 	Options     ScanOptions  `json:"options"`
 	Files       []*File      `json:"-"`
 	Directories []*Directory `json:"-"`
@@ -225,8 +226,6 @@ func (self *Scanner) AddDirectory(path string, options ScanOptions) {
 }
 
 func (self *Scanner) PersistRecord(id string, data map[string]interface{}) error {
-	log.Debugf("Writing %s/%s", self.Collection, id)
-
 	return self.db.Insert(self.Collection, dal.NewRecordSet(
 		dal.NewRecord(id).SetFields(data),
 	))
