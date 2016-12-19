@@ -276,13 +276,7 @@ func main() {
 			Name:  `scan`,
 			Usage: `Scans all configured source directories for changes`,
 			Action: func(c *cli.Context) {
-				s := scanner.NewScanner()
-
-				if err := s.Initialize(); err == nil {
-					for _, directory := range config.Directories {
-						s.AddDirectory(directory.Path, directory.Options)
-					}
-
+				if s, err := makeScanner(config); err == nil {
 					if err := s.Scan(); err != nil {
 						log.Fatalf("Failed to scan: %v", err)
 					}
@@ -314,9 +308,7 @@ func main() {
 					log.Fatalf("Must specify a base filter to test a share")
 				}
 
-				s := scanner.NewScanner()
-
-				if err := s.Initialize(); err == nil {
+				if s, err := makeScanner(config); err == nil {
 					share := shares.NewShare(s, c.Args().First())
 
 					log.Infof("Share Length: %d", share.Length())
@@ -350,10 +342,8 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				s := scanner.NewScanner()
-
-				if err := s.Initialize(); err == nil {
-					if rs, err := s.QueryRecords(c.Args().First()); err == nil {
+				if s, err := makeScanner(config); err == nil {
+					if rs, err := s.QueryRecords(strings.Join(c.Args(), `/`)); err == nil {
 						printWithFormat(c.String(`format`), rs, func() {
 							tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 
@@ -377,6 +367,18 @@ func main() {
 						log.Fatal(err)
 					}
 				} else {
+					log.Fatal(err)
+				}
+			},
+		}, {
+			Name: `cleanup`,
+			Usage: `Cleanup the metadata database.`,
+			Action: func(c *cli.Context) {
+				if s, err := makeScanner(config); err == nil {
+					if err := s.CleanRecords(); err != nil {
+						log.Fatal(err)
+					}
+				}else{
 					log.Fatal(err)
 				}
 			},
@@ -419,6 +421,21 @@ func makeLocalPeer(config *byteflood.Configuration, c *cli.Context) (*peer.Local
 	}
 }
 
+func makeScanner(config *byteflood.Configuration) (*scanner.Scanner, error) {
+	s := scanner.NewScanner()
+
+	if err := s.Initialize(); err == nil {
+		for _, directory := range config.Directories {
+			if err := s.AddDirectory(&directory); err != nil {
+				return nil, err
+			}
+		}
+
+		return s, nil
+	}else{
+		return nil, err
+	}
+}
 
 func printWithFormat(format string, data interface{}, fallbackFunc ...func()) {
 	var output []byte

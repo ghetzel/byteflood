@@ -17,6 +17,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var log = logging.MustGetLogger(`byteflood/scanner`)
@@ -24,6 +25,7 @@ var log = logging.MustGetLogger(`byteflood/scanner`)
 const FileFingerprintSize = 16777216
 
 var DefaultCollectionName = `metadata`
+var DefaultManagementCollectionName = `byteflood`
 
 type File struct {
 	Name     string
@@ -109,7 +111,7 @@ func (self *File) normalizeLoaderName(loader metadata.Loader) string {
 
 type Directory struct {
 	Path        string       `json:"path"`
-	Label       string       `json:"label"`
+	Label       string       `json:"label,omitempty"`
 	Options     ScanOptions  `json:"options"`
 	Files       []*File      `json:"-"`
 	Directories []*Directory `json:"-"`
@@ -126,6 +128,20 @@ func NewDirectory(scanner *Scanner, path string, options ScanOptions) *Directory
 	}
 }
 
+func (self *Directory) Initialize(scanner *Scanner) error {
+	if self.Path == `` {
+		return fmt.Errorf("Directory path must be specified.")
+	}
+
+	if self.Label == `` {
+		self.Label = stringutil.Underscore(path.Base(self.Path))
+	}
+
+	self.scanner = scanner
+
+	return nil
+}
+
 func (self *Directory) Scan() error {
 	if entries, err := ioutil.ReadDir(self.Path); err == nil {
 		for _, entry := range entries {
@@ -135,12 +151,13 @@ func (self *Directory) Scan() error {
 			if entry.IsDir() {
 				if !self.Options.NoRecurseDirectories {
 					subdirectory := NewDirectory(self.scanner, absPath, self.Options)
+					subdirectory.Label = self.Label
 
-					if err := subdirectory.Scan(); err != nil {
-						return err
-					} else {
-						log.Debugf("ADD: directory %s", subdirectory.Path)
+					if err := subdirectory.Scan(); err == nil {
+						log.Debugf("ADD: directory [%s] %s", subdirectory.Label, subdirectory.Path)
 						self.Directories = append(self.Directories, subdirectory)
+					} else {
+						return err
 					}
 				}
 			} else {
@@ -187,6 +204,10 @@ func (self *Directory) scanFile(name string) (*File, error) {
 		return nil, err
 	}
 
+	file.Metadata[`name`] = file.Name
+	file.Metadata[`label`] = self.Label
+	file.Metadata[`last_seen`] = time.Now().UnixNano()
+
 	if self.scanner != nil {
 		if err := self.scanner.PersistRecord(file.ID(), file.Metadata); err != nil {
 			return nil, err
@@ -197,17 +218,21 @@ func (self *Directory) scanFile(name string) (*File, error) {
 }
 
 type Scanner struct {
-	Directories []*Directory
-	DatabaseURI string
-	Collection  string
-	db          backends.Backend
+	Directories          []*Directory
+	DatabaseURI          string
+	Collection           string
+	ManagementCollection string
+	db                   backends.Backend
 }
 
 func NewScanner() *Scanner {
+	backends.BleveIndexerPageSize = 100
+
 	return &Scanner{
-		Directories: make([]*Directory, 0),
-		DatabaseURI: `boltdb:///~/.local/share/byteflood/db`,
-		Collection:  DefaultCollectionName,
+		Directories:          make([]*Directory, 0),
+		DatabaseURI:          `boltdb:///~/.local/share/byteflood/db`,
+		Collection:           DefaultCollectionName,
+		ManagementCollection: DefaultManagementCollectionName,
 	}
 }
 
@@ -221,14 +246,23 @@ func (self *Scanner) Initialize() error {
 	return nil
 }
 
-func (self *Scanner) AddDirectory(path string, options ScanOptions) {
-	self.Directories = append(self.Directories, NewDirectory(self, path, options))
+func (self *Scanner) AddDirectory(directory *Directory) error {
+	if err := directory.Initialize(self); err == nil {
+		self.Directories = append(self.Directories, directory)
+		return nil
+	} else {
+		return err
+	}
 }
 
 func (self *Scanner) PersistRecord(id string, data map[string]interface{}) error {
 	return self.db.Insert(self.Collection, dal.NewRecordSet(
 		dal.NewRecord(id).SetFields(data),
 	))
+}
+
+func (self *Scanner) DeleteRecords(ids ...string) error {
+	return self.db.Delete(self.Collection, ids)
 }
 
 func (self *Scanner) QueryRecords(filterString string) (*dal.RecordSet, error) {
@@ -239,12 +273,59 @@ func (self *Scanner) QueryRecords(filterString string) (*dal.RecordSet, error) {
 	}
 }
 
+// Removes records from the database that would not be added by the current Scanner instance.
+func (self *Scanner) CleanRecords() error {
+	var minLastSeen int64
+
+	if v := self.PropertyGet(`metadata.last_scan`); v != nil {
+		if vI, ok := v.(int64); ok {
+			minLastSeen = vI
+		}
+	}
+
+	if minLastSeen <= 0 {
+		return fmt.Errorf("Invalid last_scan time")
+	}
+
+	if staleRecordSet, err := self.QueryRecords(fmt.Sprintf("last_seen/lt:%d", minLastSeen)); err == nil {
+		ids := make([]string, 0)
+
+		for _, record := range staleRecordSet.Records {
+			ids = append(ids, record.ID)
+		}
+
+		log.Debugf("Cleaning up %d records", len(ids))
+
+		return self.DeleteRecords(ids...)
+	} else {
+		return err
+	}
+}
+
+func (self *Scanner) PropertySet(key string, value interface{}) error {
+	return self.db.Insert(self.ManagementCollection, dal.NewRecordSet(
+		dal.NewRecord(key).Set(`value`, value),
+	))
+}
+
+func (self *Scanner) PropertyGet(key string, fallback ...interface{}) interface{} {
+	if record, err := self.db.Retrieve(self.ManagementCollection, key); err == nil {
+		return record.Get(`value`, fallback...)
+	} else {
+		return fallback[0]
+	}
+}
+
 func (self *Scanner) Scan() error {
+	// get this before performing the scan so that all touched files will necessarily
+	// be greater than it
+	minLastSeen := time.Now().UnixNano()
+
 	for _, directory := range self.Directories {
 		if err := directory.Scan(); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return self.PropertySet(`metadata.last_scan`, minLastSeen)
 }
