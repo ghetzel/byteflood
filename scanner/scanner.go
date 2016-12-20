@@ -312,7 +312,11 @@ func (self *Scanner) PropertyGet(key string, fallback ...interface{}) interface{
 	if record, err := self.db.Retrieve(self.ManagementCollection, key); err == nil {
 		return record.Get(`value`, fallback...)
 	} else {
-		return fallback[0]
+		if len(fallback) > 0 {
+			return fallback[0]
+		} else {
+			return nil
+		}
 	}
 }
 
