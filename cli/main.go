@@ -275,8 +275,14 @@ func main() {
 		}, {
 			Name:  `scan`,
 			Usage: `Scans all configured source directories for changes`,
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name: `quick, q`,
+					Usage: `Only import files not already in the metadata database.`,
+				},
+			},
 			Action: func(c *cli.Context) {
-				if s, err := makeScanner(config); err == nil {
+				if s, err := makeScanner(config, c); err == nil {
 					if err := s.Scan(); err != nil {
 						log.Fatalf("Failed to scan: %v", err)
 					}
@@ -302,13 +308,13 @@ func main() {
 			},
 		}, {
 			Name: `testshares`,
-			Usage: `[TEST] Test working with share views`,
+			Usage: `[TEST] Test working with share views; dynamically creates a share using the given argument as a base filter`,
 			Action: func(c *cli.Context) {
 				if c.NArg() == 0 {
 					log.Fatalf("Must specify a base filter to test a share")
 				}
 
-				if s, err := makeScanner(config); err == nil {
+				if s, err := makeScanner(config, c); err == nil {
 					share := shares.NewShare(s, c.Args().First())
 
 					log.Infof("Share Length: %d", share.Length())
@@ -340,10 +346,18 @@ func main() {
 					Name: `field, F`,
 					Usage: `Additional fields to include in output tables in addition to ID and path`,
 				},
+				cli.StringFlag{
+					Name: `db`,
+					Usage: `Query the named database`,
+					Value: scanner.DefaultCollectionName,
+				},
 			},
 			Action: func(c *cli.Context) {
-				if s, err := makeScanner(config); err == nil {
-					if rs, err := s.QueryRecords(strings.Join(c.Args(), `/`)); err == nil {
+				if s, err := makeScanner(config, c); err == nil {
+					if rs, err := s.QueryRecordsFromCollection(
+						c.String(`db`),
+						strings.Join(c.Args(), `/`),
+					); err == nil {
 						printWithFormat(c.String(`format`), rs, func() {
 							tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 
@@ -374,7 +388,7 @@ func main() {
 			Name: `cleanup`,
 			Usage: `Cleanup the metadata database.`,
 			Action: func(c *cli.Context) {
-				if s, err := makeScanner(config); err == nil {
+				if s, err := makeScanner(config, c); err == nil {
 					if err := s.CleanRecords(); err != nil {
 						log.Fatal(err)
 					}
@@ -421,8 +435,12 @@ func makeLocalPeer(config *byteflood.Configuration, c *cli.Context) (*peer.Local
 	}
 }
 
-func makeScanner(config *byteflood.Configuration) (*scanner.Scanner, error) {
-	s := scanner.NewScanner()
+func makeScanner(config *byteflood.Configuration, c *cli.Context) (*scanner.Scanner, error) {
+	options := scanner.DefaultScanOptions()
+
+	options.QuickScan = c.Bool(`quick`)
+
+	s := scanner.NewScanner(&options)
 
 	if err := s.Initialize(); err == nil {
 		for _, directory := range config.Directories {
