@@ -1,4 +1,4 @@
-.PHONY: test
+.PHONY: test vendor
 
 all: vendor fmt build bundle
 
@@ -8,7 +8,7 @@ update:
 
 vendor:
 	go list github.com/govend/govend
-	govend -v -l
+	govend -v --strict
 
 clean-bundle:
 	@test -d public && rm -rf public || true
