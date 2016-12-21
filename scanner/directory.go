@@ -8,13 +8,12 @@ import (
 	"path"
 	"regexp"
 	"time"
-	"sync"
 )
 
 type Directory struct {
 	Path        string       `json:"path"`
 	Label       string       `json:"label,omitempty"`
-	Options     ScanOptions  `json:"options"`
+	Options     ScanOptions  `json:"options,omitempty"`
 	Files       []*File      `json:"-"`
 	Directories []*Directory `json:"-"`
 	scanner     *Scanner

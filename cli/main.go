@@ -4,15 +4,12 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood"
 	"github.com/ghetzel/byteflood/encryption"
-	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/scanner"
-	"github.com/ghetzel/byteflood/shares"
+	// "github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/op/go-logging"
-	"io"
-	"net"
 	"os"
 	"os/signal"
 	"text/tabwriter"
@@ -33,7 +30,7 @@ func main() {
 	app.Version = `0.0.1`
 	app.EnableBashCompletion = false
 
-	var config *byteflood.Configuration
+	var config byteflood.Configuration
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
@@ -83,12 +80,12 @@ func main() {
 		}
 
 		if cf, err := byteflood.LoadConfigDefaults(c.String(`config`)); err == nil {
-			config = cf
+			config = *cf
 		} else {
 			log.Fatal(err)
 		}
 
-		if err := byteflood.MergeConfigDirectory(config, c.String(`config-dir`)); err != nil {
+		if err := byteflood.MergeConfigDirectory(&config, c.String(`config-dir`)); err != nil {
 			log.Fatal(err)
 		}
 
@@ -101,7 +98,6 @@ func main() {
 		{
 			Name:      `run`,
 			Usage:     `Start a file transfer peer using the given configuration`,
-			ArgsUsage: `PATH`,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  `address, a`,
@@ -111,6 +107,16 @@ func main() {
 				cli.IntFlag{
 					Name:  `port, p`,
 					Usage: `The port the client should listen on`,
+				},
+				cli.StringFlag{
+					Name:  `api-address`,
+					Usage: `The address the local API should listen on`,
+					Value: ``,
+				},
+				cli.IntFlag{
+					Name:  `api-port`,
+					Usage: `The port the local API should listen on`,
+					Value: 10451,
 				},
 				cli.BoolFlag{
 					Name:  `upnp, u`,
@@ -124,152 +130,29 @@ func main() {
 					Name:  `download-limit, D`,
 					Usage: `Limit downloads to this many bytes per second`,
 				},
-				cli.StringSliceFlag{
-					Name: `peer, P`,
-					Usage: `Specify the address of a peer to connect to`,
-				},
 			},
 			Action: func(c *cli.Context) {
-				if localPeer, err := makeLocalPeer(config, c); err == nil {
-					localPeer.EnableUpnp = c.Bool(`upnp`)
+				if c.IsSet(`download-limit`) {
+					config.DownloadCap = c.Int(`download-limit`)
+				}
 
-					if v := c.Int(`download-limit`); v > 0 {
-						localPeer.DownloadBytesPerSecond = v
-					}
+				if c.IsSet(`upload-limit`) {
+					config.UploadCap = c.Int(`upload-limit`)
+				}
 
-					if v := c.Int(`upload-limit`); v > 0 {
-						localPeer.UploadBytesPerSecond = v
-					}
+				if c.IsSet(`upnp`) {
+					config.EnableUpnp = c.Bool(`upnp`)
+				}
 
-					localPeer.PeerAddresses = c.StringSlice(`peer`)
+				config.PeerAddress = fmt.Sprintf("%s:%d", c.String(`address`), c.Int(`port`))
+				config.ApiAddress = fmt.Sprintf("%s:%d", c.String(`api-address`), c.Int(`api-port`))
 
-					if err := localPeer.Run(); err != nil {
+				if app, err := createApplication(config); err == nil {
+					if err := app.Run(); err != nil {
 						log.Fatal(err)
 					}
 				} else {
 					log.Fatal(err)
-				}
-			},
-		}, {
-			Name:  `send`,
-			Usage: `[TEST] Connect to a remote peer`,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  `address, a`,
-					Usage: `The address the client should listen on`,
-					Value: `0.0.0.0`,
-				},
-				cli.IntFlag{
-					Name:  `port, p`,
-					Usage: `The port the client should listen on`,
-				},
-				cli.IntFlag{
-					Name:  `upload-limit, U`,
-					Usage: `Limit uploads to this many bytes per second`,
-				},
-				cli.IntFlag{
-					Name:  `download-limit, D`,
-					Usage: `Limit downloads to this many bytes per second`,
-				},
-			},
-			ArgsUsage: `ADDRESS:PORT`,
-			Action: func(c *cli.Context) {
-				address := c.Args().First()
-
-				if host, portStr, err := net.SplitHostPort(address); err == nil {
-					if port, err := stringutil.ConvertToInteger(portStr); err == nil {
-						if localPeer, err := makeLocalPeer(config, c); err == nil {
-							if v := c.Int(`download-limit`); v > 0 {
-								localPeer.DownloadBytesPerSecond = v
-							}
-
-							if v := c.Int(`upload-limit`); v > 0 {
-								localPeer.UploadBytesPerSecond = v
-							}
-
-							if remotePeer, err := localPeer.ConnectTo(host, int(port)); err == nil {
-								log.Infof("Connected to peer: %s", remotePeer.String())
-
-								if c.NArg() > 1 {
-									if err := remotePeer.TransferFile(c.Args().Get(1)); err != nil {
-										log.Fatal(err)
-									}
-								} else {
-									if n, err := io.Copy(remotePeer, os.Stdin); err != nil {
-										log.Fatalf("Error during write (wrote %d bytes): %v", n, err)
-									}
-								}
-							} else {
-								log.Fatal(err)
-							}
-						} else {
-							log.Fatal(err)
-						}
-					} else {
-						log.Fatal(err)
-					}
-				} else {
-					log.Fatal(err)
-				}
-			},
-		}, {
-			Name:  `request`,
-			Usage: `[TEST] Connect to a remote peer`,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  `address, a`,
-					Usage: `The address the client should listen on`,
-					Value: `0.0.0.0`,
-				},
-				cli.IntFlag{
-					Name:  `port, p`,
-					Usage: `The port the client should listen on`,
-				},
-			},
-			Action: func(c *cli.Context) {
-				if c.NArg() == 3 {
-					address := c.Args().First()
-					method := c.Args().Get(1)
-					path := c.Args().Get(2)
-
-					if host, portStr, err := net.SplitHostPort(address); err == nil {
-						if port, err := stringutil.ConvertToInteger(portStr); err == nil {
-							if localPeer, err := makeLocalPeer(config, c); err == nil {
-								if remotePeer, err := localPeer.ConnectTo(host, int(port)); err == nil {
-									log.Infof("Connected to peer: %s", remotePeer.String())
-
-									if response, err := remotePeer.ServiceRequest(method, path, nil, nil); err == nil {
-										log.Infof("Response: HTTP %s", response.Status)
-										log.Infof("    Length: %d", response.ContentLength)
-
-										for k, v := range response.Header {
-											log.Infof("    Header: %s=%s", k, strings.Join(v, ` `))
-										}
-
-										io.Copy(os.Stdout, response.Body)
-
-										if response.StatusCode < 400 {
-											os.Exit(0)
-										} else {
-											os.Exit(1)
-										}
-									} else {
-										log.Fatal(err)
-									}
-								} else {
-									log.Fatal(err)
-								}
-							} else {
-								log.Fatal(err)
-							}
-						} else {
-							log.Fatal(err)
-						}
-					} else {
-						log.Fatal(err)
-					}
-				} else {
-					log.Fatalf("Requires 3 arguments: PEERADDR METHOD PATH")
 				}
 			},
 		}, {
@@ -282,8 +165,12 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				if s, err := makeScanner(config, c); err == nil {
-					if err := s.Scan(); err != nil {
+				if c.IsSet(`quick`) {
+					config.ScanOptions.QuickScan = c.Bool(`quick`)
+				}
+
+				if app, err := createApplication(config); err == nil {
+					if err := app.ScanAll(); err != nil {
 						log.Fatalf("Failed to scan: %v", err)
 					}
 				} else {
@@ -306,33 +193,7 @@ func main() {
 					log.Fatalf("Must specify a base filename")
 				}
 			},
-		}, {
-			Name: `testshares`,
-			Usage: `[TEST] Test working with share views; dynamically creates a share using the given argument as a base filter`,
-			Action: func(c *cli.Context) {
-				if c.NArg() == 0 {
-					log.Fatalf("Must specify a base filter to test a share")
-				}
-
-				if s, err := makeScanner(config, c); err == nil {
-					share := shares.NewShare(s, c.Args().First())
-
-					log.Infof("Share Length: %d", share.Length())
-
-					if c.NArg() > 1 {
-						if records, err := share.Find(c.Args().Get(1)); err == nil {
-							for i, record := range records {
-								log.Infof("%03d: %+v", i, record)
-							}
-						}else{
-							log.Fatal(err)
-						}
-					}
-				} else {
-					log.Fatal(err)
-				}
-			},
-		}, {
+		},{
 			Name: `query`,
 			Usage: `Query the metadata database.`,
 			ArgsUsage: `FILTER`,
@@ -353,8 +214,8 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				if s, err := makeScanner(config, c); err == nil {
-					if rs, err := s.QueryRecordsFromCollection(
+				if app, err := createApplication(config); err == nil {
+					if rs, err := app.Scanner().QueryRecordsFromCollection(
 						c.String(`db`),
 						strings.Join(c.Args(), `/`),
 					); err == nil {
@@ -388,8 +249,8 @@ func main() {
 			Name: `cleanup`,
 			Usage: `Cleanup the metadata database.`,
 			Action: func(c *cli.Context) {
-				if s, err := makeScanner(config, c); err == nil {
-					if err := s.CleanRecords(); err != nil {
+				if app, err := createApplication(config); err == nil {
+					if err := app.Scanner().CleanRecords(); err != nil {
 						log.Fatal(err)
 					}
 				}else{
@@ -402,55 +263,22 @@ func main() {
 	app.Run(os.Args)
 }
 
-func makeLocalPeer(config *byteflood.Configuration, c *cli.Context) (*peer.LocalPeer, error) {
-	if publicKey, privateKey, err := encryption.LoadKeyfiles(
-		config.PublicKey,
-		config.PrivateKey,
-	); err == nil {
-		if localPeer, err := peer.CreatePeer(
-			publicKey,
-			privateKey,
-		); err == nil {
-			localPeer.Address = c.String(`address`)
-			localPeer.Port = c.Int(`port`)
+func createApplication(config byteflood.Configuration) (*byteflood.Application, error) {
+	if app, err := byteflood.CreateApplication(config); err == nil {
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt)
 
-			signalChan := make(chan os.Signal, 1)
-			signal.Notify(signalChan, os.Interrupt)
-
-			go func(p *peer.LocalPeer) {
-				for _ = range signalChan {
-					<-p.Stop()
-					break
-				}
-
-				os.Exit(0)
-			}(localPeer)
-
-			return localPeer, nil
-		} else {
-			return nil, err
-		}
-	} else {
-		return nil, err
-	}
-}
-
-func makeScanner(config *byteflood.Configuration, c *cli.Context) (*scanner.Scanner, error) {
-	options := scanner.DefaultScanOptions()
-
-	options.QuickScan = c.Bool(`quick`)
-
-	s := scanner.NewScanner(&options)
-
-	if err := s.Initialize(); err == nil {
-		for _, directory := range config.Directories {
-			if err := s.AddDirectory(&directory); err != nil {
-				return nil, err
+		go func(a *byteflood.Application) {
+			for _ = range signalChan {
+				a.Stop()
+				break
 			}
-		}
 
-		return s, nil
-	}else{
+			os.Exit(0)
+		}(app)
+
+		return app, nil
+	} else {
 		return nil, err
 	}
 }

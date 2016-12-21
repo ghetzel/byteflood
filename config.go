@@ -24,11 +24,17 @@ var DefaultConfig = Configuration{
 }
 
 type Configuration struct {
-	PublicKey   string              `json:"public_key,omitempty"`
-	PrivateKey  string              `json:"private_key,omitempty"`
-	DatabaseURI string              `json:"database,omitempty"`
-	Directories []scanner.Directory `json:"directories,omitempty"`
-	Peers       map[string][]string `json:"peers,omitempty"`
+	PublicKey   string               `json:"public_key,omitempty"`
+	PrivateKey  string               `json:"private_key,omitempty"`
+	DatabaseURI string               `json:"database,omitempty"`
+	Directories []scanner.Directory  `json:"directories,omitempty"`
+	ScanOptions *scanner.ScanOptions `json:"scan_options,omitempty"`
+	Peers       map[string][]string  `json:"peers,omitempty"`
+	PeerAddress string               `json:"peer_address,omitempty"`
+	ApiAddress  string               `json:"api_address,omitempty"`
+	UploadCap   int                  `json:"upload_cap,omitempty"`
+	DownloadCap int                  `json:"download_cap,omitempty"`
+	EnableUpnp  bool                 `json:"enable_upnp,omitempty"`
 }
 
 func (self *Configuration) String() string {

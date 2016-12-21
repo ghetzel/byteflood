@@ -17,6 +17,8 @@ vendors:
   rev: 894d369c4ea259b65f75563feeb06bea322a8450
 - path: github.com/cockroachdb/c-snappy
   rev: c0cd3c9ce92f195001595e1fbbe66f045daad34f
+- path: github.com/codegangsta/negroni
+  rev: cd9734011043904139c24dbad9a71b21f1586f36
 - path: github.com/couchbase/goforestdb
   rev: 0b501227de0e8c55d99ed14e900eea1a1dbaf899
 - path: github.com/couchbaselabs/c-forestdb
@@ -41,6 +43,8 @@ vendors:
   rev: dc3312cb1a4513a366c4c9e622ad55c32df12ed3
 - path: github.com/ghetzel/cli
   rev: 4733699ce30faa633c4db36ebfbe427963593d7d
+- path: github.com/ghetzel/diecast
+  rev: 0abd1dfc022bd223f4f08b0a28610a756cc517ac
 - path: github.com/ghetzel/go-stockutil
   rev: 1d8d62fdf74b5b5e70f0717956d57260d49f4dc0
 - path: github.com/ghetzel/pivot
@@ -51,14 +55,10 @@ vendors:
   rev: 8ee79997227bf9b34611aee7946ae64735e6fd93
 - path: github.com/golang/snappy
   rev: d9eb7a3d35ec988b8585d4a0068e462c27d28380
-- path: github.com/hashicorp/yamux
-  rev: d1caa6c97c9fc1cc9e83bbe34d0603f9ff0ce8bd
 - path: github.com/huin/goupnp
   rev: 949b8a77532ae1076171f4d112a5eb41354cb340
 - path: github.com/imdario/mergo
   rev: 50d4dbd4eb0e84778abe37cefef140271d96fade
-- path: github.com/inconshreveable/muxado
-  rev: fc182d90f26ea93f36ef05b643c7f4ea604c370b
 - path: github.com/jbenet/go-base58
   rev: 6237cf65f3a6f7111cd8a42be3590df99a66bc7d
 - path: github.com/jmhodges/levigo

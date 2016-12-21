@@ -3,7 +3,6 @@ package peer
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -16,9 +15,10 @@ type PeerServer struct {
 	peer     *LocalPeer
 	server   *http.Server
 	listener net.Listener
+	handler  http.Handler
 }
 
-func NewPeerServer(peer *LocalPeer, addr string) *PeerServer {
+func NewPeerServer(peer *LocalPeer, addr string, handler http.Handler) *PeerServer {
 	if a, p, err := net.SplitHostPort(addr); err == nil {
 		if a == `` {
 			addr = fmt.Sprintf("127.0.0.1:%s", p)
@@ -26,8 +26,9 @@ func NewPeerServer(peer *LocalPeer, addr string) *PeerServer {
 	}
 
 	return &PeerServer{
-		peer: peer,
-		addr: addr,
+		peer:    peer,
+		addr:    addr,
+		handler: handler,
 	}
 }
 
@@ -39,20 +40,13 @@ func NewPeerServerListener(peer *LocalPeer, listener net.Listener) *PeerServer {
 }
 
 func (self *PeerServer) Serve() error {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc(`/`, func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set(`Content-Type`, `application/json`)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			`peer`: map[string]interface{}{
-				`id`: self.peer.ID(),
-			},
-		})
-	})
+	if self.handler == nil {
+		return fmt.Errorf("Cannot start peer server: no handler specified")
+	}
 
 	self.server = &http.Server{
 		Addr:    self.addr,
-		Handler: mux,
+		Handler: self.handler,
 	}
 
 	if self.listener == nil {

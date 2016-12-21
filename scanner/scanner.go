@@ -19,13 +19,7 @@ type ScanOptions struct {
 	FilePattern          string `json:"patterns,omitempty"`
 	NoRecurseDirectories bool   `json:"no_recurse,omitempty"`
 	FileMinimumSize      int    `json:"file_min_size,omitempty"`
-	QuickScan            bool   `json:"quick_scan"`
-}
-
-func DefaultScanOptions() ScanOptions {
-	return ScanOptions{
-		NoRecurseDirectories: false,
-	}
+	QuickScan            bool   `json:"quick_scan,omitempty"`
 }
 
 type Scanner struct {
@@ -40,9 +34,7 @@ type Scanner struct {
 func NewScanner(options *ScanOptions) *Scanner {
 	var scannerOptions ScanOptions
 
-	if options == nil {
-		scannerOptions = DefaultScanOptions()
-	} else {
+	if options != nil {
 		scannerOptions = *options
 	}
 

@@ -8,13 +8,12 @@ import (
 	"github.com/jbenet/go-base58"
 	"github.com/op/go-logging"
 	"net"
-	"strings"
+	"net/http"
 	"sync"
 	"time"
 )
 
 const (
-	DEFAULT_MGMT_ADDR              = `:50451`
 	DEFAULT_PEER_SERVER_PORT       = 0
 	DEFAULT_UPNP_DISCOVERY_TIMEOUT = (30 * time.Second)
 	DEFAULT_UPNP_MAPPING_DURATION  = (8760 * time.Hour)
@@ -37,7 +36,6 @@ type LocalPeer struct {
 	Peer
 	EnableUpnp             bool
 	Address                string
-	ManagementAddress      string
 	Port                   int
 	PeerAddresses          []string
 	UpnpMappingDuration    time.Duration
@@ -52,13 +50,12 @@ type LocalPeer struct {
 	publicKey              []byte
 	privateKey             []byte
 	peerServer             *PeerServer
-	mgmtServer             *ManagementServer
+	peerRequestHandler     http.Handler
 }
 
 func CreatePeer(publicKey []byte, privateKey []byte) (*LocalPeer, error) {
 	return &LocalPeer{
 		Port:                 DEFAULT_PEER_SERVER_PORT,
-		ManagementAddress:    DEFAULT_MGMT_ADDR,
 		EnableUpnp:           false,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
@@ -86,6 +83,10 @@ func (self *LocalPeer) WaitListen() <-chan bool {
 	return self.listening
 }
 
+func (self *LocalPeer) SetPeerRequestHandler(handler http.Handler) {
+	self.peerRequestHandler = handler
+}
+
 func (self *LocalPeer) Run() error {
 	log.Infof("Local Peer ID: %s", self.ID())
 
@@ -98,11 +99,6 @@ func (self *LocalPeer) Run() error {
 	}
 
 	errchan := make(chan error)
-
-	// start the local management server
-	go func() {
-		errchan <- self.RunManagementServer()
-	}()
 
 	// start the peer server (HTTP-over-cryptotransport)
 	go func() {
@@ -217,7 +213,7 @@ func (self *LocalPeer) PermitConnectionFrom(conn net.Conn) bool {
 
 func (self *LocalPeer) RunPeerServer() error {
 	if p, err := ephemeralPort(); err == nil {
-		self.peerServer = NewPeerServer(self, fmt.Sprintf("127.0.0.1:%d", p))
+		self.peerServer = NewPeerServer(self, fmt.Sprintf("127.0.0.1:%d", p), self.peerRequestHandler)
 
 		// run peer server (long running)
 		return self.peerServer.Serve()
@@ -228,35 +224,6 @@ func (self *LocalPeer) RunPeerServer() error {
 
 func (self *LocalPeer) PeerServer() *PeerServer {
 	return self.peerServer
-}
-
-func (self *LocalPeer) RunManagementServer() error {
-	// local API/proxy service
-	if strings.HasSuffix(self.ManagementAddress, `:0`) {
-		if p, err := ephemeralPort(); err == nil {
-			self.ManagementAddress = fmt.Sprintf(
-				"%s:%d",
-				strings.TrimSuffix(self.ManagementAddress, `:0`),
-				p,
-			)
-		} else {
-			return err
-		}
-	} else if self.ManagementAddress == `` {
-		self.ManagementAddress = fmt.Sprintf("127.0.0.1:%d", self.Port+1)
-	}
-
-	self.mgmtServer = NewManagementServer(self, self.ManagementAddress)
-
-	if err := self.mgmtServer.ListenAndServe(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (self *LocalPeer) ManagementServer() *ManagementServer {
-	return self.mgmtServer
 }
 
 func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*RemotePeer, error) {
