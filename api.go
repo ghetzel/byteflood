@@ -2,7 +2,7 @@ package byteflood
 
 import (
 	"encoding/json"
-	"github.com/ghetzel/byteflood/scanner"
+	"fmt"
 	"github.com/ghetzel/diecast"
 	"github.com/julienschmidt/httprouter"
 	"github.com/urfave/negroni"
@@ -10,20 +10,34 @@ import (
 )
 
 type API struct {
-	Address     string
-	UiDirectory string
-	app         *Application
-	scanner     *scanner.Scanner
+	Address     string `json:"address,omitempty"`
+	UiDirectory string `json:"ui_directory,omitempty"`
+	Application *Application
 }
 
 var DefaultApiAddress = `:10451`
 
-func NewAPI(app *Application) *API {
+func NewAPI() *API {
 	return &API{
 		Address:     DefaultApiAddress,
-		UiDirectory: `./ui`,
-		app:         app,
+		UiDirectory: `./ui`, // TODO: this will be "embedded" after development settles
 	}
+}
+
+func (self *API) Initialize() error {
+	if self.Application == nil {
+		return fmt.Errorf("Cannot use API without an associated application instance")
+	}
+
+	if self.Address == `` {
+		self.Address = DefaultApiAddress
+	}
+
+	if self.UiDirectory == `` {
+		self.UiDirectory = `embedded`
+	}
+
+	return nil
 }
 
 func (self *API) Serve() error {
@@ -56,7 +70,7 @@ func (self *API) Serve() error {
 	router.GET(`/peers`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		rv := make([]map[string]interface{}, 0)
 
-		for _, peer := range self.app.LocalPeer().GetPeers() {
+		for _, peer := range self.Application.LocalPeer.GetPeers() {
 			rv = append(rv, peer.ToMap())
 		}
 
@@ -66,7 +80,7 @@ func (self *API) Serve() error {
 	})
 
 	router.GET(`/peers/:id`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if remotePeer, ok := self.app.LocalPeer().GetPeer(params.ByName(`id`)); ok {
+		if remotePeer, ok := self.Application.LocalPeer.GetPeer(params.ByName(`id`)); ok {
 			if err := json.NewEncoder(w).Encode(remotePeer.ToMap()); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -83,14 +97,14 @@ func (self *API) Serve() error {
 }
 
 // This returns an http.Handler that will respond to HTTP requests from remote peers.
-func (self *API) peerRequestHandler() http.Handler {
+func (self *API) GetPeerRequestHandler() http.Handler {
 	router := httprouter.New()
 
 	router.GET(`/`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		w.Header().Set(`Content-Type`, `application/json`)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			`peer`: map[string]interface{}{
-				`id`: self.app.LocalPeer().ID(),
+				`id`: self.Application.LocalPeer.ID(),
 			},
 		})
 	})

@@ -1,9 +1,9 @@
-package scanner
+package db
 
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ghetzel/byteflood/scanner/metadata"
+	"github.com/ghetzel/byteflood/db/metadata"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/jbenet/go-base58"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood"
 	"github.com/ghetzel/byteflood/encryption"
-	"github.com/ghetzel/byteflood/scanner"
+	"github.com/ghetzel/byteflood/db"
 	// "github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/stringutil"
@@ -30,8 +30,6 @@ func main() {
 	app.Version = `0.0.1`
 	app.EnableBashCompletion = false
 
-	var config byteflood.Configuration
-
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:   `log-level, L`,
@@ -43,11 +41,6 @@ func main() {
 			Name:  `config, c`,
 			Usage: `The path to the configuration file`,
 			Value: `~/.config/byteflood/config.yml`,
-		},
-		cli.StringFlag{
-			Name:  `config-dir, C`,
-			Usage: `The path to a directory containing additional configuration files`,
-			Value: `~/.config/byteflood/conf.d/`,
 		},
 		cli.StringFlag{
 			Name:  `public-key, k`,
@@ -69,27 +62,6 @@ func main() {
 		}
 
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
-		log.Infof("Loading configuration from %s", c.String(`config`))
-
-		if v := c.GlobalString(`public-key`); v != `` {
-			byteflood.DefaultConfig.PublicKey = v
-		}
-
-		if v := c.GlobalString(`private-key`); v != `` {
-			byteflood.DefaultConfig.PrivateKey = v
-		}
-
-		if cf, err := byteflood.LoadConfigDefaults(c.String(`config`)); err == nil {
-			config = *cf
-		} else {
-			log.Fatal(err)
-		}
-
-		if err := byteflood.MergeConfigDirectory(&config, c.String(`config-dir`)); err != nil {
-			log.Fatal(err)
-		}
-
-		log.Debugf("Loaded configuration:\n%s\n", config.String())
 
 		return nil
 	}
@@ -132,22 +104,7 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				if c.IsSet(`download-limit`) {
-					config.DownloadCap = c.Int(`download-limit`)
-				}
-
-				if c.IsSet(`upload-limit`) {
-					config.UploadCap = c.Int(`upload-limit`)
-				}
-
-				if c.IsSet(`upnp`) {
-					config.EnableUpnp = c.Bool(`upnp`)
-				}
-
-				config.PeerAddress = fmt.Sprintf("%s:%d", c.String(`address`), c.Int(`port`))
-				config.ApiAddress = fmt.Sprintf("%s:%d", c.String(`api-address`), c.Int(`api-port`))
-
-				if app, err := createApplication(config); err == nil {
+				if app, err := createApplication(c); err == nil {
 					if err := app.Run(); err != nil {
 						log.Fatal(err)
 					}
@@ -165,12 +122,8 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				if c.IsSet(`quick`) {
-					config.ScanOptions.QuickScan = c.Bool(`quick`)
-				}
-
-				if app, err := createApplication(config); err == nil {
-					if err := app.ScanAll(); err != nil {
+				if app, err := createApplication(c); err == nil {
+					if err := app.Scan(); err != nil {
 						log.Fatalf("Failed to scan: %v", err)
 					}
 				} else {
@@ -210,12 +163,12 @@ func main() {
 				cli.StringFlag{
 					Name: `db`,
 					Usage: `Query the named database`,
-					Value: scanner.DefaultCollectionName,
+					Value: db.DefaultMetadataCollectionName,
 				},
 			},
 			Action: func(c *cli.Context) {
-				if app, err := createApplication(config); err == nil {
-					if rs, err := app.Scanner().QueryRecordsFromCollection(
+				if app, err := createApplication(c); err == nil {
+					if rs, err := app.Database.QueryRecordsFromCollection(
 						c.String(`db`),
 						strings.Join(c.Args(), `/`),
 					); err == nil {
@@ -249,8 +202,8 @@ func main() {
 			Name: `cleanup`,
 			Usage: `Cleanup the metadata database.`,
 			Action: func(c *cli.Context) {
-				if app, err := createApplication(config); err == nil {
-					if err := app.Scanner().CleanRecords(); err != nil {
+				if app, err := createApplication(c); err == nil {
+					if err := app.Database.CleanRecords(); err != nil {
 						log.Fatal(err)
 					}
 				}else{
@@ -263,21 +216,36 @@ func main() {
 	app.Run(os.Args)
 }
 
-func createApplication(config byteflood.Configuration) (*byteflood.Application, error) {
-	if app, err := byteflood.CreateApplication(config); err == nil {
-		signalChan := make(chan os.Signal, 1)
-		signal.Notify(signalChan, os.Interrupt)
+func createApplication(c *cli.Context) (*byteflood.Application, error) {
+	log.Infof("Loading configuration from %s", c.GlobalString(`config`))
 
-		go func(a *byteflood.Application) {
-			for _ = range signalChan {
-				a.Stop()
-				break
-			}
+	if app, err := byteflood.NewApplicationFromConfig(c.GlobalString(`config`)); err == nil {
+		if c.GlobalIsSet(`public-key`) {
+			app.PublicKeyPath = c.GlobalString(`public-key`)
+		}
 
-			os.Exit(0)
-		}(app)
+		if c.GlobalIsSet(`private-key`) {
+			app.PublicKeyPath = c.GlobalString(`private-key`)
+		}
 
-		return app, nil
+		if err := app.Initialize(); err == nil {
+			signalChan := make(chan os.Signal, 1)
+			signal.Notify(signalChan, os.Interrupt)
+
+			go func(a *byteflood.Application) {
+				for _ = range signalChan {
+					a.Stop()
+					break
+				}
+
+				os.Exit(0)
+			}(app)
+
+			return app, nil
+		}else{
+			return nil, err
+		}
+
 	} else {
 		return nil, err
 	}

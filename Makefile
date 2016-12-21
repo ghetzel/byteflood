@@ -8,7 +8,7 @@ update:
 
 vendor:
 	go list github.com/govend/govend
-	govend -v --strict
+	govend --strict
 
 clean-bundle:
 	@test -d public && rm -rf public || true
@@ -20,18 +20,18 @@ fmt:
 	gofmt -w *.go
 	gofmt -w ./peer
 	gofmt -w ./encryption
-	gofmt -w ./scanner
+	gofmt -w ./db
 	gofmt -w ./util
 	go vet *.go
 	go vet ./peer/..
 	go vet ./encryption/..
-	go vet ./scanner/..
+	go vet ./db/..
 	go vet ./util/..
 
 test:
 	# go test -v .
 	go test -v ./peer
-	# go test -v ./scanner
+	# go test -v ./db
 	go test -v ./encryption
 
 dockrun:

@@ -41,7 +41,8 @@ func NewPeerServerListener(peer *LocalPeer, listener net.Listener) *PeerServer {
 
 func (self *PeerServer) Serve() error {
 	if self.handler == nil {
-		return fmt.Errorf("Cannot start peer server: no handler specified")
+		self.handler = http.DefaultServeMux
+		log.Warningf("Peer Server is not registered to a running application.  Remote peers will not have access to the remote command API")
 	}
 
 	self.server = &http.Server{

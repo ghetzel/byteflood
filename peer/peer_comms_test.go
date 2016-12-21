@@ -13,11 +13,9 @@ import (
 
 func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	if publicKey, privateKey, err := box.GenerateKey(rand.Reader); err == nil {
-		if localPeer, err := CreatePeer(
-			`00000000-0000-0000-0000-111111111111`,
-			[]byte(publicKey[:]),
-			[]byte(privateKey[:]),
-		); err == nil {
+		localPeer := NewLocalPeer([]byte(publicKey[:]), []byte(privateKey[:]))
+
+		if err := localPeer.Initialize(); err == nil {
 			localPeer.AutoReceiveMessages = true
 			peer1 = localPeer
 		} else {
@@ -28,11 +26,9 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	}
 
 	if publicKey, privateKey, err := box.GenerateKey(rand.Reader); err == nil {
-		if localPeer, err := CreatePeer(
-			`00000000-0000-0000-0000-222222222222`,
-			[]byte(publicKey[:]),
-			[]byte(privateKey[:]),
-		); err == nil {
+		localPeer := NewLocalPeer([]byte(publicKey[:]), []byte(privateKey[:]))
+
+		if err := localPeer.Initialize(); err == nil {
 			localPeer.AutoReceiveMessages = true
 			peer2 = localPeer
 		} else {

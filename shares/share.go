@@ -4,7 +4,8 @@ import (
     "fmt"
     "github.com/op/go-logging"
     "github.com/ghodss/yaml"
-    "github.com/ghetzel/byteflood/scanner"
+    "github.com/ghetzel/byteflood/db"
+    "github.com/ghetzel/go-stockutil/stringutil"
     "io/ioutil"
     "io"
     "strings"
@@ -17,28 +18,19 @@ type Share struct {
     BaseFilter string `json:"filter"`
     Description string `json:"description,omitempty"`
     FilterTemplates []string `json:"filter_templates,omitempty"`
-    metabase *scanner.Scanner
+    metabase *db.Database
 }
 
-func LoadShare(metabase *scanner.Scanner, reader io.Reader) (*Share, error) {
+func LoadShare(metabase *db.Database, reader io.Reader) (*Share, error) {
     if data, err := ioutil.ReadAll(reader); err == nil {
         share := NewShare(metabase, ``)
 
         if err := yaml.Unmarshal(data, share); err == nil {
-            if share.Name == `` {
-                return nil, fmt.Errorf("share must have a name")
+            if err := share.Validate(); err == nil {
+                return share, nil
+            }else{
+                return nil, err
             }
-
-            if share.BaseFilter == `` {
-                return nil, fmt.Errorf("share specify a base filter")
-            }
-
-            if share.metabase == nil {
-                return nil, fmt.Errorf("share must be attached to a metadata database")
-            }
-
-            return share, nil
-
         } else {
             return nil, err
         }
@@ -47,11 +39,27 @@ func LoadShare(metabase *scanner.Scanner, reader io.Reader) (*Share, error) {
     }
 }
 
-func NewShare(metabase *scanner.Scanner, baseFilter string) *Share {
+func NewShare(metabase *db.Database, baseFilter string) *Share {
     return &Share{
         BaseFilter: baseFilter,
         metabase: metabase,
     }
+}
+
+func (self *Share) Validate() error {
+    if self.Name == `` {
+        return fmt.Errorf("share must have a name")
+    }
+
+    if self.BaseFilter == `` {
+        self.BaseFilter = fmt.Sprintf("label/is:%s", stringutil.Underscore(self.Name))
+    }
+
+    if self.metabase == nil {
+        return fmt.Errorf("share must be attached to a metadata database")
+    }
+
+    return nil
 }
 
 func (self *Share) GetQuery(filters ...string) string {

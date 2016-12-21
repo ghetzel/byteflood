@@ -47,28 +47,40 @@ type LocalPeer struct {
 	sessions               map[string]*RemotePeer
 	sessionLock            sync.Mutex
 	listening              chan bool
-	publicKey              []byte
-	privateKey             []byte
+	PublicKey              []byte
+	PrivateKey             []byte
 	peerServer             *PeerServer
 	peerRequestHandler     http.Handler
 }
 
-func CreatePeer(publicKey []byte, privateKey []byte) (*LocalPeer, error) {
+func NewLocalPeer(publicKey []byte, privateKey []byte) *LocalPeer {
 	return &LocalPeer{
 		Port:                 DEFAULT_PEER_SERVER_PORT,
 		EnableUpnp:           false,
+		PublicKey:            publicKey,
+		PrivateKey:           privateKey,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
 		AutoReceiveMessages:  true,
 		sessions:             make(map[string]*RemotePeer),
 		listening:            make(chan bool),
-		publicKey:            publicKey,
-		privateKey:           privateKey,
-	}, nil
+	}
+}
+
+func (self *LocalPeer) Initialize() error {
+	if self.Port == 0 {
+		if p, err := ephemeralPort(); err == nil {
+			self.Port = p
+		} else {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (self *LocalPeer) ID() string {
-	return base58.Encode(self.publicKey[:])
+	return base58.Encode(self.PublicKey[:])
 }
 
 func (self *LocalPeer) String() string {
@@ -76,7 +88,7 @@ func (self *LocalPeer) String() string {
 }
 
 func (self *LocalPeer) GetPublicKey() []byte {
-	return self.publicKey
+	return self.PublicKey
 }
 
 func (self *LocalPeer) WaitListen() <-chan bool {
@@ -89,14 +101,6 @@ func (self *LocalPeer) SetPeerRequestHandler(handler http.Handler) {
 
 func (self *LocalPeer) Run() error {
 	log.Infof("Local Peer ID: %s", self.ID())
-
-	if self.Port == 0 {
-		if p, err := ephemeralPort(); err == nil {
-			self.Port = p
-		} else {
-			return err
-		}
-	}
 
 	errchan := make(chan error)
 
@@ -270,13 +274,13 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 
 			remotePeer.Encrypter = encryption.NewEncrypter(
 				remotePeeringRequest.PublicKey[:32],
-				self.privateKey[:32],
+				self.PrivateKey[:32],
 				nil,
 			)
 
 			remotePeer.Decrypter = encryption.NewDecrypter(
 				remotePeeringRequest.PublicKey[:32],
-				self.privateKey[:32],
+				self.PrivateKey[:32],
 				nil,
 			)
 
