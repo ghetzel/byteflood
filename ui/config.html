@@ -1,1 +1,10 @@
-<h1>Configuration</h1>
+---
+title: Configuration
+bindings:
+- name: config
+  resource: :/api/configuration
+---
+
+<pre>
+{{ Jsonify .config `  ` }}
+</pre>

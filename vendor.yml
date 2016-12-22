@@ -44,7 +44,7 @@ vendors:
 - path: github.com/ghetzel/cli
   rev: 4733699ce30faa633c4db36ebfbe427963593d7d
 - path: github.com/ghetzel/diecast
-  rev: 986d29b167b15658048aa779763b4770f435fb5a
+  rev: 62d96586f55a25095d8891e011ac269f367d5835
 - path: github.com/ghetzel/go-stockutil
   rev: 1d8d62fdf74b5b5e70f0717956d57260d49f4dc0
 - path: github.com/ghetzel/pivot

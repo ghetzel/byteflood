@@ -1,5 +1,9 @@
 .root-container {
-    margin-top: 1em;
+    margin-top: 75px;
+}
+
+.root-container > h1 {
+    margin-bottom: 1em;
 }
 
 .navbar.bg-inverse {

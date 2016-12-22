@@ -1,1 +1,12 @@
+---
+bindings:
+- name: shares
+  resource: :/api/shares
+---
 <h1>Shares</h1>
+
+<ul>
+    {{ range .shares }}
+    <li>{{ .name }} - {{ .filter }}</li>
+    {{ end }}
+</ul>
