@@ -9,9 +9,9 @@
     {{ end -}}
 
     <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="/ui/css/bootstrap.min.css" integrity="sha384-AysaV+vQoT3kOAXZkl02PThvDr8HYKPZhNT5h/CXfBThSRXQ6jW5DO2ekP5ViFdi" crossorigin="anonymous">
-    <link rel="stylesheet" href="/ui/css/app.css">
-    <link rel="stylesheet" href="/ui/css/font-awesome.min.css" integrity="sha384-oZMfhCtQRrSYbsX24SR/ieTzAUPm2W17TOVtEMqi/t72HLoBATmm7J82ezlfk7j5" crossorigin="anonymous">
+    <link rel="stylesheet" href="/css/bootstrap.min.css" integrity="sha384-AysaV+vQoT3kOAXZkl02PThvDr8HYKPZhNT5h/CXfBThSRXQ6jW5DO2ekP5ViFdi" crossorigin="anonymous">
+    <link rel="stylesheet" href="/css/app.css">
+    <link rel="stylesheet" href="/css/font-awesome.min.css" integrity="sha384-oZMfhCtQRrSYbsX24SR/ieTzAUPm2W17TOVtEMqi/t72HLoBATmm7J82ezlfk7j5" crossorigin="anonymous">
 
     <title>Byteflood{{ if .page.title }} :: {{ .page.title }}{{ end }}</title>
   </head>
@@ -20,42 +20,42 @@
         <div class="container">
             <button class="navbar-toggler hidden-sm-up" type="button" data-toggle="collapse" data-target="#navbar-header" aria-controls="navbar-header" aria-expanded="false" aria-label="Toggle navigation"></button>
             <div class="collapse navbar-toggleable-xs" id="navbar-header">
-              <a class="navbar-brand" href="/ui">
-                <img src="/ui/img/byteflood-text.png">
+              <a class="navbar-brand" href="">
+                <img src="/img/byteflood-text.png">
               </a>
               <ul class="nav navbar-nav">
-                <li class="nav-item {{ if HasPrefix .request.url.path `/ui/peers` }}active{{end}}">
-                  <a class="nav-link" href="/ui/peers">
+                <li class="nav-item {{ if HasPrefix .request.url.path `/peers` }}active{{end}}">
+                  <a class="nav-link" href="/peers">
                     <i class="fa fa-fw fa-share-alt"></i>
                     Peers
-                    {{ if HasPrefix .request.url.path `/ui/peers` }}
+                    {{ if HasPrefix .request.url.path `/peers` }}
                     <span class="sr-only">(current)</span>
                     {{ end }}
                   </a>
                 </li>
-                <li class="nav-item {{ if HasPrefix .request.url.path `/ui/shares` }}active{{end}}">
-                  <a class="nav-link" href="/ui/shares">
+                <li class="nav-item {{ if HasPrefix .request.url.path `/shares` }}active{{end}}">
+                  <a class="nav-link" href="/shares">
                     <i class="fa fa-fw fa-folder"></i>
                     Shares
-                    {{ if HasPrefix .request.url.path `/ui/shares` }}
+                    {{ if HasPrefix .request.url.path `/shares` }}
                     <span class="sr-only">(current)</span>
                     {{ end }}
                   </a>
                 </li>
-                <li class="nav-item {{ if HasPrefix .request.url.path `/ui/database` }}active{{end}}">
-                  <a class="nav-link" href="/ui/database">
+                <li class="nav-item {{ if HasPrefix .request.url.path `/database` }}active{{end}}">
+                  <a class="nav-link" href="/database">
                     <i class="fa fa-fw fa-database"></i>
                     Database
-                    {{ if HasPrefix .request.url.path `/ui/database` }}
+                    {{ if HasPrefix .request.url.path `/database` }}
                     <span class="sr-only">(current)</span>
                     {{ end }}
                   </a>
                 </li>
-                <li class="nav-item {{ if HasPrefix .request.url.path `/ui/config` }}active{{end}}">
-                  <a class="nav-link" href="/ui/config">
+                <li class="nav-item {{ if HasPrefix .request.url.path `/config` }}active{{end}}">
+                  <a class="nav-link" href="/config">
                     <i class="fa fa-fw fa-gear"></i>
                     Configuration
-                    {{ if HasPrefix .request.url.path `/ui/config` }}
+                    {{ if HasPrefix .request.url.path `/config` }}
                     <span class="sr-only">(current)</span>
                     {{ end }}
                   </a>
@@ -74,8 +74,8 @@
     </div>
 
     <!-- jQuery first, then Tether, then Bootstrap JS. -->
-    <script src="/ui/js/jquery.min.js" integrity="sha384-3ceskX3iaEnIogmQchP8opvBy3Mi7Ce34nWjpBIwVTHfGYWQS9jwHDVRnpKKHJg7" crossorigin="anonymous"></script>
-    <script src="/ui/js/tether.min.js" integrity="sha384-XTs3FgkjiBgo8qjEjBk0tGmf3wPrWtA6coPfQDfFEY8AnYJwjalXCiosYRBIBZX8" crossorigin="anonymous"></script>
-    <script src="/ui/js/bootstrap.min.js" integrity="sha384-BLiI7JTZm+JWlgKa0M0kGRpJbF2J8q+qreVrKBC47e3K6BW78kGLrCkeRX6I9RoK" crossorigin="anonymous"></script>
+    <script src="/js/jquery.min.js" integrity="sha384-3ceskX3iaEnIogmQchP8opvBy3Mi7Ce34nWjpBIwVTHfGYWQS9jwHDVRnpKKHJg7" crossorigin="anonymous"></script>
+    <script src="/js/tether.min.js" integrity="sha384-XTs3FgkjiBgo8qjEjBk0tGmf3wPrWtA6coPfQDfFEY8AnYJwjalXCiosYRBIBZX8" crossorigin="anonymous"></script>
+    <script src="/js/bootstrap.min.js" integrity="sha384-BLiI7JTZm+JWlgKa0M0kGRpJbF2J8q+qreVrKBC47e3K6BW78kGLrCkeRX6I9RoK" crossorigin="anonymous"></script>
   </body>
 </html>

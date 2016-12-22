@@ -60,7 +60,6 @@ func (self *API) Serve() error {
 	server := negroni.New()
 	router := httprouter.New()
 	ui := diecast.NewServer(uiDir, `*.html`)
-	ui.RoutePrefix = `/ui`
 
 	// if self.UiDirectory == `embedded` {
 	// 	ui.SetFileSystem(assetFS())
@@ -72,10 +71,6 @@ func (self *API) Serve() error {
 
 	// routes not registered below will fallback to the UI server
 	router.NotFound = ui
-
-	router.GET(`/`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		http.Redirect(w, req, `/ui`, 301)
-	})
 
 	router.GET(`/api/configuration`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		if err := json.NewEncoder(w).Encode(self.application); err != nil {
