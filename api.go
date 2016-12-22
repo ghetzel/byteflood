@@ -7,6 +7,7 @@ import (
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/julienschmidt/httprouter"
 	"github.com/urfave/negroni"
+	"io"
 	"net/http"
 )
 
@@ -121,7 +122,7 @@ func (self *API) Serve() error {
 		}
 	})
 
-	router.GET(`/api/peers/:id/`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	router.GET(`/api/peers/:id`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`id`)); ok {
 			if err := json.NewEncoder(w).Encode(remotePeer.ToMap()); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -132,17 +133,26 @@ func (self *API) Serve() error {
 	})
 
 	for _, method := range []string{`GET`, `POST`, `PUT`, `DELETE`, `HEAD`} {
-		router.Handle(method, `/api/proxy/:id/*path`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-			if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`id`)); ok {
+		router.Handle(method, `/api/proxy/:session/*path`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+			if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`session`)); ok {
 				if response, err := remotePeer.ServiceRequest(
 					method,
 					params.ByName(`path`),
 					req.Body,
 					nil,
 				); err == nil {
-					if err := response.Write(w); err != nil {
-						http.Error(w, err.Error(), http.StatusInternalServerError)
+					// write response headers
+					for key, values := range response.Header {
+						for _, value := range values {
+							w.Header().Add(key, value)
+						}
 					}
+
+					// write response status code
+					w.WriteHeader(response.StatusCode)
+
+					// write response body
+					io.Copy(w, response.Body)
 				} else {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				}

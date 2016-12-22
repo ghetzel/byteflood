@@ -63,6 +63,8 @@ func (self *PeerServer) HandleRequest(remotePeer *RemotePeer, w io.Writer, data 
 
 	// read the request as it came from the remote peer
 	if request, err := http.ReadRequest(bufio.NewReader(buffer)); err == nil {
+		log.Debugf("[%s] Got request %+v", remotePeer.String(), request)
+
 		// rewrite the URL to point it at the local running PeerServer
 		if url, err := url.Parse(fmt.Sprintf("http://%s%s", self.addr, request.RequestURI)); err == nil {
 			request.URL = url
