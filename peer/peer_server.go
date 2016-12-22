@@ -68,7 +68,7 @@ func (self *PeerServer) HandleRequest(remotePeer *RemotePeer, w io.Writer, data 
 		// rewrite the URL to point it at the local running PeerServer
 		if url, err := url.Parse(fmt.Sprintf("http://%s%s", self.addr, request.RequestURI)); err == nil {
 			request.URL = url
-			request.RequestURI = ``
+			request.RequestURI = `` // client complains if this isn't blank
 
 			log.Debugf("[%s] Got request %s %s, rewrote to %s", remotePeer.String(), request.Method, request.URL.Path, request.URL.String())
 

@@ -136,7 +136,7 @@ func (self *API) Serve() error {
 		router.Handle(method, `/api/proxy/:session/*path`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 			if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`session`)); ok {
 				if response, err := remotePeer.ServiceRequest(
-					method,
+					req.Method,
 					params.ByName(`path`),
 					req.Body,
 					nil,

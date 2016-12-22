@@ -16,13 +16,13 @@
     <title>Byteflood{{ if .page.title }} :: {{ .page.title }}{{ end }}</title>
   </head>
   <body>
-    <nav class="navbar navbar-dark navbar-fixed-top bg-inverse">
+    <nav class="navbar navbar-dark navbar-static-top bg-inverse ">
         <div class="container">
-            <button class="navbar-toggler hidden-sm-up" type="button" data-toggle="collapse" data-target="#navbar-header" aria-controls="navbar-header" aria-expanded="false" aria-label="Toggle navigation"></button>
-            <div class="collapse navbar-toggleable-xs" id="navbar-header">
-              <a class="navbar-brand" href="">
-                <img src="/img/byteflood-text.png">
-              </a>
+            <a class="navbar-brand" href="/">
+              <img src="/img/byteflood-text.png">
+            </a>
+            <button class="navbar-toggler hidden-md-up" type="button" data-toggle="collapse" data-target="#navbar-header" aria-controls="navbar-header" aria-expanded="false" aria-label="Toggle navigation"></button>
+            <div class="collapse navbar-toggleable-sm" id="navbar-header">
               <ul class="nav navbar-nav">
                 <li class="nav-item {{ if HasPrefix .request.url.path `/peers` }}active{{end}}">
                   <a class="nav-link" href="/peers">
@@ -62,11 +62,10 @@
                 </li>
               </ul>
             </div>
-
         </div>
     </nav>
 
-    <div class="container root-container">
+    <div class="container root-container clearfix">
       {{ if .page.title }}
       <h1>{{ .page.title }}</h1>
       {{ end }}

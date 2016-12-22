@@ -1,15 +1,19 @@
 .root-container {
-    margin-top: 75px;
+    margin-top: 1em;
 }
 
 .root-container > h1 {
     margin-bottom: 1em;
 }
 
-.navbar.bg-inverse {
+body > .navbar {
+    border-radius: 0;
+}
+
+body > .navbar.bg-inverse {
     background-color: #162d50 !important;
 }
 
-.navbar .navbar-brand {
+body > .navbar .navbar-brand {
     margin-right: 1.5em;
 }

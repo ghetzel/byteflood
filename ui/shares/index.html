@@ -4,11 +4,64 @@ page:
 bindings:
 - name: shares
   resource: :/api/shares
+- name: results
+  resource: :/api/shares/{{ .request.url.query.name }}/query/{{ or .request.url.query.q `all` }}
+  params:
+    limit: '{{ or .request.url.query.limit 10 }}'
+  optional: true
 ---
-<ul>
-    {{ range .bindings.shares }}
-    <li>
-        <a href="/shares/browse?name={{ .name }}">{{ .name }}</a>
-    </li>
+{{ $share := or .request.url.query.name `` }}
+<div class="col-md-2">
+    <ul class="nav nav-pills nav-stacked">
+        {{ range .bindings.shares }}
+        <li class="nav-item">
+            <a class="nav-link{{ if eq .name $share }} active{{ end }}" href="/shares/?name={{ .name }}">{{ .name }}</a>
+        </li>
+        {{ end }}
+    </ul>
+</div>
+
+<div class="col-md-10">
+    {{ if .bindings.results }}
+    <div class="card">
+      <div class="card-header">
+        File List
+      </div>
+
+      {{ if .bindings.results.result_count }}
+      <table class="table table-sm table-striped table-hover">
+        <thead>
+          <tr>
+            <th>File Name</th>
+            <th>Type</th>
+            <th>Size</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .bindings.results.records }}
+          <tr>
+            <td>{{ .fields.file.name }}</td>
+            <td>{{ .fields.file.extension }}</td>
+            <td>{{ .fields.file.size }}</td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+
+      <div class="card-footer">
+        <span class="pull-right">
+          Showing {{ len .bindings.results.records }} of {{ .bindings.results.result_count }}
+        </span>
+      </div>
+      {{ else }}
+      <div class="card-block">
+        <p class="card-text">No files match the specified query.</p>
+      </div>
+      {{ end }}
+    </div>
+    {{ else }}
+      <i class="fa fa-reply fa-4x"></i>
+      <h2 class="mt-1">Select a share to browse files...</h2>
     {{ end }}
-</ul>
+
+</div>
