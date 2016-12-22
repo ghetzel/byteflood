@@ -4,13 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
+    {{- if .page.refresh }}
+    <meta http-equiv="refresh" content="{{ .page.refresh }}">
+    {{ end -}}
 
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="/ui/css/bootstrap.min.css" integrity="sha384-AysaV+vQoT3kOAXZkl02PThvDr8HYKPZhNT5h/CXfBThSRXQ6jW5DO2ekP5ViFdi" crossorigin="anonymous">
     <link rel="stylesheet" href="/ui/css/app.css">
     <link rel="stylesheet" href="/ui/css/font-awesome.min.css" integrity="sha384-oZMfhCtQRrSYbsX24SR/ieTzAUPm2W17TOVtEMqi/t72HLoBATmm7J82ezlfk7j5" crossorigin="anonymous">
 
-    <title>Byteflood{{ if .title }} :: {{ .title }}{{ end }}</title>
+    <title>Byteflood{{ if .page.title }} :: {{ .page.title }}{{ end }}</title>
   </head>
   <body>
     <nav class="navbar navbar-dark navbar-fixed-top bg-inverse">
@@ -21,38 +24,38 @@
                 <img src="/ui/img/byteflood-text.png">
               </a>
               <ul class="nav navbar-nav">
-                <li class="nav-item {{ if HasPrefix .request.URL.Path `/ui/peers` }}active{{end}}">
+                <li class="nav-item {{ if HasPrefix .request.url.path `/ui/peers` }}active{{end}}">
                   <a class="nav-link" href="/ui/peers">
                     <i class="fa fa-fw fa-share-alt"></i>
                     Peers
-                    {{ if HasPrefix .request.URL.Path `/ui/peers` }}
+                    {{ if HasPrefix .request.url.path `/ui/peers` }}
                     <span class="sr-only">(current)</span>
                     {{ end }}
                   </a>
                 </li>
-                <li class="nav-item {{ if HasPrefix .request.URL.Path `/ui/shares` }}active{{end}}">
+                <li class="nav-item {{ if HasPrefix .request.url.path `/ui/shares` }}active{{end}}">
                   <a class="nav-link" href="/ui/shares">
                     <i class="fa fa-fw fa-folder"></i>
                     Shares
-                    {{ if HasPrefix .request.URL.Path `/ui/shares` }}
+                    {{ if HasPrefix .request.url.path `/ui/shares` }}
                     <span class="sr-only">(current)</span>
                     {{ end }}
                   </a>
                 </li>
-                <li class="nav-item {{ if HasPrefix .request.URL.Path `/ui/database` }}active{{end}}">
+                <li class="nav-item {{ if HasPrefix .request.url.path `/ui/database` }}active{{end}}">
                   <a class="nav-link" href="/ui/database">
                     <i class="fa fa-fw fa-database"></i>
                     Database
-                    {{ if HasPrefix .request.URL.Path `/ui/database` }}
+                    {{ if HasPrefix .request.url.path `/ui/database` }}
                     <span class="sr-only">(current)</span>
                     {{ end }}
                   </a>
                 </li>
-                <li class="nav-item {{ if HasPrefix .request.URL.Path `/ui/config` }}active{{end}}">
+                <li class="nav-item {{ if HasPrefix .request.url.path `/ui/config` }}active{{end}}">
                   <a class="nav-link" href="/ui/config">
                     <i class="fa fa-fw fa-gear"></i>
                     Configuration
-                    {{ if HasPrefix .request.URL.Path `/ui/config` }}
+                    {{ if HasPrefix .request.url.path `/ui/config` }}
                     <span class="sr-only">(current)</span>
                     {{ end }}
                   </a>
@@ -64,8 +67,8 @@
     </nav>
 
     <div class="container root-container">
-      {{ if .title }}
-      <h1>{{ .title }}</h1>
+      {{ if .page.title }}
+      <h1>{{ .page.title }}</h1>
       {{ end }}
       {{ template "content" . }}
     </div>

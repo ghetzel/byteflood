@@ -1,6 +1,34 @@
 ---
-this:
-  is:
-    a: 'test'
+page:
+    title: Database
+bindings:
+- name: db
+  resource: :/api/db
 ---
-<h1>Database</h1>
+<div class="card">
+  <div class="card-header">
+    Scanned Directories
+  </div>
+
+  {{ if .bindings.db.directories }}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Label</th>
+        <th>Path</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .bindings.db.directories }}
+      <tr>
+        <td>{{ .label }}</td>
+        <td>{{ .path }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+  {{ else }}
+    <p class="card-text">No directories are being monitored.</p>
+  {{ end }}
+</div>
+

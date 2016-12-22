@@ -6,12 +6,14 @@ import (
 	"io/ioutil"
 	"path"
 	"regexp"
+	"strings"
 	"time"
 )
 
 type Directory struct {
 	Path                 string       `json:"path"`
 	Label                string       `json:"label,omitempty"`
+	RootPath             string       `json:"root_path,omitempty"`
 	FilePattern          string       `json:"patterns,omitempty"`
 	NoRecurseDirectories bool         `json:"no_recurse,omitempty"`
 	FileMinimumSize      int          `json:"file_min_size,omitempty"`
@@ -39,6 +41,10 @@ func (self *Directory) Initialize(db *Database) error {
 		self.Label = stringutil.Underscore(path.Base(self.Path))
 	}
 
+	if self.RootPath == `` {
+		self.RootPath = self.Path
+	}
+
 	self.db = db
 
 	return nil
@@ -55,6 +61,7 @@ func (self *Directory) Scan() error {
 					subdirectory := NewDirectory(self.db, absPath)
 
 					subdirectory.Label = self.Label
+					subdirectory.RootPath = self.RootPath
 					subdirectory.FilePattern = self.FilePattern
 					subdirectory.NoRecurseDirectories = self.NoRecurseDirectories
 					subdirectory.FileMinimumSize = self.FileMinimumSize
@@ -92,6 +99,14 @@ func (self *Directory) Scan() error {
 	return nil
 }
 
+func (self *Directory) normalizeFileName(name string) string {
+	prefix := strings.TrimSuffix(self.RootPath, `/`)
+	name = strings.TrimPrefix(name, prefix)
+	name = `/` + strings.TrimPrefix(name, `/`)
+
+	return name
+}
+
 func (self *Directory) scanFile(name string) (*File, error) {
 	// file pattern matching
 	if self.FilePattern != `` {
@@ -115,7 +130,8 @@ func (self *Directory) scanFile(name string) (*File, error) {
 		return nil, nil
 	}
 
-	file.Metadata[`name`] = file.Name
+	file.Metadata[`name`] = self.normalizeFileName(file.Name)
+	file.Metadata[`parent`] = path.Dir(self.normalizeFileName(file.Name))
 	file.Metadata[`label`] = self.Label
 
 	// load file metadata

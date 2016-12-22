@@ -20,9 +20,10 @@ var DefaultHeartbeatInterval = 1 * time.Second
 var DefaultHeartbeatAckTimeout = 3 * time.Second
 
 type RemotePeer struct {
-	Peer
-	Encrypter               *encryption.Encrypter
-	Decrypter               *encryption.Decrypter
+	Peer                    `json:"-"`
+	Name                    string                `json:"name"`
+	Encrypter               *encryption.Encrypter `json:"-"`
+	Decrypter               *encryption.Decrypter `json:"-"`
 	HeartbeatInterval       time.Duration
 	HeartbeatAckTimeout     time.Duration
 	inboundTransfer         *Transfer
@@ -73,9 +74,17 @@ func (self *RemotePeer) ID() string {
 	return base58.Encode(self.publicKey[:])
 }
 
+func (self *RemotePeer) SessionID() string {
+	id := base58.Encode(self.publicKey[:])
+	addr := self.connection.RemoteAddr().String()
+	session := base58.Encode([]byte(addr[:]))
+
+	return fmt.Sprintf("%s-%s", id, session)
+}
+
 func (self *RemotePeer) String() string {
 	return fmt.Sprintf("%s/%s",
-		self.ID(),
+		self.Name,
 		self.connection.RemoteAddr().String(),
 	)
 }
@@ -83,7 +92,10 @@ func (self *RemotePeer) String() string {
 func (self *RemotePeer) ToMap() map[string]interface{} {
 	return map[string]interface{}{
 		`id`:         self.ID(),
+		`session_id`: self.SessionID(),
+		`name`:       self.Name,
 		`public_key`: fmt.Sprintf("%x", self.GetPublicKey()),
+		`address`:    self.connection.RemoteAddr().String(),
 	}
 }
 
@@ -342,11 +354,11 @@ func (self *RemotePeer) TransferFile(path string) error {
 // nil and is intended to be long-running on a per-peer basis.
 //
 func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
-	log.Debugf("Receiving messages from %s", self.String())
+	log.Debugf("Receiving messages from %s (%s)", self.SessionID(), self.String())
 
 	// any condition that causes this function to return should also cause a disconnect
 	defer self.Disconnect()
-	defer localPeer.RemovePeer(self.ID())
+	defer localPeer.RemovePeer(self.SessionID())
 
 	for {
 		if _, err := self.ReceiveMessagesIterate(localPeer); err != nil {

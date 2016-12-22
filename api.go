@@ -92,12 +92,15 @@ func (self *API) Serve() error {
 	router.POST(`/api/db/actions/scan`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		payload := DatabaseScanRequest{}
 
-		if err := json.NewDecoder(req.Body).Decode(&payload); err == nil {
-			go self.application.Database.Scan(payload.Labels...)
-			http.Error(w, ``, http.StatusNoContent)
-		} else {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		if req.ContentLength > 0 {
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 		}
+
+		go self.application.Database.Scan(payload.Labels...)
+		http.Error(w, ``, http.StatusNoContent)
 	})
 
 	router.GET(`/api/peers`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
@@ -123,7 +126,7 @@ func (self *API) Serve() error {
 		}
 	})
 
-	router.GET(`/api/peers/:id`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	router.GET(`/api/peers/:id/`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`id`)); ok {
 			if err := json.NewEncoder(w).Encode(remotePeer.ToMap()); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -132,6 +135,27 @@ func (self *API) Serve() error {
 			http.Error(w, "peer not found", http.StatusNotFound)
 		}
 	})
+
+	for _, method := range []string{`GET`, `POST`, `PUT`, `DELETE`, `HEAD`} {
+		router.Handle(method, `/api/proxy/:id/*path`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+			if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`id`)); ok {
+				if response, err := remotePeer.ServiceRequest(
+					method,
+					params.ByName(`path`),
+					req.Body,
+					nil,
+				); err == nil {
+					if err := response.Write(w); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+					}
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+			} else {
+				http.Error(w, "peer not found", http.StatusNotFound)
+			}
+		})
+	}
 
 	router.GET(`/api/shares`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		if err := json.NewEncoder(w).Encode(self.application.Shares); err != nil {

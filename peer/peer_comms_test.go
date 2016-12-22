@@ -42,6 +42,10 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 		panic(err)
 	}
 
+	// make peer2 known to peer1 (peer2 may initiate connections to peer1)
+	peer1.AddKnownPeer(`peer2`, peer2.ID())
+	peer2.AddKnownPeer(`peer1`, peer1.ID())
+
 	go func() {
 		if err := peer1.Run(); err != nil {
 			panic(err)
@@ -76,8 +80,10 @@ func _TestPeerSmallTransfer(t *testing.T) {
 	assert.Nil(err)
 
 	// peer2's view of peer1 (who just connected)
-	peer1fromPeer2, ok := peer2.GetPeer(peer1.ID())
-	assert.True(ok)
+	p1 := peer2.GetPeersByKey(peer1.GetPublicKey())
+	assert.Equal(1, len(p1))
+	peer1fromPeer2 := p1[0]
+
 	assert.NotNil(peer1fromPeer2)
 
 	// peer1 sends 0x42 to peer2
@@ -111,9 +117,12 @@ func TestPeerCheckedTransfer(t *testing.T) {
 
 	time.Sleep(time.Second)
 
+
 	// peer2's view of peer1 (who just connected)
-	peer1fromPeer2, ok := peer2.GetPeer(peer1.ID())
-	assert.True(ok)
+	p1 := peer2.GetPeersByKey(peer1.GetPublicKey())
+	assert.Equal(1, len(p1))
+	peer1fromPeer2 := p1[0]
+
 	assert.NotNil(peer1fromPeer2)
 
 	// this is the data we want to send

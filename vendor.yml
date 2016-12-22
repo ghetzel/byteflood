@@ -44,7 +44,7 @@ vendors:
 - path: github.com/ghetzel/cli
   rev: 4733699ce30faa633c4db36ebfbe427963593d7d
 - path: github.com/ghetzel/diecast
-  rev: 62d96586f55a25095d8891e011ac269f367d5835
+  rev: ceabc0302e584f4c50df81f46a34e7082e507d87
 - path: github.com/ghetzel/go-stockutil
   rev: 1d8d62fdf74b5b5e70f0717956d57260d49f4dc0
 - path: github.com/ghetzel/pivot
@@ -57,16 +57,12 @@ vendors:
   rev: d9eb7a3d35ec988b8585d4a0068e462c27d28380
 - path: github.com/huin/goupnp
   rev: 949b8a77532ae1076171f4d112a5eb41354cb340
-- path: github.com/imdario/mergo
-  rev: 50d4dbd4eb0e84778abe37cefef140271d96fade
 - path: github.com/jbenet/go-base58
   rev: 6237cf65f3a6f7111cd8a42be3590df99a66bc7d
 - path: github.com/jmhodges/levigo
   rev: c42d9e0ca023e2198120196f842701bb4c55d7b9
 - path: github.com/julienschmidt/httprouter
   rev: 5dd70ee059943e81987a817fa1a755b11dd119c1
-- path: github.com/mohae/deepcopy
-  rev: a40e8fd6a88555ab2b3f07a29db9e893598362a2
 - path: github.com/onsi/ginkgo
   rev: e185767ab450dd717718019ebe6115112af5c575
 - path: github.com/onsi/gomega
@@ -117,7 +113,5 @@ vendors:
   rev: 3f83fa5005286a7fe593b055f0d7771a7dce4655
 - path: gopkg.in/vmihailenco/msgpack.v2
   rev: 94af6ea04d2da6a09d6914ca79b8fb94f3acbba4
-- path: gopkg.in/yaml.v1
-  rev: 9f9df34309c04878acc86042b16630b0f696e1de
 - path: gopkg.in/yaml.v2
   rev: a5b47d31c556af34a302ce5d659e6fea44d90de0

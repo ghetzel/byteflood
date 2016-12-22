@@ -1,10 +1,16 @@
 ---
-title: Configuration
+page:
+  title: Configuration
 bindings:
 - name: config
   resource: :/api/configuration
 ---
 
-<pre>
-{{ Jsonify .config `  ` }}
-</pre>
+<div class="card">
+  <div class="card-header">
+    Current Configuration
+  </div>
+  <div class="card-block">
+    <pre>{{ Jsonify .bindings.config `  ` }}</pre>
+  </div>
+</div>

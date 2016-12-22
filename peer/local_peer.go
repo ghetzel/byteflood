@@ -19,6 +19,7 @@ const (
 	DEFAULT_UPNP_DISCOVERY_TIMEOUT = (30 * time.Second)
 	DEFAULT_UPNP_MAPPING_DURATION  = (8760 * time.Hour)
 	BF_UPNP_SERVICE_NAME           = `byteflood`
+	BF_ANON_PEER_NAME              = `anonymous`
 )
 
 var log = logging.MustGetLogger(`byteflood.peer`)
@@ -26,6 +27,24 @@ var logproxy = util.NewLogProxy(`byteflood.peer`, `info`)
 var PeerMonitorRetryMultiplier = 2
 var PeerMonitorRetryMultiplierMax = 512
 var PeerMonitorRetryMax = -1
+
+type KnownPeers map[string][]string
+
+func (self KnownPeers) GetPeerNameByID(peerID string) (string, error) {
+	if peerID == `` {
+		return ``, fmt.Errorf("invalid peer ID")
+	}
+
+	for peerName, permittedIDs := range self {
+		for _, permittedID := range permittedIDs {
+			if peerID == permittedID {
+				return peerName, nil
+			}
+		}
+	}
+
+	return ``, fmt.Errorf("unknown peer")
+}
 
 type Peer interface {
 	ID() string
@@ -37,6 +56,7 @@ type LocalPeer struct {
 	Peer                 `json:"-"`
 	EnableUpnp           bool          `json:"upnp,omitempty"`
 	Address              string        `json:"address,omitempty"`
+	KnownPeers           KnownPeers    `json:"known_peers"`
 	AutoconnectPeers     []string      `json:"autoconnect_peers,omitempty"`
 	PublicKey            []byte        `json:"-"`
 	PrivateKey           []byte        `json:"-"`
@@ -57,6 +77,7 @@ type LocalPeer struct {
 func NewLocalPeer() *LocalPeer {
 	return &LocalPeer{
 		Address:              DEFAULT_PEER_SERVER_ADDRESS,
+		KnownPeers:           make(KnownPeers),
 		EnableUpnp:           false,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
@@ -100,6 +121,14 @@ func (self *LocalPeer) WaitListen() <-chan bool {
 
 func (self *LocalPeer) SetPeerRequestHandler(handler http.Handler) {
 	self.peerRequestHandler = handler
+}
+
+func (self *LocalPeer) AddKnownPeer(name string, peerID string) {
+	if currentIds, ok := self.KnownPeers[name]; ok {
+		self.KnownPeers[name] = append(currentIds, peerID)
+	}else{
+		self.KnownPeers[name] = []string{ peerID }
+	}
 }
 
 func (self *LocalPeer) Run() error {
@@ -258,14 +287,16 @@ func (self *LocalPeer) RunPeerServer() error {
 	}
 }
 
-func (self *LocalPeer) GetPeerByKey(publicKey []byte) *RemotePeer {
+func (self *LocalPeer) GetPeersByKey(publicKey []byte) []*RemotePeer {
+	peers := make([]*RemotePeer, 0)
+
 	for _, remotePeer := range self.sessions {
 		if bytes.Compare(publicKey, remotePeer.GetPublicKey()) == 0 {
-			return remotePeer
+			peers =append(peers, remotePeer)
 		}
 	}
 
-	return nil
+	return peers
 }
 
 func (self *LocalPeer) PeerServer() *PeerServer {
@@ -310,11 +341,19 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 	// -----------------------------------------
 
 	if remotePeeringRequest != nil {
-		if remotePeer := self.GetPeerByKey(remotePeeringRequest.PublicKey); remotePeer != nil {
-			return remotePeer, fmt.Errorf(BF_ERR_ALREADY_CONNECTED)
-		}
-
 		if remotePeer, err := NewRemotePeerFromRequest(remotePeeringRequest, conn); err == nil {
+			// if this is an incoming registration, make sure we know about them
+			if peerName, err := self.KnownPeers.GetPeerNameByID(remotePeer.ID()); err == nil {
+				remotePeer.Name = peerName
+			} else {
+				if remoteInitiated {
+					log.Errorf("Rejecting unknown peer %s (%s)", remotePeer.ID(), remotePeer.String())
+					return nil, err
+				} else {
+					remotePeer.Name = BF_ANON_PEER_NAME
+				}
+			}
+
 			// setup encryption and decryption
 			//
 
@@ -331,7 +370,7 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 			)
 
 			self.sessionLock.Lock()
-			self.sessions[remotePeer.String()] = remotePeer
+			self.sessions[remotePeer.SessionID()] = remotePeer
 			self.sessionLock.Unlock()
 
 			// setup download rate limiting
@@ -370,20 +409,20 @@ func (self *LocalPeer) GetPeers() []*RemotePeer {
 	return peers
 }
 
-func (self *LocalPeer) GetPeer(id string) (*RemotePeer, bool) {
-	remotePeer, ok := self.sessions[id]
+func (self *LocalPeer) GetPeer(sessionId string) (*RemotePeer, bool) {
+	remotePeer, ok := self.sessions[sessionId]
 	return remotePeer, ok
 }
 
-func (self *LocalPeer) RemovePeer(id string) {
-	if remotePeer, ok := self.sessions[id]; ok {
+func (self *LocalPeer) RemovePeer(sessionId string) {
+	if remotePeer, ok := self.sessions[sessionId]; ok {
 		log.Errorf("Removing peer %s", remotePeer.String())
 
 		if err := remotePeer.Disconnect(); err != nil {
 			log.Errorf("Error disconnecting from peer: %v", err)
 		}
 
-		delete(self.sessions, id)
+		delete(self.sessions, sessionId)
 
 		log.Debugf("%d peers registered", len(self.sessions))
 	}
@@ -393,13 +432,6 @@ func (self *LocalPeer) ConnectTo(address string) (*RemotePeer, error) {
 	// make sure we're not trying to connect to ourself
 	if self.IsLoopbackConnection(address) {
 		return nil, fmt.Errorf(BF_ERR_LOOPBACK_CONN)
-	}
-
-	// check if we're already connected to this peer
-	for _, remotePeer := range self.sessions {
-		if address == remotePeer.connection.RemoteAddr().String() {
-			return remotePeer, fmt.Errorf(BF_ERR_ALREADY_CONNECTED)
-		}
 	}
 
 	log.Debugf("Connecting to %s", address)

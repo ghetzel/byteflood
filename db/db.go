@@ -21,6 +21,7 @@ type Database struct {
 	URI                    string       `json:"uri,omitempty"`
 	MetadataCollectionName string       `json:"metadata_collection_name,omitempty"`
 	SystemCollectionName   string       `json:"system_collection_name,omitempty"`
+	ScanInProgress         bool         `json:"scan_in_progress"`
 	db                     backends.Backend
 }
 
@@ -175,6 +176,16 @@ func (self *Database) PropertyGet(key string, fallback ...interface{}) interface
 }
 
 func (self *Database) Scan(labels ...string) error {
+	if self.ScanInProgress {
+		log.Warningf("Another scan is already running")
+		return fmt.Errorf("Scan already running")
+	} else {
+		self.ScanInProgress = true
+		defer func() {
+			self.ScanInProgress = false
+		}()
+	}
+
 	// get this before performing the scan so that all scanned files will necessarily
 	// be greater than it
 	minLastSeen := time.Now().UnixNano()

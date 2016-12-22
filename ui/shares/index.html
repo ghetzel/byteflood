@@ -1,0 +1,14 @@
+---
+page:
+    title: Shares
+bindings:
+- name: shares
+  resource: :/api/shares
+---
+<ul>
+    {{ range .bindings.shares }}
+    <li>
+        <a href="/ui/shares/browse?name={{ .name }}">{{ .name }}</a>
+    </li>
+    {{ end }}
+</ul>
