@@ -126,8 +126,8 @@ func (self *LocalPeer) SetPeerRequestHandler(handler http.Handler) {
 func (self *LocalPeer) AddKnownPeer(name string, peerID string) {
 	if currentIds, ok := self.KnownPeers[name]; ok {
 		self.KnownPeers[name] = append(currentIds, peerID)
-	}else{
-		self.KnownPeers[name] = []string{ peerID }
+	} else {
+		self.KnownPeers[name] = []string{peerID}
 	}
 }
 
@@ -292,7 +292,7 @@ func (self *LocalPeer) GetPeersByKey(publicKey []byte) []*RemotePeer {
 
 	for _, remotePeer := range self.sessions {
 		if bytes.Compare(publicKey, remotePeer.GetPublicKey()) == 0 {
-			peers =append(peers, remotePeer)
+			peers = append(peers, remotePeer)
 		}
 	}
 

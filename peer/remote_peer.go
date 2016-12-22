@@ -34,6 +34,7 @@ type RemotePeer struct {
 	readLimiter             *util.RateLimitingReadWriter
 	writeLimiter            *util.RateLimitingReadWriter
 	heartbeatCount          int
+	lastSeenAt              time.Time
 	badMessageCount         int
 	originalRequest         *PeeringRequest
 }
@@ -75,11 +76,8 @@ func (self *RemotePeer) ID() string {
 }
 
 func (self *RemotePeer) SessionID() string {
-	id := base58.Encode(self.publicKey[:])
 	addr := self.connection.RemoteAddr().String()
-	session := base58.Encode([]byte(addr[:]))
-
-	return fmt.Sprintf("%s-%s", id, session)
+	return base58.Encode([]byte(addr[:]))
 }
 
 func (self *RemotePeer) String() string {
@@ -91,11 +89,12 @@ func (self *RemotePeer) String() string {
 
 func (self *RemotePeer) ToMap() map[string]interface{} {
 	return map[string]interface{}{
-		`id`:         self.ID(),
-		`session_id`: self.SessionID(),
-		`name`:       self.Name,
-		`public_key`: fmt.Sprintf("%x", self.GetPublicKey()),
-		`address`:    self.connection.RemoteAddr().String(),
+		`id`:           self.ID(),
+		`session_id`:   self.SessionID(),
+		`name`:         self.Name,
+		`public_key`:   fmt.Sprintf("%x", self.GetPublicKey()),
+		`address`:      self.connection.RemoteAddr().String(),
+		`last_seen_at`: self.lastSeenAt,
 	}
 }
 
@@ -454,6 +453,9 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 			message.Type = HeartbeatAck
 			_, replyErr = self.SendMessage(message)
 		}
+
+		// update this to track last contact time
+		self.lastSeenAt = time.Now()
 
 		if replyErr != nil {
 			log.Errorf("[%s] Send reply failed: %v", self.String(), replyErr)

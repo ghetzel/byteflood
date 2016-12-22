@@ -117,7 +117,6 @@ func TestPeerCheckedTransfer(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-
 	// peer2's view of peer1 (who just connected)
 	p1 := peer2.GetPeersByKey(peer1.GetPublicKey())
 	assert.Equal(1, len(p1))

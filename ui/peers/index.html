@@ -1,6 +1,7 @@
 ---
 page:
   title: Peer Management
+  refresh: 10
 bindings:
 - name: peers
   resource: :/api/peers
@@ -14,16 +15,18 @@ bindings:
     <thead>
       <tr>
         <th>Peer Name</th>
+        <th>Session ID</th>
         <th>Address</th>
-        <th>Public Key</th>
+        <th>Last Seen</th>
       </tr>
     </thead>
     <tbody>
       {{ range .bindings.peers }}
       <tr>
         <td>{{ .name }}</td>
+        <td>{{ .session_id }}</td>
         <td>{{ .address }}</td>
-        <td>{{ .public_key }}</td>
+        <td>{{ Time .last_seen_at `15:04:05` }}</td>
       </tr>
       {{ end }}
     </tbody>
