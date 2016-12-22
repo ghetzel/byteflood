@@ -123,7 +123,7 @@ func main() {
 			},
 			Action: func(c *cli.Context) {
 				if app, err := createApplication(c); err == nil {
-					if err := app.Scan(); err != nil {
+					if err := app.Scan(c.Args()...); err != nil {
 						log.Fatalf("Failed to scan: %v", err)
 					}
 				} else {
@@ -168,30 +168,31 @@ func main() {
 			},
 			Action: func(c *cli.Context) {
 				if app, err := createApplication(c); err == nil {
-					if rs, err := app.Database.QueryRecordsFromCollection(
-						c.String(`db`),
-						strings.Join(c.Args(), `/`),
-					); err == nil {
-						printWithFormat(c.String(`format`), rs, func() {
-							tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
+					if f, err := app.Database.ParseFilter(strings.Join(c.Args(), `/`)); err == nil {
+						if rs, err := app.Database.Query(c.String(`db`), f); err == nil {
+							printWithFormat(c.String(`format`), rs, func() {
+								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 
-							for _, record := range rs.Records {
-								values := make([]interface{}, 0)
+								for _, record := range rs.Records {
+									values := make([]interface{}, 0)
 
-								values = append(values, record.ID)
+									values = append(values, record.ID)
 
-								for _, fieldName := range c.StringSlice(`field`) {
-									if v := maputil.DeepGet(record.Fields, strings.Split(fieldName, `.`), nil); v != nil {
-										values = append(values, v)
+									for _, fieldName := range c.StringSlice(`field`) {
+										if v := maputil.DeepGet(record.Fields, strings.Split(fieldName, `.`), nil); v != nil {
+											values = append(values, v)
+										}
 									}
+
+									fmt.Fprintf(tw, strings.TrimSpace(strings.Repeat("%v\t", len(values)))+"\n", values...)
 								}
 
-								fmt.Fprintf(tw, strings.TrimSpace(strings.Repeat("%v\t", len(values)))+"\n", values...)
-							}
-
-							tw.Flush()
-						})
-					} else {
+								tw.Flush()
+							})
+						} else {
+							log.Fatal(err)
+						}
+					}else{
 						log.Fatal(err)
 					}
 				} else {

@@ -34,6 +34,7 @@ type RemotePeer struct {
 	writeLimiter            *util.RateLimitingReadWriter
 	heartbeatCount          int
 	badMessageCount         int
+	originalRequest         *PeeringRequest
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
@@ -43,6 +44,7 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 			HeartbeatAckTimeout: DefaultHeartbeatAckTimeout,
 			publicKey:           request.PublicKey,
 			connection:          connection,
+			originalRequest:     request,
 			messageQueues: map[string]chan *Message{
 				Acknowledgment.String():  make(chan *Message),
 				DataStart.String():       make(chan *Message),
@@ -72,7 +74,10 @@ func (self *RemotePeer) ID() string {
 }
 
 func (self *RemotePeer) String() string {
-	return self.ID()
+	return fmt.Sprintf("%s/%s",
+		self.ID(),
+		self.connection.RemoteAddr().String(),
+	)
 }
 
 func (self *RemotePeer) ToMap() map[string]interface{} {
@@ -245,15 +250,15 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 		// write encoded message (cleartext) to encrypter, which will in turn write
 		// the ciphertext and protocol data to the writer specified above
 		if n, err := io.Copy(self.Encrypter, encodedMessageR); err == nil {
-			log.Debugf("[%s] SEND: [%s] Encrypted %d bytes (%d encoded, %d data)",
-				self.String(),
-				message.Type.String(),
-				n,
-				len(encodedMessage),
-				len(message.Data))
+			// log.Debugf("[%s] SEND: [%s] Encrypted %d bytes (%d encoded, %d data)",
+			// 	self.String(),
+			// 	message.Type.String(),
+			// 	n,
+			// 	len(encodedMessage),
+			// 	len(message.Data))
 			return int(n), err
 		} else {
-			log.Debugf("[%s] SEND: [%s] error: %v", self.ID(), message.Type.String(), err)
+			// log.Debugf("[%s] SEND: [%s] error: %v", self.String(), message.Type.String(), err)
 			return 0, err
 		}
 	} else {
@@ -337,7 +342,7 @@ func (self *RemotePeer) TransferFile(path string) error {
 // nil and is intended to be long-running on a per-peer basis.
 //
 func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
-	log.Debugf("Receiving messages from %s", self.ID())
+	log.Debugf("Receiving messages from %s", self.String())
 
 	// any condition that causes this function to return should also cause a disconnect
 	defer self.Disconnect()
@@ -358,7 +363,7 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 
 		var replyErr error
 
-		log.Debugf("[%s] RECV: message-type=%s, payload=%d bytes", self.ID(), message.Type.String(), len(message.Data))
+		// log.Debugf("[%s] RECV: message-type=%s, payload=%d bytes", self.String(), message.Type.String(), len(message.Data))
 
 		switch message.Type {
 		case DataStart:
@@ -439,7 +444,7 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 		}
 
 		if replyErr != nil {
-			log.Errorf("[%s] Send reply failed: %v", self.ID(), replyErr)
+			log.Errorf("[%s] Send reply failed: %v", self.String(), replyErr)
 		}
 
 		if self.isWaitingForNextMessage {
@@ -447,14 +452,14 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 
 			select {
 			case anyQueue <- message:
-				log.Debugf("[%s] MSGQ: Dispatching %s to ANY queue", self.ID(), message.Type.String())
+				log.Debugf("[%s] MSGQ: Dispatching %s to ANY queue", self.String(), message.Type.String())
 			default:
 			}
 
 			typeQueue, _ := self.messageQueues[message.Type.String()]
 			select {
 			case typeQueue <- message:
-				log.Debugf("[%s] MSGQ: Dispatching %s to typed queue", self.ID(), message.Type.String())
+				log.Debugf("[%s] MSGQ: Dispatching %s to typed queue", self.String(), message.Type.String())
 			default:
 			}
 		}

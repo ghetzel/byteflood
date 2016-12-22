@@ -3,6 +3,7 @@ package metadata
 import (
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var FileModeFlags = map[string]os.FileMode{
@@ -28,6 +29,7 @@ func (self FileLoader) LoadMetadata(name string) (map[string]interface{}, error)
 			perms := map[string]interface{}{
 				`mode`:    mode.Perm(),
 				`regular`: mode.IsRegular(),
+				`string`:  mode.String(),
 			}
 
 			for lbl, flag := range FileModeFlags {
@@ -39,6 +41,7 @@ func (self FileLoader) LoadMetadata(name string) (map[string]interface{}, error)
 			return map[string]interface{}{
 				`name`:        stat.Name(),
 				`path`:        fullPath,
+				`extension`:   strings.TrimPrefix(filepath.Ext(stat.Name()), `.`),
 				`size`:        stat.Size(),
 				`permissions`: perms,
 				`modified_at`: stat.ModTime(),

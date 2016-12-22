@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/diecast"
+	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/julienschmidt/httprouter"
 	"github.com/urfave/negroni"
 	"net/http"
@@ -12,10 +13,19 @@ import (
 type API struct {
 	Address     string `json:"address,omitempty"`
 	UiDirectory string `json:"ui_directory,omitempty"`
-	Application *Application
+	application *Application
 }
 
-var DefaultApiAddress = `:10451`
+type PeerConnectRequest struct {
+	Address string `json:"address"`
+}
+
+type DatabaseScanRequest struct {
+	Labels []string `json:"labels"`
+}
+
+var DefaultApiAddress = `:11984`
+var DefaultResultLimit = 25
 
 func NewAPI() *API {
 	return &API{
@@ -25,7 +35,7 @@ func NewAPI() *API {
 }
 
 func (self *API) Initialize() error {
-	if self.Application == nil {
+	if self.application == nil {
 		return fmt.Errorf("Cannot use API without an associated application instance")
 	}
 
@@ -49,7 +59,7 @@ func (self *API) Serve() error {
 
 	server := negroni.New()
 	router := httprouter.New()
-	ui := diecast.NewServer(uiDir)
+	ui := diecast.NewServer(uiDir, `*.html`)
 	ui.RoutePrefix = `/ui`
 
 	// if self.UiDirectory == `embedded` {
@@ -67,10 +77,33 @@ func (self *API) Serve() error {
 		http.Redirect(w, req, `/ui`, 301)
 	})
 
-	router.GET(`/peers`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	router.GET(`/api/configuration`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		if err := json.NewEncoder(w).Encode(self.application); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	router.GET(`/api/db`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		if err := json.NewEncoder(w).Encode(self.application.Database); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	router.POST(`/api/db/actions/scan`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		payload := DatabaseScanRequest{}
+
+		if err := json.NewDecoder(req.Body).Decode(&payload); err == nil {
+			go self.application.Database.Scan(payload.Labels...)
+			http.Error(w, ``, http.StatusNoContent)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	})
+
+	router.GET(`/api/peers`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		rv := make([]map[string]interface{}, 0)
 
-		for _, peer := range self.Application.LocalPeer.GetPeers() {
+		for _, peer := range self.application.LocalPeer.GetPeers() {
 			rv = append(rv, peer.ToMap())
 		}
 
@@ -79,13 +112,75 @@ func (self *API) Serve() error {
 		}
 	})
 
-	router.GET(`/peers/:id`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if remotePeer, ok := self.Application.LocalPeer.GetPeer(params.ByName(`id`)); ok {
+	router.POST(`/api/peers/actions/connect`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		payload := PeerConnectRequest{}
+
+		if err := json.NewDecoder(req.Body).Decode(&payload); err == nil {
+			go self.application.LocalPeer.ConnectToAndMonitor(payload.Address)
+			http.Error(w, ``, http.StatusNoContent)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	})
+
+	router.GET(`/api/peers/:id`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`id`)); ok {
 			if err := json.NewEncoder(w).Encode(remotePeer.ToMap()); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		} else {
 			http.Error(w, "peer not found", http.StatusNotFound)
+		}
+	})
+
+	router.GET(`/api/shares`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		if err := json.NewEncoder(w).Encode(self.application.Shares); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	router.GET(`/api/shares/:name`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
+			if err := json.NewEncoder(w).Encode(share); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		} else {
+			http.Error(w, `Not Found`, http.StatusNotFound)
+		}
+	})
+
+	router.GET(`/api/shares/:name/query/*query`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
+			limit := 0
+			offset := 0
+
+			if i, err := self.qsInt(req, `limit`); err == nil {
+				if i > 0 {
+					limit = int(i)
+				} else {
+					limit = DefaultResultLimit
+				}
+			} else {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			if i, err := self.qsInt(req, `offset`); err == nil {
+				offset = int(i)
+			} else {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			if results, err := share.Find(params.ByName(`query`), limit, offset); err == nil {
+				if err := json.NewEncoder(w).Encode(results); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		} else {
+			http.Error(w, `Not Found`, http.StatusNotFound)
 		}
 	})
 
@@ -104,10 +199,22 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 		w.Header().Set(`Content-Type`, `application/json`)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			`peer`: map[string]interface{}{
-				`id`: self.Application.LocalPeer.ID(),
+				`id`: self.application.LocalPeer.ID(),
 			},
 		})
 	})
 
 	return router
+}
+
+func (self *API) qsInt(req *http.Request, key string) (int64, error) {
+	if v := req.URL.Query().Get(key); v != `` {
+		if i, err := stringutil.ConvertToInteger(v); err == nil {
+			return i, nil
+		} else {
+			return 0, fmt.Errorf("%s: %v", key, err)
+		}
+	}
+
+	return 0, nil
 }

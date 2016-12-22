@@ -1,11 +1,14 @@
 package byteflood
 
 import (
+	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/go-stockutil/pathutil"
+	"github.com/ghetzel/go-stockutil/sliceutil"
+	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
 	"io/ioutil"
@@ -17,17 +20,20 @@ var DefaultPublicKeyPath = `~/.config/byteflood/keys/peer.pub`
 var DefaultPrivateKeyPath = `~/.config/byteflood/keys/peer.key`
 
 type Application struct {
-	LocalPeer      *peer.LocalPeer     `json:"local"`
-	Database       *db.Database        `json:"database"`
+	LocalPeer      *peer.LocalPeer     `json:"local,omitempty"`
+	Database       *db.Database        `json:"database,omitempty"`
 	PublicKeyPath  string              `json:"public_key,omitempty"`
 	PrivateKeyPath string              `json:"private_key,omitempty"`
 	KnownPeers     map[string][]string `json:"known_peers,omitempty"`
-	Shares         []shares.Share      `json:"shares,omitempty"`
-	API            *API                `json:"api"`
+	Shares         []*shares.Share     `json:"shares,omitempty"`
+	API            *API                `json:"api,omitempty"`
 }
 
 func NewApplicationFromConfig(configFile string) (*Application, error) {
-	app := &Application{}
+	app := &Application{
+		LocalPeer: peer.NewLocalPeer(),
+		Database:  db.NewDatabase(),
+	}
 
 	if configFilePath, err := pathutil.ExpandUser(configFile); err == nil {
 		if file, err := os.Open(configFilePath); err == nil {
@@ -72,10 +78,6 @@ func (self *Application) Initialize() error {
 
 	// initialize and open database
 	// --------------------------------------------------------------------------------------------
-	if self.Database == nil {
-		self.Database = db.NewDatabase()
-	}
-
 	if err := self.Database.Initialize(); err != nil {
 		return err
 	}
@@ -86,12 +88,8 @@ func (self *Application) Initialize() error {
 		self.PublicKeyPath,
 		self.PrivateKeyPath,
 	); err == nil {
-		if self.LocalPeer == nil {
-			self.LocalPeer = peer.NewLocalPeer(publicKey, privateKey)
-		} else {
-			self.LocalPeer.PublicKey = publicKey
-			self.LocalPeer.PrivateKey = privateKey
-		}
+		self.LocalPeer.PublicKey = publicKey
+		self.LocalPeer.PrivateKey = privateKey
 
 		if err := self.LocalPeer.Initialize(); err != nil {
 			return err
@@ -106,12 +104,31 @@ func (self *Application) Initialize() error {
 		self.API = NewAPI()
 	}
 
-	self.API.Application = self
+	self.API.application = self
 
 	if err := self.API.Initialize(); err == nil {
 		self.LocalPeer.SetPeerRequestHandler(self.API.GetPeerRequestHandler())
 	} else {
 		return err
+	}
+
+	// initialize all shares
+	sharesInitialized := make([]string, 0)
+
+	for _, share := range self.Shares {
+		name := stringutil.Underscore(share.Name)
+
+		if !sliceutil.ContainsString(sharesInitialized, name) {
+			share.SetMetabase(self.Database)
+
+			if err := share.Initialize(); err != nil {
+				return err
+			}
+
+			sharesInitialized = append(sharesInitialized, name)
+		} else {
+			return fmt.Errorf("a share named %q already exists", share.Name)
+		}
 	}
 
 	return nil
@@ -130,6 +147,8 @@ func (self *Application) Run() error {
 		errchan <- self.API.Serve()
 	}()
 
+	log.Debugf("APP:\n%+v\n", self.String())
+
 	select {
 	case err := <-errchan:
 		return err
@@ -140,6 +159,24 @@ func (self *Application) Stop() {
 	<-self.LocalPeer.Stop()
 }
 
-func (self *Application) Scan() error {
-	return self.Database.Scan()
+func (self *Application) Scan(labels ...string) error {
+	return self.Database.Scan(labels...)
+}
+
+func (self *Application) String() string {
+	if data, err := yaml.Marshal(self); err == nil {
+		return string(data[:])
+	} else {
+		return fmt.Sprintf("INVALID: %v", err)
+	}
+}
+
+func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
+	for _, share := range self.Shares {
+		if stringutil.Underscore(share.Name) == stringutil.Underscore(name) {
+			return share, true
+		}
+	}
+
+	return nil, false
 }

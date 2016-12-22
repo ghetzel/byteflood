@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
@@ -14,7 +15,7 @@ import (
 )
 
 const (
-	DEFAULT_PEER_SERVER_PORT       = 0
+	DEFAULT_PEER_SERVER_ADDRESS    = `:0`
 	DEFAULT_UPNP_DISCOVERY_TIMEOUT = (30 * time.Second)
 	DEFAULT_UPNP_MAPPING_DURATION  = (8760 * time.Hour)
 	BF_UPNP_SERVICE_NAME           = `byteflood`
@@ -33,47 +34,49 @@ type Peer interface {
 }
 
 type LocalPeer struct {
-	Peer
-	EnableUpnp             bool
-	Address                string
-	Port                   int
-	PeerAddresses          []string
-	UpnpMappingDuration    time.Duration
-	UpnpDiscoveryTimeout   time.Duration
-	UploadBytesPerSecond   int
-	DownloadBytesPerSecond int
-	AutoReceiveMessages    bool
-	upnpPortMapping        *PortMapping
-	sessions               map[string]*RemotePeer
-	sessionLock            sync.Mutex
-	listening              chan bool
-	PublicKey              []byte
-	PrivateKey             []byte
-	peerServer             *PeerServer
-	peerRequestHandler     http.Handler
+	Peer                 `json:"-"`
+	EnableUpnp           bool          `json:"upnp,omitempty"`
+	Address              string        `json:"address,omitempty"`
+	AutoconnectPeers     []string      `json:"autoconnect_peers,omitempty"`
+	PublicKey            []byte        `json:"-"`
+	PrivateKey           []byte        `json:"-"`
+	UpnpMappingDuration  time.Duration `json:"upnp_mapping_duration,omitempty"`
+	UpnpDiscoveryTimeout time.Duration `json:"upnp_discovery_timeout,omitempty"`
+	UploadCap            int           `json:"upload_cap,omitempty"`
+	DownloadCap          int           `json:"download_cap,omitempty"`
+	autoReceiveMessages  bool
+	port                 int
+	upnpPortMapping      *PortMapping
+	sessions             map[string]*RemotePeer
+	sessionLock          sync.Mutex
+	listening            chan bool
+	peerServer           *PeerServer
+	peerRequestHandler   http.Handler
 }
 
-func NewLocalPeer(publicKey []byte, privateKey []byte) *LocalPeer {
+func NewLocalPeer() *LocalPeer {
 	return &LocalPeer{
-		Port:                 DEFAULT_PEER_SERVER_PORT,
+		Address:              DEFAULT_PEER_SERVER_ADDRESS,
 		EnableUpnp:           false,
-		PublicKey:            publicKey,
-		PrivateKey:           privateKey,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
-		AutoReceiveMessages:  true,
+		autoReceiveMessages:  true,
 		sessions:             make(map[string]*RemotePeer),
 		listening:            make(chan bool),
 	}
 }
 
 func (self *LocalPeer) Initialize() error {
-	if self.Port == 0 {
-		if p, err := ephemeralPort(); err == nil {
-			self.Port = p
-		} else {
-			return err
+	if a, p, err := net.SplitHostPort(self.Address); err == nil {
+		if p == `0` {
+			if eport, err := ephemeralPort(); err == nil {
+				self.Address = fmt.Sprintf("%s:%d", a, eport)
+			} else {
+				return err
+			}
 		}
+	} else {
+		return err
 	}
 
 	return nil
@@ -128,42 +131,54 @@ func (self *LocalPeer) Run() error {
 }
 
 func (self *LocalPeer) RunPeerListener() error {
-	if self.EnableUpnp && self.Port > 0 {
-		log.Infof("Setting up UPnP port mapping...")
+	if self.EnableUpnp {
+		if _, p, err := net.SplitHostPort(self.Address); err == nil {
+			if v, err := stringutil.ConvertToInteger(p); err == nil {
+				port := int(v)
 
-		if devices, err := DiscoverGateways(self.UpnpDiscoveryTimeout); err == nil {
-			// search for Internet Gateway Devices, and talk to the first one
-			// (this is the 99% case for home gamers)
-			//
-			for _, device := range devices {
-				// add TCP port mapping
-				if mapping, err := device.AddPortMapping(`tcp`, self.Port, self.Port, BF_UPNP_SERVICE_NAME, self.UpnpMappingDuration); err == nil {
-					log.Debugf("Adding port mapping: %s", mapping.String())
+				if port > 0 {
+					log.Infof("Setting up UPnP port mapping...")
 
-					// and we shall call this gateway our default gateway
-					self.upnpPortMapping = mapping
-					break
-				} else {
-					log.Errorf("Failed to add UPnP port mapping for %d/tcp", self.Port)
+					if devices, err := DiscoverGateways(self.UpnpDiscoveryTimeout); err == nil {
+						// search for Internet Gateway Devices, and talk to the first one
+						// (this is the 99% case for home gamers)
+						//
+						for _, device := range devices {
+							// add TCP port mapping
+							if mapping, err := device.AddPortMapping(`tcp`, port, port, BF_UPNP_SERVICE_NAME, self.UpnpMappingDuration); err == nil {
+								log.Debugf("Adding port mapping: %s", mapping.String())
+
+								// and we shall call this gateway our default gateway
+								self.upnpPortMapping = mapping
+								break
+							} else {
+								log.Errorf("Failed to add UPnP port mapping for %d/tcp", port)
+							}
+
+						}
+
+						if self.upnpPortMapping == nil {
+							if len(devices) == 0 {
+								return fmt.Errorf("Failed to map port %d/tcp: no UPnP gateways discovered", port)
+							} else {
+								return fmt.Errorf("Failed to map port %d/tcp via any discovered gateway", port)
+							}
+						}
+					} else {
+						return err
+					}
 				}
-
-			}
-
-			if self.upnpPortMapping == nil {
-				if len(devices) == 0 {
-					return fmt.Errorf("Failed to map port %d/tcp: no UPnP gateways discovered", self.Port)
-				} else {
-					return fmt.Errorf("Failed to map port %d/tcp via any discovered gateway", self.Port)
-				}
+			} else {
+				return err
 			}
 		} else {
 			return err
 		}
 	}
 
-	if addr, err := net.ResolveTCPAddr(`tcp`, fmt.Sprintf("%s:%d", self.Address, self.Port)); err == nil {
+	if addr, err := net.ResolveTCPAddr(`tcp`, self.Address); err == nil {
 		if listener, err := net.ListenTCP(`tcp`, addr); err == nil {
-			log.Infof("Listening on %s:%d", self.Address, self.Port)
+			log.Infof("Listening on %s", self.Address)
 
 			// tell anyone who cares that we're ready to start accepting connections now
 			select {
@@ -211,6 +226,23 @@ func (self *LocalPeer) RunPeerListener() error {
 	return nil
 }
 
+func (self *LocalPeer) IsLoopbackConnection(destination string) bool {
+	if _, localPort, err := net.SplitHostPort(self.Address); err == nil {
+		if localNets, err := net.InterfaceAddrs(); err == nil {
+			for _, localNet := range localNets {
+				addr, _ := SplitAddrCIDR(localNet.String())
+				localAddr := fmt.Sprintf("%s:%s", addr, localPort)
+
+				if destination == localAddr {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
 func (self *LocalPeer) PermitConnectionFrom(conn net.Conn) bool {
 	return true
 }
@@ -224,6 +256,16 @@ func (self *LocalPeer) RunPeerServer() error {
 	} else {
 		return err
 	}
+}
+
+func (self *LocalPeer) GetPeerByKey(publicKey []byte) *RemotePeer {
+	for _, remotePeer := range self.sessions {
+		if bytes.Compare(publicKey, remotePeer.GetPublicKey()) == 0 {
+			return remotePeer
+		}
+	}
+
+	return nil
 }
 
 func (self *LocalPeer) PeerServer() *PeerServer {
@@ -268,6 +310,10 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 	// -----------------------------------------
 
 	if remotePeeringRequest != nil {
+		if remotePeer := self.GetPeerByKey(remotePeeringRequest.PublicKey); remotePeer != nil {
+			return remotePeer, fmt.Errorf(BF_ERR_ALREADY_CONNECTED)
+		}
+
 		if remotePeer, err := NewRemotePeerFromRequest(remotePeeringRequest, conn); err == nil {
 			// setup encryption and decryption
 			//
@@ -289,19 +335,19 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 			self.sessionLock.Unlock()
 
 			// setup download rate limiting
-			if self.DownloadBytesPerSecond > 0 {
-				remotePeer.SetReadRateLimit(self.DownloadBytesPerSecond, self.DownloadBytesPerSecond)
-				log.Debugf("  Downloads capped at %d Bps", self.DownloadBytesPerSecond)
+			if self.DownloadCap > 0 {
+				remotePeer.SetReadRateLimit(self.DownloadCap, self.DownloadCap)
+				log.Debugf("  Downloads capped at %d Bps", self.DownloadCap)
 			}
 
 			// setup upload rate limiting
-			if self.UploadBytesPerSecond > 0 {
-				remotePeer.SetWriteRateLimit(self.UploadBytesPerSecond, self.UploadBytesPerSecond)
-				log.Debugf("  Uploads capped at %d Bps", self.UploadBytesPerSecond)
+			if self.UploadCap > 0 {
+				remotePeer.SetWriteRateLimit(self.UploadCap, self.UploadCap)
+				log.Debugf("  Uploads capped at %d Bps", self.UploadCap)
 			}
 
 			// start automatically receiving messages from this peer if we're supposed to
-			if self.AutoReceiveMessages {
+			if self.autoReceiveMessages {
 				go remotePeer.ReceiveMessages(self)
 			}
 
@@ -343,11 +389,23 @@ func (self *LocalPeer) RemovePeer(id string) {
 	}
 }
 
-func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {
-	log.Debugf("Connecting to %s:%d", addr, port)
+func (self *LocalPeer) ConnectTo(address string) (*RemotePeer, error) {
+	// make sure we're not trying to connect to ourself
+	if self.IsLoopbackConnection(address) {
+		return nil, fmt.Errorf(BF_ERR_LOOPBACK_CONN)
+	}
+
+	// check if we're already connected to this peer
+	for _, remotePeer := range self.sessions {
+		if address == remotePeer.connection.RemoteAddr().String() {
+			return remotePeer, fmt.Errorf(BF_ERR_ALREADY_CONNECTED)
+		}
+	}
+
+	log.Debugf("Connecting to %s", address)
 
 	// open a TCP socket to the given addr/port
-	if raddr, err := net.ResolveTCPAddr(`tcp`, fmt.Sprintf("%s:%d", addr, port)); err == nil {
+	if raddr, err := net.ResolveTCPAddr(`tcp`, address); err == nil {
 		if conn, err := net.DialTCP(`tcp`, nil, raddr); err == nil {
 			// perform peer handshake and registration
 			if remotePeer, err := self.RegisterPeer(conn, false); err == nil {
@@ -367,23 +425,29 @@ func (self *LocalPeer) ConnectTo(addr string, port int) (*RemotePeer, error) {
 	}
 }
 
-func (self *LocalPeer) ConnectToAndMonitor(addr string, port int) {
+func (self *LocalPeer) ConnectToAndMonitor(address string) {
 	retryWaitSec := 1
 	retries := 0
 
 	for retries = 0; PeerMonitorRetryMax < 0 || retries < PeerMonitorRetryMax; retries++ {
-		if remotePeer, err := self.ConnectTo(addr, port); err == nil {
+		if remotePeer, err := self.ConnectTo(address); err == nil {
 			retryWaitSec = 1
 			retries = 0
 
 			for {
 				if err := remotePeer.Heartbeat(); err != nil {
-					log.Warningf("[%s] Heartbeat to peer failed: %v", remotePeer.ID(), err)
+					log.Warningf("[%s] Heartbeat to peer failed: %v", remotePeer.String(), err)
 					break
 				}
 
 				time.Sleep(remotePeer.HeartbeatInterval)
 			}
+		} else if IsAlreadyConnectedErr(err) {
+			log.Warning(err)
+			return
+		} else if IsLoopbackConnectionErr(err) {
+			log.Warning(err)
+			return
 		}
 
 		time.Sleep(time.Duration(retryWaitSec) * time.Second)
@@ -394,20 +458,12 @@ func (self *LocalPeer) ConnectToAndMonitor(addr string, port int) {
 		}
 	}
 
-	log.Errorf("Connection to peer at %s:%d has failed after, %d attempts", addr, port, retries)
+	log.Errorf("Connection to peer at %s has failed after, %d attempts", address, retries)
 }
 
 func (self *LocalPeer) ConnectToAll() error {
-	for _, peerAddr := range self.PeerAddresses {
-		if addr, port, err := net.SplitHostPort(peerAddr); err == nil {
-			if v, err := stringutil.ConvertToInteger(port); err == nil {
-				go self.ConnectToAndMonitor(addr, int(v))
-			} else {
-				return err
-			}
-		} else {
-			return err
-		}
+	for _, peerAddr := range self.AutoconnectPeers {
+		go self.ConnectToAndMonitor(peerAddr)
 	}
 
 	return nil

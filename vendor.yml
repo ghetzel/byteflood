@@ -8,7 +8,7 @@ vendors:
 - path: github.com/blevesearch/segment
   rev: 762005e7a34fd909a84586299f1dd457371d36ee
 - path: github.com/boltdb/bolt
-  rev: 0d9f544bb94aac29c185968483459ef74d6deb5d
+  rev: f0cf3bfd5b5fe259fea19d5d6a2f8805e9b419e2
 - path: github.com/cockroachdb/c-jemalloc
   rev: d32877eaa9cd9a795073a36e30da919ed52c73f9
 - path: github.com/cockroachdb/c-lz4
@@ -44,11 +44,11 @@ vendors:
 - path: github.com/ghetzel/cli
   rev: 4733699ce30faa633c4db36ebfbe427963593d7d
 - path: github.com/ghetzel/diecast
-  rev: 0abd1dfc022bd223f4f08b0a28610a756cc517ac
+  rev: 986d29b167b15658048aa779763b4770f435fb5a
 - path: github.com/ghetzel/go-stockutil
   rev: 1d8d62fdf74b5b5e70f0717956d57260d49f4dc0
 - path: github.com/ghetzel/pivot
-  rev: 9d89a541bad77cb2e15048bd01ea7ef0674af292
+  rev: 0e64a6412efc4ba2ca26f3f171af060fb9a91ae1
 - path: github.com/ghodss/yaml
   rev: 04f313413ffd65ce25f2541bfd2b2ceec5c0908c
 - path: github.com/golang/protobuf
@@ -68,7 +68,7 @@ vendors:
 - path: github.com/mohae/deepcopy
   rev: a40e8fd6a88555ab2b3f07a29db9e893598362a2
 - path: github.com/onsi/ginkgo
-  rev: 00054c0bb96fc880d4e0be1b90937fad438c5290
+  rev: e185767ab450dd717718019ebe6115112af5c575
 - path: github.com/onsi/gomega
   rev: f1f0f388b31eca4e2cbe7a6dd8a3a1dfddda5b1c
 - path: github.com/op/go-logging
@@ -98,7 +98,7 @@ vendors:
 - path: github.com/vmihailenco/msgpack
   rev: 94af6ea04d2da6a09d6914ca79b8fb94f3acbba4
 - path: golang.org/x/crypto
-  rev: 2b786ab9e9649dc660afa3bd580fd05a05e20d95
+  rev: f6b343c37ca80bfa8ea539da67a0b621f84fab1d
 - path: golang.org/x/net
   rev: 45e771701b814666a7eb299e6c7a57d0b1799e91
 - path: golang.org/x/sync

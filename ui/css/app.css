@@ -1,0 +1,11 @@
+.root-container {
+    margin-top: 1em;
+}
+
+.navbar.bg-inverse {
+    background-color: #162d50 !important;
+}
+
+.navbar .navbar-brand {
+    margin-right: 1.5em;
+}

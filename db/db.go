@@ -6,6 +6,7 @@ import (
 	"github.com/ghetzel/pivot"
 	"github.com/ghetzel/pivot/backends"
 	"github.com/ghetzel/pivot/dal"
+	"github.com/ghetzel/pivot/filter"
 	"github.com/op/go-logging"
 	"time"
 )
@@ -59,10 +60,14 @@ func (self *Database) AddDirectory(directory *Directory) error {
 	}
 }
 
+func (self *Database) ParseFilter(filterString string) (filter.Filter, error) {
+	return filter.Parse(filterString)
+}
+
 // Query records in the given collection
-func (self *Database) QueryRecordsFromCollection(collectionName string, filterString string) (*dal.RecordSet, error) {
+func (self *Database) Query(collectionName string, f filter.Filter) (*dal.RecordSet, error) {
 	if index := self.db.WithSearch(); index != nil {
-		return index.QueryString(collectionName, filterString)
+		return index.Query(collectionName, f)
 	} else {
 		return nil, fmt.Errorf("Backend type %T does not support searching", self.db)
 	}
@@ -95,8 +100,21 @@ func (self *Database) DeleteRecords(ids ...string) error {
 }
 
 // Query records from the metadata collection
-func (self *Database) QueryRecords(filterString string) (*dal.RecordSet, error) {
-	return self.QueryRecordsFromCollection(self.MetadataCollectionName, filterString)
+func (self *Database) QueryMetadata(filterString string) (*dal.RecordSet, error) {
+	if f, err := self.ParseFilter(filterString); err == nil {
+		return self.Query(self.MetadataCollectionName, f)
+	} else {
+		return nil, err
+	}
+}
+
+// Query records from the system data collection
+func (self *Database) QuerySystem(filterString string) (*dal.RecordSet, error) {
+	if f, err := self.ParseFilter(filterString); err == nil {
+		return self.Query(self.SystemCollectionName, f)
+	} else {
+		return nil, err
+	}
 }
 
 // Removes records from the database that would not be added by the current Database instance.
@@ -113,8 +131,7 @@ func (self *Database) CleanRecords() error {
 		return fmt.Errorf("Invalid last_scan time")
 	}
 
-	if staleRecordSet, err := self.QueryRecordsFromCollection(
-		self.SystemCollectionName,
+	if staleRecordSet, err := self.QuerySystem(
 		fmt.Sprintf("key/prefix:metadata.last_scan./value/lt:%d", minLastSeen),
 	); err == nil {
 		ids := make([]string, 0)
@@ -157,12 +174,28 @@ func (self *Database) PropertyGet(key string, fallback ...interface{}) interface
 	}
 }
 
-func (self *Database) Scan() error {
+func (self *Database) Scan(labels ...string) error {
 	// get this before performing the scan so that all scanned files will necessarily
 	// be greater than it
 	minLastSeen := time.Now().UnixNano()
 
 	for _, directory := range self.Directories {
+		if len(labels) > 0 {
+			skip := true
+
+			for _, label := range labels {
+				if directory.Label == stringutil.Underscore(label) {
+					skip = false
+					break
+				}
+			}
+
+			if skip {
+				log.Debugf("Skipping directory %s [%s]", directory.Path, directory.Label)
+				continue
+			}
+		}
+
 		log.Debugf("Scanning directory %s [%s]", directory.Path, directory.Label)
 		if err := directory.Scan(); err != nil {
 			return err

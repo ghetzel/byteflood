@@ -22,11 +22,13 @@ fmt:
 	gofmt -w ./encryption
 	gofmt -w ./db
 	gofmt -w ./util
+	gofmt -w ./shares
 	go vet *.go
 	go vet ./peer/..
 	go vet ./encryption/..
 	go vet ./db/..
 	go vet ./util/..
+	go vet ./shares/..
 
 test:
 	# go test -v .

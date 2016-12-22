@@ -13,10 +13,12 @@ import (
 
 func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	if publicKey, privateKey, err := box.GenerateKey(rand.Reader); err == nil {
-		localPeer := NewLocalPeer([]byte(publicKey[:]), []byte(privateKey[:]))
+		localPeer := NewLocalPeer()
+		localPeer.PublicKey = []byte(publicKey[:])
+		localPeer.PrivateKey = []byte(privateKey[:])
 
 		if err := localPeer.Initialize(); err == nil {
-			localPeer.AutoReceiveMessages = true
+			localPeer.autoReceiveMessages = true
 			peer1 = localPeer
 		} else {
 			panic(err)
@@ -26,10 +28,12 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	}
 
 	if publicKey, privateKey, err := box.GenerateKey(rand.Reader); err == nil {
-		localPeer := NewLocalPeer([]byte(publicKey[:]), []byte(privateKey[:]))
+		localPeer := NewLocalPeer()
+		localPeer.PublicKey = []byte(publicKey[:])
+		localPeer.PrivateKey = []byte(privateKey[:])
 
 		if err := localPeer.Initialize(); err == nil {
-			localPeer.AutoReceiveMessages = true
+			localPeer.autoReceiveMessages = true
 			peer2 = localPeer
 		} else {
 			panic(err)
@@ -68,7 +72,7 @@ func _TestPeerSmallTransfer(t *testing.T) {
 	peer1, peer2 := makePeerPair()
 
 	// peer1 connects to peer2
-	peer2fromPeer1, err := peer1.ConnectTo(peer2.Address, peer2.Port)
+	peer2fromPeer1, err := peer1.ConnectTo(peer2.Address)
 	assert.Nil(err)
 
 	// peer2's view of peer1 (who just connected)
@@ -102,7 +106,7 @@ func TestPeerCheckedTransfer(t *testing.T) {
 	peer1, peer2 := makePeerPair()
 
 	// peer1 connects to peer2
-	peer2fromPeer1, err := peer1.ConnectTo(peer2.Address, peer2.Port)
+	peer2fromPeer1, err := peer1.ConnectTo(peer2.Address)
 	assert.Nil(err)
 
 	time.Sleep(time.Second)
@@ -157,7 +161,7 @@ func TestPeerCheckedTransfer(t *testing.T) {
 // 	var wg sync.WaitGroup
 // 	peer1, peer2 := makePeerPair()
 
-// 	fromPeer1, err := peer2.ConnectTo(peer1.Address, peer1.Port)
+// 	fromPeer1, err := peer2.ConnectTo(peer1.Address)
 // 	assert.Nil(err)
 
 // 	wg.Add(1)
@@ -199,7 +203,7 @@ func TestPeerCheckedTransfer(t *testing.T) {
 // 	var wg sync.WaitGroup
 // 	peer1, peer2 := makePeerPair()
 
-// 	fromPeer1, err := peer2.ConnectTo(peer1.Address, peer1.Port)
+// 	fromPeer1, err := peer2.ConnectTo(peer1.Address)
 // 	assert.Nil(err)
 
 // 	wg.Add(1)
@@ -243,7 +247,7 @@ func TestPeerCheckedTransfer(t *testing.T) {
 // 	var err error
 // 	peer1, peer2 := makePeerPair()
 
-// 	peer2fromPeer1, err := peer1.ConnectTo(peer2.Address, peer2.Port)
+// 	peer2fromPeer1, err := peer1.ConnectTo(peer2.Address)
 // 	assert.Nil(err)
 
 // 	send := []byte{0x99}
