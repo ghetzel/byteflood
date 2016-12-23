@@ -73,6 +73,14 @@ func (self *API) Serve() error {
 	// routes not registered below will fallback to the UI server
 	router.NotFound = ui
 
+	router.GET(`/api/status`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			`version`: Version,
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
 	router.GET(`/api/configuration`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		if err := json.NewEncoder(w).Encode(self.application); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

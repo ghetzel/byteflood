@@ -60,6 +60,15 @@
                     {{ end }}
                   </a>
                 </li>
+                <li class="nav-item {{ if HasPrefix .request.url.path `/about` }}active{{end}}">
+                  <a class="nav-link" href="/about">
+                    <i class="fa fa-fw fa-question"></i>
+                    About
+                    {{ if HasPrefix .request.url.path `/about` }}
+                    <span class="sr-only">(current)</span>
+                    {{ end }}
+                  </a>
+                </li>
               </ul>
             </div>
         </div>
@@ -67,7 +76,9 @@
 
     <div class="container root-container clearfix">
       {{ if .page.title }}
+      {{ if not .page.hide_title }}
       <h1>{{ .page.title }}</h1>
+      {{ end }}
       {{ end }}
       {{ template "content" . }}
     </div>

@@ -26,8 +26,8 @@ var log = logging.MustGetLogger(`main`)
 func main() {
 	app := cli.NewApp()
 	app.Name = `byteflood`
-	app.Usage = `Manages the automatic creation and serving of files via the BitTorrent protocol`
-	app.Version = `0.0.1`
+	app.Usage = byteflood.Description
+	app.Version = byteflood.Version
 	app.EnableBashCompletion = false
 
 	app.Flags = []cli.Flag{

@@ -1,0 +1,14 @@
+---
+page:
+    title: About
+    hide_title: true
+bindings:
+- name: status
+  resource: :/api/status
+---
+<div class="text-xs-center w-100">
+  <img src="/img/icon-256.png" class="img-fluid" alt="Byteflood">
+  <br />
+  <br />
+  <h2>Byteflood{{ if .bindings.status.version }} v{{ .bindings.status.version }}{{ end }}</h2>
+</div>
