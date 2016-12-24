@@ -36,6 +36,9 @@ func NewDatabase() *Database {
 
 // Initialize the Database by opening the underlying database
 func (self *Database) Initialize() error {
+	filter.CriteriaSeparator = `;`
+	filter.FieldTermSeparator = `=`
+
 	if db, err := pivot.NewDatabase(self.URI); err == nil {
 		self.db = db
 	} else {

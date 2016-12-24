@@ -93,6 +93,30 @@ func (self *API) Serve() error {
 		}
 	})
 
+	router.GET(`/api/db/query/*query`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		if limit, offset, err := self.getLimitOffset(req); err == nil {
+			if f, err := self.application.Database.ParseFilter(params.ByName(`query`)); err == nil {
+				f.Limit = limit
+				f.Offset = offset
+
+				if recordset, err := self.application.Database.Query(
+					self.application.Database.MetadataCollectionName,
+					f,
+				); err == nil {
+					if err := json.NewEncoder(w).Encode(recordset); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+					}
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+			} else {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			}
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	})
+
 	router.POST(`/api/db/actions/scan`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		payload := DatabaseScanRequest{}
 
@@ -188,33 +212,37 @@ func (self *API) Serve() error {
 
 	router.GET(`/api/shares/:name/query/*query`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
-			limit := 0
-			offset := 0
-
-			if i, err := self.qsInt(req, `limit`); err == nil {
-				if i > 0 {
-					limit = int(i)
+			if limit, offset, err := self.getLimitOffset(req); err == nil {
+				if results, err := share.Find(params.ByName(`query`), limit, offset); err == nil {
+					if err := json.NewEncoder(w).Encode(results); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+					}
 				} else {
-					limit = DefaultResultLimit
-				}
-			} else {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			if i, err := self.qsInt(req, `offset`); err == nil {
-				offset = int(i)
-			} else {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			if results, err := share.Find(params.ByName(`query`), limit, offset); err == nil {
-				if err := json.NewEncoder(w).Encode(results); err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				}
 			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			}
+		} else {
+			http.Error(w, `Not Found`, http.StatusNotFound)
+		}
+	})
+
+	router.GET(`/api/shares/:name/browse/*path`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
+			if limit, offset, err := self.getLimitOffset(req); err == nil {
+				query := fmt.Sprintf("parent=%s", params.ByName(`path`))
+
+				log.Debugf("query: %s", query)
+				if results, err := share.Find(query, limit, offset); err == nil {
+					if err := json.NewEncoder(w).Encode(results); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+					}
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+			} else {
+				http.Error(w, err.Error(), http.StatusBadRequest)
 			}
 		} else {
 			http.Error(w, `Not Found`, http.StatusNotFound)
@@ -254,4 +282,27 @@ func (self *API) qsInt(req *http.Request, key string) (int64, error) {
 	}
 
 	return 0, nil
+}
+
+func (self *API) getLimitOffset(req *http.Request) (int, int, error) {
+	limit := 0
+	offset := 0
+
+	if i, err := self.qsInt(req, `limit`); err == nil {
+		if i > 0 {
+			limit = int(i)
+		} else {
+			limit = DefaultResultLimit
+		}
+	} else {
+		return 0, 0, err
+	}
+
+	if i, err := self.qsInt(req, `offset`); err == nil {
+		offset = int(i)
+	} else {
+		return 0, 0, err
+	}
+
+	return limit, offset, nil
 }

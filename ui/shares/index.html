@@ -5,9 +5,10 @@ bindings:
 - name: shares
   resource: :/api/shares
 - name: results
-  resource: :/api/shares/{{ .request.url.query.name }}/query/{{ or .request.url.query.q `all` }}
+  resource: :/api/shares/{{ .request.url.query.name }}/browse{{ .request.url.query.path }}
   params:
     limit: '{{ or .request.url.query.limit 10 }}'
+    offset: '{{ or .request.url.query.offset 0 }}'
   optional: true
 ---
 {{ $share := or .request.url.query.name `` }}
@@ -40,7 +41,13 @@ bindings:
         <tbody>
           {{ range .bindings.results.records }}
           <tr>
-            <td>{{ .fields.file.name }}</td>
+            <td>
+              {{ if .fields.directory }}
+              <a href="/shares/?name={{ $share }}&amp;path={{ .fields.name }}">{{ .fields.file.name }}</a>
+              {{ else }}
+              {{ .fields.file.name }}
+              {{ end }}
+            </td>
             <td>{{ .fields.file.extension }}</td>
             <td>{{ .fields.file.size }}</td>
           </tr>

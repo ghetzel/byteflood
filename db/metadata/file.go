@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"mime"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,31 +25,48 @@ func (self FileLoader) CanHandle(_ string) bool {
 
 func (self FileLoader) LoadMetadata(name string) (map[string]interface{}, error) {
 	if stat, err := os.Stat(name); err == nil {
-		if fullPath, err := filepath.Abs(name); err == nil {
-			mode := stat.Mode()
-			perms := map[string]interface{}{
-				`mode`:    mode.Perm(),
-				`regular`: mode.IsRegular(),
-				`string`:  mode.String(),
-			}
-
-			for lbl, flag := range FileModeFlags {
-				if (mode & flag) == flag {
-					perms[lbl] = true
-				}
-			}
-
-			return map[string]interface{}{
-				`name`:        stat.Name(),
-				`path`:        fullPath,
-				`extension`:   strings.TrimPrefix(filepath.Ext(stat.Name()), `.`),
-				`size`:        stat.Size(),
-				`permissions`: perms,
-				`modified_at`: stat.ModTime(),
-			}, nil
-		} else {
-			return nil, err
+		mode := stat.Mode()
+		perms := map[string]interface{}{
+			`mode`:      mode.Perm(),
+			`regular`:   mode.IsRegular(),
+			`string`:    mode.String(),
+			`directory`: mode.IsDir(),
 		}
+
+		for lbl, flag := range FileModeFlags {
+			if (mode & flag) == flag {
+				perms[lbl] = true
+			}
+		}
+
+		metadata := map[string]interface{}{
+			`name`:        stat.Name(),
+			`permissions`: perms,
+			`modified_at`: stat.ModTime(),
+		}
+
+		if !mode.IsDir() {
+			mimetype := make(map[string]interface{})
+
+			if mediaType, mimeParams, err := mime.ParseMediaType(mime.TypeByExtension(filepath.Ext(stat.Name()))); err == nil {
+				for k, v := range mimeParams {
+					mimetype[k] = v
+				}
+
+				mimetype[`type`] = mediaType
+			}
+
+			metadata[`mime`] = mimetype
+			metadata[`size`] = stat.Size()
+
+			if strings.HasPrefix(stat.Name(), `.`) {
+				metadata[`hidden`] = true
+			} else {
+				metadata[`extension`] = strings.TrimPrefix(filepath.Ext(stat.Name()), `.`)
+			}
+		}
+
+		return metadata, nil
 	} else {
 		return nil, err
 	}

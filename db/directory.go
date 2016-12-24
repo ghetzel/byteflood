@@ -58,19 +58,23 @@ func (self *Directory) Scan() error {
 			// recursive directory handling
 			if entry.IsDir() {
 				if !self.NoRecurseDirectories {
-					subdirectory := NewDirectory(self.db, absPath)
+					if _, err := self.indexFile(absPath, true); err == nil {
+						subdirectory := NewDirectory(self.db, absPath)
 
-					subdirectory.Label = self.Label
-					subdirectory.RootPath = self.RootPath
-					subdirectory.FilePattern = self.FilePattern
-					subdirectory.NoRecurseDirectories = self.NoRecurseDirectories
-					subdirectory.FileMinimumSize = self.FileMinimumSize
-					subdirectory.QuickScan = self.QuickScan
+						subdirectory.Label = self.Label
+						subdirectory.RootPath = self.RootPath
+						subdirectory.FilePattern = self.FilePattern
+						subdirectory.NoRecurseDirectories = self.NoRecurseDirectories
+						subdirectory.FileMinimumSize = self.FileMinimumSize
+						subdirectory.QuickScan = self.QuickScan
 
-					log.Debugf("[%s] Scanning subdirectory %s", self.Label, subdirectory.Path)
+						log.Debugf("[%s] Scanning subdirectory %s", self.Label, subdirectory.Path)
 
-					if err := subdirectory.Scan(); err == nil {
-						self.Directories = append(self.Directories, subdirectory)
+						if err := subdirectory.Scan(); err == nil {
+							self.Directories = append(self.Directories, subdirectory)
+						} else {
+							return err
+						}
 					} else {
 						return err
 					}
@@ -83,7 +87,7 @@ func (self *Directory) Scan() error {
 				}
 
 				// scan the file as a sharable asset
-				if file, err := self.scanFile(absPath); err == nil {
+				if file, err := self.indexFile(absPath, false); err == nil {
 					if file != nil {
 						self.Files = append(self.Files, file)
 					}
@@ -107,15 +111,17 @@ func (self *Directory) normalizeFileName(name string) string {
 	return name
 }
 
-func (self *Directory) scanFile(name string) (*File, error) {
-	// file pattern matching
-	if self.FilePattern != `` {
-		if rx, err := regexp.Compile(self.FilePattern); err == nil {
-			if !rx.MatchString(name) {
-				return nil, nil
+func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
+	if !isDir {
+		// file pattern matching
+		if self.FilePattern != `` {
+			if rx, err := regexp.Compile(self.FilePattern); err == nil {
+				if !rx.MatchString(name) {
+					return nil, nil
+				}
+			} else {
+				return nil, err
 			}
-		} else {
-			return nil, err
 		}
 	}
 
@@ -133,6 +139,7 @@ func (self *Directory) scanFile(name string) (*File, error) {
 	file.Metadata[`name`] = self.normalizeFileName(file.Name)
 	file.Metadata[`parent`] = path.Dir(self.normalizeFileName(file.Name))
 	file.Metadata[`label`] = self.Label
+	file.Metadata[`directory`] = isDir
 
 	// load file metadata
 	if err := file.LoadMetadata(); err != nil {

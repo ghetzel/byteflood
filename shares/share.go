@@ -5,6 +5,7 @@ import (
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot/dal"
+	"github.com/ghetzel/pivot/filter"
 	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
 	"io"
@@ -55,7 +56,7 @@ func (self *Share) Initialize() error {
 	}
 
 	if self.BaseFilter == `` {
-		self.BaseFilter = fmt.Sprintf("label/is:%s", stringutil.Underscore(self.Name))
+		self.BaseFilter = fmt.Sprintf("label%s%s", filter.FieldTermSeparator, stringutil.Underscore(self.Name))
 	}
 
 	if self.metabase == nil {
@@ -66,15 +67,15 @@ func (self *Share) Initialize() error {
 }
 
 func (self *Share) GetQuery(filters ...string) string {
-	for i, filter := range filters {
-		filters[i] = self.prepareFilter(filter)
+	for i, f := range filters {
+		filters[i] = self.prepareFilter(f)
 	}
 
 	filters = append([]string{
 		self.prepareFilter(self.BaseFilter),
 	}, filters...)
 
-	return strings.Join(filters, `/`)
+	return strings.Join(filters, filter.CriteriaSeparator)
 }
 
 func (self *Share) Length() int {
@@ -85,8 +86,8 @@ func (self *Share) Length() int {
 	}
 }
 
-func (self *Share) FindFunc(filter string, recordFn func(*dal.Record)) error {
-	if rs, err := self.metabase.QueryMetadata(self.GetQuery(filter)); err == nil {
+func (self *Share) FindFunc(f string, recordFn func(*dal.Record)) error {
+	if rs, err := self.metabase.QueryMetadata(self.GetQuery(f)); err == nil {
 		for _, record := range rs.Records {
 			recordFn(record)
 		}
@@ -108,10 +109,10 @@ func (self *Share) Find(filterString string, limit int, offset int) (*dal.Record
 	}
 }
 
-func (self *Share) prepareFilter(filter string) string {
-	filter = strings.TrimSpace(filter)
-	filter = strings.TrimPrefix(filter, `/`)
-	filter = strings.TrimSuffix(filter, `/`)
+func (self *Share) prepareFilter(f string) string {
+	f = strings.TrimSpace(f)
+	f = strings.TrimPrefix(f, filter.CriteriaSeparator)
+	f = strings.TrimSuffix(f, filter.CriteriaSeparator)
 
-	return filter
+	return f
 }
