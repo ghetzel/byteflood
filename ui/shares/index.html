@@ -7,8 +7,9 @@ bindings:
 - name: results
   resource: :/api/shares/{{ .request.url.query.name }}/browse{{ .request.url.query.path }}
   params:
-    limit: '{{ or .request.url.query.limit 10 }}'
+    limit: '{{ or .request.url.query.limit 25 }}'
     offset: '{{ or .request.url.query.offset 0 }}'
+    sort:   '{{ .request.url.query.sort }}'
   optional: true
 ---
 {{ $share := or .request.url.query.name `` }}

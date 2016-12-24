@@ -15,6 +15,16 @@ var log = logging.MustGetLogger(`byteflood/scanner`)
 
 var DefaultMetadataCollectionName = `metadata`
 var DefaultSystemCollectionName = `byteflood`
+var DefaultGlobalExclusions = []string{
+	`._.DS_Store`,
+	`._.Trashes`,
+	`.DS_Store`,
+	`.Spotlight-V100`,
+	`.Trashes`,
+	`desktop.ini`,
+	`lost+found`,
+	`Thumbs.db`,
+}
 
 type Database struct {
 	Directories            []*Directory `json:"directories,omitempty"`
@@ -22,6 +32,7 @@ type Database struct {
 	MetadataCollectionName string       `json:"metadata_collection_name,omitempty"`
 	SystemCollectionName   string       `json:"system_collection_name,omitempty"`
 	ScanInProgress         bool         `json:"scan_in_progress"`
+	GlobalExclusions       []string     `json:"global_exclusions,omitempty"`
 	db                     backends.Backend
 }
 
@@ -31,6 +42,7 @@ func NewDatabase() *Database {
 		URI:         `boltdb:///~/.local/share/byteflood/db`,
 		MetadataCollectionName: DefaultMetadataCollectionName,
 		SystemCollectionName:   DefaultSystemCollectionName,
+		GlobalExclusions:       DefaultGlobalExclusions,
 	}
 }
 
@@ -64,6 +76,10 @@ func (self *Database) AddDirectory(directory *Directory) error {
 	}
 }
 
+func (self *Database) AddGlobalExclusions(patterns ...string) {
+	self.GlobalExclusions = append(self.GlobalExclusions, patterns...)
+}
+
 func (self *Database) ParseFilter(filterString string) (filter.Filter, error) {
 	return filter.Parse(filterString)
 }
@@ -83,9 +99,9 @@ func (self *Database) RecordExists(id string) bool {
 }
 
 // Retrieve a metadata record by ID
-func (self *Database) RetrieveRecord(id string) (map[string]interface{}, error) {
+func (self *Database) RetrieveRecord(id string) (*dal.Record, error) {
 	if record, err := self.db.Retrieve(self.MetadataCollectionName, id); err == nil {
-		return record.Fields, nil
+		return record, nil
 	} else {
 		return nil, err
 	}
@@ -123,45 +139,28 @@ func (self *Database) QuerySystem(filterString string) (*dal.RecordSet, error) {
 
 // Removes records from the database that would not be added by the current Database instance.
 func (self *Database) CleanRecords() error {
-	var minLastSeen int64
+	// scan all files to get a list of everything currently present
+	//   add file IDs to bloom filter
 
-	if v := self.PropertyGet(`metadata.last_scan`); v != nil {
-		if vI, ok := v.(int64); ok {
-			minLastSeen = vI
-		}
-	}
+	// get all IDs currently stored
 
-	if minLastSeen <= 0 {
-		return fmt.Errorf("Invalid last_scan time")
-	}
+	// stored IDs that aren't in the scan we just did should be deleted.
+	//   if an ID in the database is NOT in the bloom filter, it can be removed
+	//   if an ID is maybe, stat it.  this should reduce the number of stats considerably
 
-	if staleRecordSet, err := self.QuerySystem(
-		fmt.Sprintf("key/prefix:metadata.last_scan./value/lt:%d", minLastSeen),
-	); err == nil {
-		ids := make([]string, 0)
 
-		for _, record := range staleRecordSet.Records {
-			if v := record.Get(`value`); v != nil {
-				if vStr, err := stringutil.ToString(v); err == nil {
-					ids = append(ids, vStr)
-				}
-			}
-		}
-
-		log.Debugf("Cleaning up %d records", len(ids))
-
-		return self.DeleteRecords(ids...)
-	} else {
-		return err
-	}
+	return fmt.Errorf("Not Implemented")
 }
 
 func (self *Database) PropertySet(key string, value interface{}, fields ...map[string]interface{}) error {
-	record := dal.NewRecord(key).Set(`key`, key).Set(`value`, value)
+	record := dal.NewRecord(key)
 
 	if len(fields) > 0 {
 		record.SetFields(fields[0])
 	}
+
+	record.Set(`key`, key)
+	record.Set(`value`, value)
 
 	return self.db.Insert(self.SystemCollectionName, dal.NewRecordSet(record))
 }

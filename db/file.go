@@ -48,9 +48,7 @@ func (self *File) String() string {
 }
 
 func (self *File) ID() string {
-	uid := path.Clean(self.Name)
-	hash64 := murmur3.Sum64([]byte(uid[:]))
-	return base58.Encode(big.NewInt(int64(hash64)).Bytes())
+	return FileIdFromName(self.Name)
 }
 
 // func (self *File) getFingerprintData() ([]byte, error) {
@@ -83,4 +81,10 @@ func (self *File) normalizeLoaderName(loader metadata.Loader) string {
 	name = strings.TrimSuffix(name, `Loader`)
 
 	return stringutil.Underscore(name)
+}
+
+func FileIdFromName(name string) string {
+	uid := path.Clean(name)
+	hash64 := murmur3.Sum64([]byte(uid[:]))
+	return base58.Encode(big.NewInt(int64(hash64)).Bytes())
 }

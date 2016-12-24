@@ -44,7 +44,7 @@ vendors:
 - path: github.com/ghetzel/go-stockutil
   rev: 1d8d62fdf74b5b5e70f0717956d57260d49f4dc0
 - path: github.com/ghetzel/pivot
-  rev: 13590ace26826b0a3e3d33d94d2f83e1419dee57
+  rev: e1931c1c2f5ec002af54a0aebaf7b7b3b93adc5e
 - path: github.com/ghodss/yaml
   rev: 04f313413ffd65ce25f2541bfd2b2ceec5c0908c
 - path: github.com/golang/protobuf

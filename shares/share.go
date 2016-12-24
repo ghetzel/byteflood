@@ -98,10 +98,16 @@ func (self *Share) FindFunc(f string, recordFn func(*dal.Record)) error {
 	return nil
 }
 
-func (self *Share) Find(filterString string, limit int, offset int) (*dal.RecordSet, error) {
+func (self *Share) Find(filterString string, limit int, offset int, sort []string) (*dal.RecordSet, error) {
 	if f, err := self.metabase.ParseFilter(self.GetQuery(filterString)); err == nil {
 		f.Limit = limit
 		f.Offset = offset
+
+		if sort == nil {
+			f.Sort = []string{`-directory`, `name`}
+		} else {
+			f.Sort = sort
+		}
 
 		return self.metabase.Query(self.metabase.MetadataCollectionName, f)
 	} else {

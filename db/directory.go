@@ -2,8 +2,11 @@ package db
 
 import (
 	"fmt"
+	"github.com/ghetzel/go-stockutil/pathutil"
+	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"io/ioutil"
+	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -18,7 +21,6 @@ type Directory struct {
 	NoRecurseDirectories bool         `json:"no_recurse,omitempty"`
 	FileMinimumSize      int          `json:"file_min_size,omitempty"`
 	QuickScan            bool         `json:"quick_scan,omitempty"`
-	Files                []*File      `json:"-"`
 	Directories          []*Directory `json:"-"`
 	db                   *Database
 }
@@ -26,7 +28,6 @@ type Directory struct {
 func NewDirectory(db *Database, path string) *Directory {
 	return &Directory{
 		Path:        path,
-		Files:       make([]*File, 0),
 		Directories: make([]*Directory, 0),
 		db:          db,
 	}
@@ -35,6 +36,12 @@ func NewDirectory(db *Database, path string) *Directory {
 func (self *Directory) Initialize(db *Database) error {
 	if self.Path == `` {
 		return fmt.Errorf("Directory path must be specified.")
+	} else {
+		if p, err := pathutil.ExpandUser(self.Path); err == nil {
+			self.Path = p
+		} else {
+			return err
+		}
 	}
 
 	if self.Label == `` {
@@ -87,11 +94,7 @@ func (self *Directory) Scan() error {
 				}
 
 				// scan the file as a sharable asset
-				if file, err := self.indexFile(absPath, false); err == nil {
-					if file != nil {
-						self.Files = append(self.Files, file)
-					}
-				} else {
+				if _, err := self.indexFile(absPath, false); err != nil {
 					return err
 				}
 			}
@@ -112,6 +115,11 @@ func (self *Directory) normalizeFileName(name string) string {
 }
 
 func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
+	// skip the file if it's in the global exclusions list (case sensitive exact match)
+	if sliceutil.ContainsString(self.db.GlobalExclusions, path.Base(name)) {
+		return nil, nil
+	}
+
 	if !isDir {
 		// file pattern matching
 		if self.FilePattern != `` {
@@ -128,12 +136,20 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	// get file implementation
 	file := NewFile(name)
 
-	// set the metadata.last_scan.<ID> property
-	self.db.PropertySet(fmt.Sprintf("metadata.last_scan.%s", file.ID()), time.Now().UnixNano())
+	if stat, err := os.Stat(name); err == nil {
+		if record, err := self.db.RetrieveRecord(file.ID()); err == nil {
+			lastModifiedAt := record.Get(`last_modified_at`, int64(0))
 
-	// quick scan only tests for a files existence
-	if self.QuickScan && self.db.RecordExists(file.ID()) {
-		return nil, nil
+			if epochNs, ok := lastModifiedAt.(int64); ok {
+				if !stat.ModTime().After(time.Unix(0, epochNs)) {
+					return nil, nil
+				}
+			}
+		}
+
+		file.Metadata[`last_modified_at`] = stat.ModTime().UnixNano()
+	} else {
+		return nil, err
 	}
 
 	file.Metadata[`name`] = self.normalizeFileName(file.Name)

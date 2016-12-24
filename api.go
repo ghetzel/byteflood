@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/negroni"
 	"io"
 	"net/http"
+	"strings"
 )
 
 type API struct {
@@ -94,10 +95,11 @@ func (self *API) Serve() error {
 	})
 
 	router.GET(`/api/db/query/*query`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if limit, offset, err := self.getLimitOffset(req); err == nil {
+		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
 			if f, err := self.application.Database.ParseFilter(params.ByName(`query`)); err == nil {
 				f.Limit = limit
 				f.Offset = offset
+				f.Sort = sort
 
 				if recordset, err := self.application.Database.Query(
 					self.application.Database.MetadataCollectionName,
@@ -212,8 +214,8 @@ func (self *API) Serve() error {
 
 	router.GET(`/api/shares/:name/query/*query`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
-			if limit, offset, err := self.getLimitOffset(req); err == nil {
-				if results, err := share.Find(params.ByName(`query`), limit, offset); err == nil {
+			if limit, offset, sort, err := self.getSearchParams(req); err == nil {
+				if results, err := share.Find(params.ByName(`query`), limit, offset, sort); err == nil {
 					if err := json.NewEncoder(w).Encode(results); err != nil {
 						http.Error(w, err.Error(), http.StatusInternalServerError)
 					}
@@ -230,11 +232,10 @@ func (self *API) Serve() error {
 
 	router.GET(`/api/shares/:name/browse/*path`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
-			if limit, offset, err := self.getLimitOffset(req); err == nil {
+			if limit, offset, sort, err := self.getSearchParams(req); err == nil {
 				query := fmt.Sprintf("parent=%s", params.ByName(`path`))
 
-				log.Debugf("query: %s", query)
-				if results, err := share.Find(query, limit, offset); err == nil {
+				if results, err := share.Find(query, limit, offset, sort); err == nil {
 					if err := json.NewEncoder(w).Encode(results); err != nil {
 						http.Error(w, err.Error(), http.StatusInternalServerError)
 					}
@@ -284,9 +285,10 @@ func (self *API) qsInt(req *http.Request, key string) (int64, error) {
 	return 0, nil
 }
 
-func (self *API) getLimitOffset(req *http.Request) (int, int, error) {
+func (self *API) getSearchParams(req *http.Request) (int, int, []string, error) {
 	limit := 0
 	offset := 0
+	var sort []string
 
 	if i, err := self.qsInt(req, `limit`); err == nil {
 		if i > 0 {
@@ -295,14 +297,18 @@ func (self *API) getLimitOffset(req *http.Request) (int, int, error) {
 			limit = DefaultResultLimit
 		}
 	} else {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 
 	if i, err := self.qsInt(req, `offset`); err == nil {
 		offset = int(i)
 	} else {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 
-	return limit, offset, nil
+	if v := req.URL.Query().Get(`sort`); v != `` {
+		sort = strings.Split(v, `,`)
+	}
+
+	return limit, offset, sort, nil
 }
