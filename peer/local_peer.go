@@ -22,8 +22,8 @@ const (
 	BF_ANON_PEER_NAME              = `anonymous`
 )
 
-var log = logging.MustGetLogger(`byteflood.peer`)
-var logproxy = util.NewLogProxy(`byteflood.peer`, `info`)
+var log = logging.MustGetLogger(`byteflood/peer`)
+var logproxy = util.NewLogProxy(`byteflood/peer`, `info`)
 var PeerMonitorRetryMultiplier = 2
 var PeerMonitorRetryMultiplierMax = 512
 var PeerMonitorRetryMax = -1

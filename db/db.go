@@ -148,7 +148,6 @@ func (self *Database) CleanRecords() error {
 	//   if an ID in the database is NOT in the bloom filter, it can be removed
 	//   if an ID is maybe, stat it.  this should reduce the number of stats considerably
 
-
 	return fmt.Errorf("Not Implemented")
 }
 

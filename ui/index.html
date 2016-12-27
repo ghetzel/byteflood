@@ -1,9 +1,17 @@
+---
+page:
+  title: Home
+  hide_title: true
+bindings:
+- name: peers
+  resource: :/api/peers
+---
 <div class="row">
   <div class="col-md-3">
     <div class="card card-outline-primary text-xs-center">
       <div class="card-block">
-        <h3 class="card-title">4 Peers</h3>
-        <p class="card-text">Connected to 4 peers</p>
+        <h3 class="card-title">{{ len .bindings.peers }} Peers</h3>
+        <p class="card-text">Connected to {{ len .bindings.peers }} peers</p>
       </div>
     </div>
   </div>

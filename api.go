@@ -1,13 +1,12 @@
 package byteflood
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/diecast"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/julienschmidt/httprouter"
 	"github.com/urfave/negroni"
-	"io"
+	"html/template"
 	"net/http"
 	"strings"
 )
@@ -63,6 +62,10 @@ func (self *API) Serve() error {
 	router := httprouter.New()
 	ui := diecast.NewServer(uiDir, `*.html`)
 
+	ui.AdditionalFunctions = template.FuncMap{
+		`Autobyte`: stringutil.ToByteString,
+	}
+
 	// if self.UiDirectory == `embedded` {
 	// 	ui.SetFileSystem(assetFS())
 	// }
@@ -74,181 +77,23 @@ func (self *API) Serve() error {
 	// routes not registered below will fallback to the UI server
 	router.NotFound = ui
 
-	router.GET(`/api/status`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if err := json.NewEncoder(w).Encode(map[string]interface{}{
-			`version`: Version,
-		}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
-
-	router.GET(`/api/configuration`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if err := json.NewEncoder(w).Encode(self.application); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
-
-	router.GET(`/api/db`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if err := json.NewEncoder(w).Encode(self.application.Database); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
-
-	router.GET(`/api/db/query/*query`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
-			if f, err := self.application.Database.ParseFilter(params.ByName(`query`)); err == nil {
-				f.Limit = limit
-				f.Offset = offset
-				f.Sort = sort
-
-				if recordset, err := self.application.Database.Query(
-					self.application.Database.MetadataCollectionName,
-					f,
-				); err == nil {
-					if err := json.NewEncoder(w).Encode(recordset); err != nil {
-						http.Error(w, err.Error(), http.StatusInternalServerError)
-					}
-				} else {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-				}
-			} else {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-			}
-		} else {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
-	})
-
-	router.POST(`/api/db/actions/scan`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		payload := DatabaseScanRequest{}
-
-		if req.ContentLength > 0 {
-			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-		}
-
-		go self.application.Database.Scan(payload.Labels...)
-		http.Error(w, ``, http.StatusNoContent)
-	})
-
-	router.GET(`/api/peers`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		rv := make([]map[string]interface{}, 0)
-
-		for _, peer := range self.application.LocalPeer.GetPeers() {
-			rv = append(rv, peer.ToMap())
-		}
-
-		if err := json.NewEncoder(w).Encode(rv); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
-
-	router.POST(`/api/peers/actions/connect`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		payload := PeerConnectRequest{}
-
-		if err := json.NewDecoder(req.Body).Decode(&payload); err == nil {
-			go self.application.LocalPeer.ConnectToAndMonitor(payload.Address)
-			http.Error(w, ``, http.StatusNoContent)
-		} else {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
-	})
-
-	router.GET(`/api/peers/:id`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`id`)); ok {
-			if err := json.NewEncoder(w).Encode(remotePeer.ToMap()); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-		} else {
-			http.Error(w, "peer not found", http.StatusNotFound)
-		}
-	})
+	router.GET(`/api/status`, self.handleStatus)
+	router.GET(`/api/configuration`, self.handleGetConfig)
+	router.GET(`/api/db`, self.handleGetDatabase)
+	router.GET(`/api/db/query/*query`, self.handleQueryDatabase)
+	router.POST(`/api/db/actions/:action`, self.handleActionDatabase)
+	router.GET(`/api/peers`, self.handleGetPeers)
+	router.POST(`/api/peers`, self.handleConnectPeer)
+	router.GET(`/api/peers/:id`, self.handleGetPeer)
 
 	for _, method := range []string{`GET`, `POST`, `PUT`, `DELETE`, `HEAD`} {
-		router.Handle(method, `/api/proxy/:session/*path`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-			if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`session`)); ok {
-				if response, err := remotePeer.ServiceRequest(
-					req.Method,
-					params.ByName(`path`),
-					req.Body,
-					nil,
-				); err == nil {
-					// write response headers
-					for key, values := range response.Header {
-						for _, value := range values {
-							w.Header().Add(key, value)
-						}
-					}
-
-					// write response status code
-					w.WriteHeader(response.StatusCode)
-
-					// write response body
-					io.Copy(w, response.Body)
-				} else {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-				}
-			} else {
-				http.Error(w, "peer not found", http.StatusNotFound)
-			}
-		})
+		router.Handle(method, `/api/proxy/:session/*path`, self.handleProxyToPeer)
 	}
 
-	router.GET(`/api/shares`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if err := json.NewEncoder(w).Encode(self.application.Shares); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
-
-	router.GET(`/api/shares/:name`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
-			if err := json.NewEncoder(w).Encode(share); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-		} else {
-			http.Error(w, `Not Found`, http.StatusNotFound)
-		}
-	})
-
-	router.GET(`/api/shares/:name/query/*query`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
-			if limit, offset, sort, err := self.getSearchParams(req); err == nil {
-				if results, err := share.Find(params.ByName(`query`), limit, offset, sort); err == nil {
-					if err := json.NewEncoder(w).Encode(results); err != nil {
-						http.Error(w, err.Error(), http.StatusInternalServerError)
-					}
-				} else {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-				}
-			} else {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-			}
-		} else {
-			http.Error(w, `Not Found`, http.StatusNotFound)
-		}
-	})
-
-	router.GET(`/api/shares/:name/browse/*path`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
-			if limit, offset, sort, err := self.getSearchParams(req); err == nil {
-				query := fmt.Sprintf("parent=%s", params.ByName(`path`))
-
-				if results, err := share.Find(query, limit, offset, sort); err == nil {
-					if err := json.NewEncoder(w).Encode(results); err != nil {
-						http.Error(w, err.Error(), http.StatusInternalServerError)
-					}
-				} else {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-				}
-			} else {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-			}
-		} else {
-			http.Error(w, `Not Found`, http.StatusNotFound)
-		}
-	})
+	router.GET(`/api/shares`, self.handleGetShares)
+	router.GET(`/api/shares/:name`, self.handleGetShare)
+	router.GET(`/api/shares/:name/query/*query`, self.handleQueryShare)
+	router.GET(`/api/shares/:name/browse/*path`, self.handleBrowseShare)
 
 	server.UseHandler(router)
 
@@ -261,14 +106,11 @@ func (self *API) Serve() error {
 func (self *API) GetPeerRequestHandler() http.Handler {
 	router := httprouter.New()
 
-	router.GET(`/`, func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		w.Header().Set(`Content-Type`, `application/json`)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			`peer`: map[string]interface{}{
-				`id`: self.application.LocalPeer.ID(),
-			},
-		})
-	})
+	router.GET(`/`, self.handleGetPeerStatus)
+	router.GET(`/shares`, self.handleGetShares)
+	router.GET(`/shares/:name`, self.handleGetShare)
+	router.GET(`/shares/:name/query/*query`, self.handleQueryShare)
+	router.GET(`/shares/:name/browse/*path`, self.handleBrowseShare)
 
 	return router
 }

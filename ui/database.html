@@ -5,6 +5,12 @@ bindings:
 - name: db
   resource: :/api/db
 ---
+{{ if .bindings.db.scan_in_progress }}
+<div class="alert alert-info" role="alert">
+  A database scan is currently in progress.
+</div>
+{{ end }}
+
 <div class="card">
   <div class="card-header">
     Scanned Directories

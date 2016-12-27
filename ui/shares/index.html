@@ -7,7 +7,7 @@ bindings:
 - name: results
   resource: :/api/shares/{{ .request.url.query.name }}/browse{{ .request.url.query.path }}
   params:
-    limit: '{{ or .request.url.query.limit 25 }}'
+    limit: '{{ or .request.url.query.limit 100 }}'
     offset: '{{ or .request.url.query.offset 0 }}'
     sort:   '{{ .request.url.query.sort }}'
   optional: true
@@ -27,7 +27,19 @@ bindings:
     {{ if .bindings.results }}
     <div class="card">
       <div class="card-header">
-        File List
+        <b>File List</b>
+
+        <form class="form-inline pull-right">
+          <div class="form-group">
+            <label for="browseAs">Browse As: </label>
+            <select name="browseAs" class="form-control form-control-sm">
+              <option>Files</option>
+              <option>TV Shows</option>
+              <option>Movies</option>
+              <option>Music</option>
+            </select>
+          </div>
+        </form>
       </div>
 
       {{ if .bindings.results.result_count }}
@@ -50,7 +62,13 @@ bindings:
               {{ end }}
             </td>
             <td>{{ .fields.file.extension }}</td>
-            <td>{{ .fields.file.size }}</td>
+            <td>
+              {{ if .fields.file.size }}
+              {{   Autobyte .fields.file.size "%.f" }}
+              {{ else }}
+              &ndash;
+              {{ end }}
+            </td>
           </tr>
           {{ end }}
         </tbody>

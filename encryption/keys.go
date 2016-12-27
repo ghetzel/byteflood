@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-var log = logging.MustGetLogger(`byteflood.codecs`)
+var log = logging.MustGetLogger(`byteflood/encryption`)
 
 func LoadKeyfiles(publicKeyPath string, privateKeyPath string) ([]byte, []byte, error) {
 	var publicKey []byte
