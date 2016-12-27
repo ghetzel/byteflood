@@ -30,7 +30,7 @@ type RemotePeer struct {
 	Decrypter             *encryption.Decrypter `json:"-"`
 	HeartbeatInterval     time.Duration
 	HeartbeatAckTimeout   time.Duration
-	messageFn MessageHandler
+	messageFn             MessageHandler
 	inboundTransfer       *Transfer
 	connection            *net.TCPConn
 	publicKey             []byte
@@ -41,7 +41,7 @@ type RemotePeer struct {
 	badMessageCount       int
 	originalRequest       *PeeringRequest
 	messagesAwaitingReply map[uuid.UUID]chan *Message
-	messageReplyLock      sync.Mutex
+	messageReplyLock      sync.RWMutex
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
@@ -60,7 +60,7 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 }
 
 func (self *RemotePeer) SetMessageHandler(handler MessageHandler) {
-	self.messageFn  = handler
+	self.messageFn = handler
 }
 
 func (self *RemotePeer) GetPublicKey() []byte {
@@ -258,7 +258,11 @@ func (self *RemotePeer) SendMessageChecked(message *Message, timeout time.Durati
 }
 
 func (self *RemotePeer) ClearMessageReply(message *Message) {
-	if _, ok := self.messagesAwaitingReply[message.ID]; ok {
+	self.messageReplyLock.RLock()
+	_, ok := self.messagesAwaitingReply[message.ID]
+	self.messageReplyLock.RUnlock()
+
+	if ok {
 		self.messageReplyLock.Lock()
 		delete(self.messagesAwaitingReply, message.ID)
 		self.messageReplyLock.Unlock()
@@ -352,7 +356,7 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 			if message != nil && self.messageFn != nil {
 				self.messageFn(message)
 			}
-		}else{
+		} else {
 			return err
 		}
 	}
@@ -459,7 +463,11 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 		}
 
 		// if this message ID is being waited on, dispatch it
-		if replyChan, ok := self.messagesAwaitingReply[message.ID]; ok {
+		self.messageReplyLock.RLock()
+		replyChan, ok := self.messagesAwaitingReply[message.ID]
+		self.messageReplyLock.RUnlock()
+
+		if ok {
 			select {
 			case replyChan <- message:
 			default:
@@ -469,7 +477,6 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 				// nobody was waiting, we'll do it.
 				self.ClearMessageReply(message)
 			}
-
 		}
 
 		return message, nil

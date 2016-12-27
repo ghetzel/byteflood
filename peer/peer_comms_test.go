@@ -119,7 +119,7 @@ func TestPeerCheckedTransfer(t *testing.T) {
 	assert.Equal(1, len(p1))
 	peer1fromPeer2 := p1[0]
 	assert.NotNil(peer1fromPeer2)
-	peer1fromPeer2.SetMessageHandler(func(message *Message){
+	peer1fromPeer2.SetMessageHandler(func(message *Message) {
 		messages = append(messages, message)
 	})
 
