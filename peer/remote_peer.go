@@ -247,7 +247,7 @@ func (self *RemotePeer) SendMessageChecked(message *Message, timeout time.Durati
 	if _, err := self.SendMessage(message); err == nil {
 		select {
 		case reply := <-replyChan:
-			log.Debugf("[%s] Recevied reply to message %v(%v): %v", self.String(), message.Type, message.ID, reply.Type)
+			// log.Debugf("[%s] Recevied reply to message %v(%v): %v", self.String(), message.Type, message.ID, reply.Type)
 			return reply, nil
 		case <-time.After(timeout):
 			return nil, fmt.Errorf("Timed out waiting for reply to message %v", message.ID)
