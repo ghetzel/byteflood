@@ -2,92 +2,46 @@
 page:
     title: Shares
 bindings:
-- name: shares
-  resource: :/api/shares
-- name: results
-  resource: :/api/shares/{{ .request.url.query.name }}/browse{{ .request.url.query.path }}
-  params:
-    limit: '{{ or .request.url.query.limit 100 }}'
-    offset: '{{ or .request.url.query.offset 0 }}'
-    sort:   '{{ .request.url.query.sort }}'
-  optional: true
+- name: peers
+  resource: :/api/peers
 ---
+{{ $session := or .request.url.query.session `` }}
+{{ $view := or .request.url.query.view `files` }}
 {{ $share := or .request.url.query.name `` }}
+{{ $path := or .request.url.query.path `` }}
 <div class="col-md-2">
-    <ul class="nav nav-pills nav-stacked">
-        {{ range .bindings.shares }}
+    <ul class="nav bf-nav-tree">
         <li class="nav-item">
-            <a class="nav-link{{ if eq .name $share }} active{{ end }}" href="/shares/?name={{ .name }}">{{ .name }}</a>
+          <span class="bf-nav-tree-title">Local</span>
+          <script type="text/javascript" id="shares-list-local">
+            $(function(){
+              $.get('/shares/_peer_shares', function(data){
+                $('#shares-list-local').replaceWith(data);
+              });
+            })
+          </script>
+        </li>
+        {{ range .bindings.peers }}
+        <li class="nav-item">
+          <span class="bf-nav-tree-title">{{ .name }}</span>
+          <script type="text/javascript" id="shares-list-{{ .session_id }}">
+            $(function(){
+              $.get('/shares/_peer_shares?session={{ .session_id }}', function(data){
+                $('#shares-list-{{ .session_id }}').replaceWith(data);
+              });
+            })
+          </script>
         </li>
         {{ end }}
     </ul>
 </div>
 
 <div class="col-md-10">
-    {{ if .bindings.results }}
-    <div class="card">
-      <div class="card-header">
-        <b>File List</b>
-
-        <form class="form-inline pull-right">
-          <div class="form-group">
-            <label for="browseAs">Browse As: </label>
-            <select name="browseAs" class="form-control form-control-sm">
-              <option>Files</option>
-              <option>TV Shows</option>
-              <option>Movies</option>
-              <option>Music</option>
-            </select>
-          </div>
-        </form>
-      </div>
-
-      {{ if .bindings.results.result_count }}
-      <table class="table table-sm table-striped table-hover">
-        <thead>
-          <tr>
-            <th>File Name</th>
-            <th>Type</th>
-            <th>Size</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{ range .bindings.results.records }}
-          <tr>
-            <td>
-              {{ if .fields.directory }}
-              <a href="/shares/?name={{ $share }}&amp;path={{ .fields.name }}">{{ .fields.file.name }}</a>
-              {{ else }}
-              {{ .fields.file.name }}
-              {{ end }}
-            </td>
-            <td>{{ .fields.file.extension }}</td>
-            <td>
-              {{ if .fields.file.size }}
-              {{   Autobyte .fields.file.size "%.f" }}
-              {{ else }}
-              &ndash;
-              {{ end }}
-            </td>
-          </tr>
-          {{ end }}
-        </tbody>
-      </table>
-
-      <div class="card-footer">
-        <span class="pull-right">
-          Showing {{ len .bindings.results.records }} of {{ .bindings.results.result_count }}
-        </span>
-      </div>
-      {{ else }}
-      <div class="card-block">
-        <p class="card-text">No files match the specified query.</p>
-      </div>
-      {{ end }}
-    </div>
-    {{ else }}
-      <i class="fa fa-reply fa-4x"></i>
-      <h2 class="mt-1">Select a share to browse files...</h2>
-    {{ end }}
-
+  <script type="text/javascript" id="share-browser">
+    $(function(){
+      $.get('/shares/_peer_browse_{{ $view }}?session={{ $session }}&name={{ $share }}&path={{ $path }}', function(data){
+        $('#share-browser').replaceWith(data);
+      });
+    })
+  </script>
 </div>

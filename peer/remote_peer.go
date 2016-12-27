@@ -7,10 +7,12 @@ import (
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/jbenet/go-base58"
+	"github.com/satori/go.uuid"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -19,52 +21,46 @@ var ServiceResponseTimeout = 5 * time.Second
 var DefaultHeartbeatInterval = 1 * time.Second
 var DefaultHeartbeatAckTimeout = 3 * time.Second
 
+type MessageHandler func(*Message)
+
 type RemotePeer struct {
-	Peer                    `json:"-"`
-	Name                    string                `json:"name"`
-	Encrypter               *encryption.Encrypter `json:"-"`
-	Decrypter               *encryption.Decrypter `json:"-"`
-	HeartbeatInterval       time.Duration
-	HeartbeatAckTimeout     time.Duration
-	inboundTransfer         *Transfer
-	connection              *net.TCPConn
-	isWaitingForNextMessage bool
-	messageQueues           map[string]chan *Message
-	publicKey               []byte
-	readLimiter             *util.RateLimitingReadWriter
-	writeLimiter            *util.RateLimitingReadWriter
-	heartbeatCount          int
-	lastSeenAt              time.Time
-	badMessageCount         int
-	originalRequest         *PeeringRequest
+	Peer                  `json:"-"`
+	Name                  string                `json:"name"`
+	Encrypter             *encryption.Encrypter `json:"-"`
+	Decrypter             *encryption.Decrypter `json:"-"`
+	HeartbeatInterval     time.Duration
+	HeartbeatAckTimeout   time.Duration
+	messageFn MessageHandler
+	inboundTransfer       *Transfer
+	connection            *net.TCPConn
+	publicKey             []byte
+	readLimiter           *util.RateLimitingReadWriter
+	writeLimiter          *util.RateLimitingReadWriter
+	heartbeatCount        int
+	lastSeenAt            time.Time
+	badMessageCount       int
+	originalRequest       *PeeringRequest
+	messagesAwaitingReply map[uuid.UUID]chan *Message
+	messageReplyLock      sync.Mutex
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
 	if err := request.Validate(); err == nil {
 		return &RemotePeer{
-			HeartbeatInterval:   DefaultHeartbeatInterval,
-			HeartbeatAckTimeout: DefaultHeartbeatAckTimeout,
-			publicKey:           request.PublicKey,
-			connection:          connection,
-			originalRequest:     request,
-			messageQueues: map[string]chan *Message{
-				Acknowledgment.String():  make(chan *Message),
-				DataStart.String():       make(chan *Message),
-				DataProceed.String():     make(chan *Message),
-				DataBlock.String():       make(chan *Message),
-				DataTerminate.String():   make(chan *Message),
-				DataFinalize.String():    make(chan *Message),
-				DataFailed.String():      make(chan *Message),
-				ServiceRequest.String():  make(chan *Message),
-				ServiceResponse.String(): make(chan *Message),
-				Heartbeat.String():       make(chan *Message),
-				HeartbeatAck.String():    make(chan *Message),
-				``: make(chan *Message),
-			},
+			HeartbeatInterval:     DefaultHeartbeatInterval,
+			HeartbeatAckTimeout:   DefaultHeartbeatAckTimeout,
+			publicKey:             request.PublicKey,
+			connection:            connection,
+			originalRequest:       request,
+			messagesAwaitingReply: make(map[uuid.UUID]chan *Message),
 		}, nil
 	} else {
 		return nil, err
 	}
+}
+
+func (self *RemotePeer) SetMessageHandler(handler MessageHandler) {
+	self.messageFn  = handler
 }
 
 func (self *RemotePeer) GetPublicKey() []byte {
@@ -114,15 +110,11 @@ func (self *RemotePeer) ServiceRequest(method string, path string, body io.Reade
 		buffer := bytes.NewBuffer(nil)
 
 		if err := request.Write(buffer); err == nil {
-			if _, err := self.SendMessage(NewMessage(ServiceRequest, buffer.Bytes())); err == nil {
-				if message, err := self.WaitNextMessageByType(ServiceResponseTimeout, ServiceResponse); err == nil {
-					responseBuffer := bytes.NewBuffer(message.Data)
+			if message, err := self.SendMessageChecked(NewMessage(ServiceRequest, buffer.Bytes()), ServiceResponseTimeout); err == nil {
+				responseBuffer := bytes.NewBuffer(message.Data)
 
-					if response, err := http.ReadResponse(bufio.NewReader(responseBuffer), request); err == nil {
-						return response, nil
-					} else {
-						return nil, err
-					}
+				if response, err := http.ReadResponse(bufio.NewReader(responseBuffer), request); err == nil {
+					return response, nil
 				} else {
 					return nil, err
 				}
@@ -172,13 +164,9 @@ func (self *RemotePeer) getWriteRateLimiter(w io.Writer) io.Writer {
 // Run a continuous periodic heartbeat to ensure remote peer connection is available
 func (self *RemotePeer) Heartbeat() error {
 	if outMessage, err := NewMessageEncoded(Heartbeat, self.heartbeatCount, BinaryLEUint64); err == nil {
-		if _, err := self.SendMessage(outMessage); err != nil {
-			if _, err := self.WaitNextMessageByType(self.HeartbeatAckTimeout, HeartbeatAck); err == nil {
-				self.heartbeatCount += 1
-				return nil
-			} else {
-				return err
-			}
+		if _, err := self.SendMessageChecked(outMessage, self.HeartbeatAckTimeout); err == nil {
+			self.heartbeatCount += 1
+			return nil
 		} else {
 			return err
 		}
@@ -215,36 +203,6 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 	}
 }
 
-// Blocks until the next message is received and returns that message.  If timeout > 0, an
-// error will be returned if no message is received within that duration.
-//
-func (self *RemotePeer) WaitNextMessage(timeout time.Duration) (*Message, error) {
-	return self.WaitNextMessageByType(timeout, NullMessage)
-}
-
-func (self *RemotePeer) WaitNextMessageByType(timeout time.Duration, messageType MessageType) (*Message, error) {
-	self.isWaitingForNextMessage = true
-	var message *Message
-	var err error
-
-	if q, ok := self.messageQueues[messageType.String()]; ok {
-		if timeout != 0 {
-			select {
-			case message = <-q:
-			case <-time.After(timeout):
-				err = fmt.Errorf("Timed out waiting for next message")
-			}
-		} else {
-			message = <-q
-		}
-	} else {
-		err = fmt.Errorf("Invalid message queue for message type %q", messageType.String())
-	}
-
-	self.isWaitingForNextMessage = false
-	return message, err
-}
-
 // Sends a message packet to this peer.
 //
 func (self *RemotePeer) SendMessage(message *Message) (int, error) {
@@ -274,6 +232,36 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 		}
 	} else {
 		return 0, err
+	}
+}
+
+func (self *RemotePeer) SendMessageChecked(message *Message, timeout time.Duration) (*Message, error) {
+	replyChan := make(chan *Message)
+	self.messageReplyLock.Lock()
+	message.ID = uuid.NewV4()
+	self.messagesAwaitingReply[message.ID] = replyChan
+	self.messageReplyLock.Unlock()
+
+	defer self.ClearMessageReply(message)
+
+	if _, err := self.SendMessage(message); err == nil {
+		select {
+		case reply := <-replyChan:
+			log.Debugf("[%s] Recevied reply to message %v(%v): %v", self.String(), message.Type, message.ID, reply.Type)
+			return reply, nil
+		case <-time.After(timeout):
+			return nil, fmt.Errorf("Timed out waiting for reply to message %v", message.ID)
+		}
+	} else {
+		return nil, err
+	}
+}
+
+func (self *RemotePeer) ClearMessageReply(message *Message) {
+	if _, ok := self.messagesAwaitingReply[message.ID]; ok {
+		self.messageReplyLock.Lock()
+		delete(self.messagesAwaitingReply, message.ID)
+		self.messageReplyLock.Unlock()
 	}
 }
 
@@ -360,7 +348,11 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 	defer localPeer.RemovePeer(self.SessionID())
 
 	for {
-		if _, err := self.ReceiveMessagesIterate(localPeer); err != nil {
+		if message, err := self.ReceiveMessagesIterate(localPeer); err == nil {
+			if message != nil && self.messageFn != nil {
+				self.messageFn(message)
+			}
+		}else{
 			return err
 		}
 	}
@@ -392,9 +384,10 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 				//       based on a to-be-determined file receive policy
 
 				// give peer the go-ahead to start writing data
-				_, err = self.SendMessage(NewMessage(DataProceed, nil))
+				_, err = self.SendMessage(NewMessageReply(message.ID, DataProceed, nil))
 			} else {
 				if m, err := NewMessageEncoded(DataTerminate, "A transfer is already in progress with this peer", StringEncoding); err == nil {
+					m.ID = message.ID
 					_, replyErr = self.SendMessage(m)
 				} else {
 					replyErr = err
@@ -444,7 +437,11 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 			responseBuffer := bytes.NewBuffer(nil)
 
 			if err := localPeer.PeerServer().HandleRequest(self, responseBuffer, message.Data); err == nil {
-				_, replyErr = self.SendMessage(NewMessage(ServiceResponse, responseBuffer.Bytes()))
+				_, replyErr = self.SendMessage(NewMessageReply(
+					message.ID,
+					ServiceResponse,
+					responseBuffer.Bytes(),
+				))
 			} else {
 				replyErr = err
 			}
@@ -461,21 +458,18 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 			log.Errorf("[%s] Send reply failed: %v", self.String(), replyErr)
 		}
 
-		if self.isWaitingForNextMessage {
-			anyQueue, _ := self.messageQueues[``]
-
+		// if this message ID is being waited on, dispatch it
+		if replyChan, ok := self.messagesAwaitingReply[message.ID]; ok {
 			select {
-			case anyQueue <- message:
-				log.Debugf("[%s] MSGQ: Dispatching %s to ANY queue", self.String(), message.Type.String())
+			case replyChan <- message:
 			default:
+				log.Warningf("[%s] Message contained a reply nobody was waiting for", self.String())
+
+				// it is normally the caller's responsibility to cleanup the message, but since
+				// nobody was waiting, we'll do it.
+				self.ClearMessageReply(message)
 			}
 
-			typeQueue, _ := self.messageQueues[message.Type.String()]
-			select {
-			case typeQueue <- message:
-				log.Debugf("[%s] MSGQ: Dispatching %s to typed queue", self.String(), message.Type.String())
-			default:
-			}
 		}
 
 		return message, nil

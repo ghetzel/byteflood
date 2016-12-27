@@ -36,19 +36,15 @@ func NewOutboundTransfer(peer *RemotePeer, size int) *OutboundTransfer {
 func (self *OutboundTransfer) Initialize() error {
 	// encode and send the transfer start header
 	if message, err := NewMessageEncoded(DataStart, self.ExpectedSize, BinaryLEUint64); err == nil {
-		if _, err := self.peer.SendMessage(message); err == nil {
-			// transfers are answered with a go/no-go reply
-			if message, err := self.peer.WaitNextMessage(TransferGoNoGoReplyTimeout); err == nil {
-				switch message.Type {
-				case DataProceed:
-					return nil
-				case DataTerminate:
-					return fmt.Errorf("Remote peer refused transfer: %v", message.Value())
-				default:
-					return fmt.Errorf("Remote peer sent an invalid reply: %s", message.Type.String())
-				}
-			} else {
-				return err
+		// transfers are answered with a go/no-go reply
+		if message, err := self.peer.SendMessageChecked(message, TransferGoNoGoReplyTimeout); err == nil {
+			switch message.Type {
+			case DataProceed:
+				return nil
+			case DataTerminate:
+				return fmt.Errorf("Remote peer refused transfer: %v", message.Value())
+			default:
+				return fmt.Errorf("Remote peer sent an invalid reply: %s", message.Type.String())
 			}
 		} else {
 			return err

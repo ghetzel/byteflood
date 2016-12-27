@@ -86,12 +86,8 @@ func _TestPeerSmallTransfer(t *testing.T) {
 
 	assert.NotNil(peer1fromPeer2)
 
-	// peer1 sends 0x42 to peer2
-	_, err = peer2fromPeer1.SendMessage(NewMessage(DataBlock, []byte{0x42}))
-	assert.Nil(err)
-
-	// peer2 receives 0x42 from peer1
-	msg, err := peer1fromPeer2.WaitNextMessage(time.Second)
+	// peer1 sends 0x42 to peer2, peer2 receives 0x42 reply from peer1
+	msg, err := peer2fromPeer1.SendMessageChecked(NewMessage(DataBlock, []byte{0x42}), time.Second)
 	assert.Nil(err)
 	assert.NotNil(msg)
 	assert.Equal([]byte{0x42}, msg.Data)
@@ -101,15 +97,16 @@ func _TestPeerSmallTransfer(t *testing.T) {
 	assert.Nil(err)
 
 	// peer1 receives 0x41 from peer2
-	msg, err = peer2fromPeer1.WaitNextMessage(time.Second)
-	assert.Nil(err)
-	assert.NotNil(msg)
-	assert.Equal([]byte{0x41}, msg.Data)
+	// msg, err = peer2fromPeer1.WaitNextMessage(time.Second)
+	// assert.Nil(err)
+	// assert.NotNil(msg)
+	// assert.Equal([]byte{0x41}, msg.Data)
 }
 
 func TestPeerCheckedTransfer(t *testing.T) {
 	assert := require.New(t)
 	peer1, peer2 := makePeerPair()
+	messages := make([]*Message, 0)
 
 	// peer1 connects to peer2
 	peer2fromPeer1, err := peer1.ConnectTo(peer2.Address)
@@ -121,8 +118,10 @@ func TestPeerCheckedTransfer(t *testing.T) {
 	p1 := peer2.GetPeersByKey(peer1.GetPublicKey())
 	assert.Equal(1, len(p1))
 	peer1fromPeer2 := p1[0]
-
 	assert.NotNil(peer1fromPeer2)
+	peer1fromPeer2.SetMessageHandler(func(message *Message){
+		messages = append(messages, message)
+	})
 
 	// this is the data we want to send
 	data := make([]byte, 2048)
@@ -135,26 +134,28 @@ func TestPeerCheckedTransfer(t *testing.T) {
 		assert.Nil(err)
 	}()
 
+	time.Sleep(time.Second)
+
+	assert.Equal(3, len(messages))
+
 	var header, block, trailer *Message
 
-	// peer2: receive the header
-	header, err = peer1fromPeer2.WaitNextMessageByType(3*time.Second, DataStart)
-	assert.Nil(err)
+	header = messages[0]
+	block = messages[1]
+	trailer = messages[2]
+
+	// peer2: verify the header
 	assert.NotNil(header)
 	assert.Equal(DataStart, header.Type)
 	assert.Equal(BinaryLEUint64, header.Encoding)
 	assert.Equal(uint64(len(data)), header.Value())
 
-	// peer2: iterate to receive data block, trailer, and final ack
-	block, err = peer1fromPeer2.WaitNextMessageByType(3*time.Second, DataBlock)
-	assert.Nil(err)
+	// peer2: validate data block, trailer, and final ack
 	assert.NotNil(block)
 	assert.Equal(DataBlock, block.Type)
 	assert.Equal(RawEncoding, block.Encoding)
 	assert.Equal(2048, len(block.Data))
 
-	trailer, err = peer1fromPeer2.WaitNextMessageByType(3*time.Second, DataFinalize)
-	assert.Nil(err)
 	assert.NotNil(trailer)
 	assert.Equal(DataFinalize, trailer.Type)
 	assert.Equal(RawEncoding, trailer.Encoding)

@@ -17,3 +17,38 @@ body > .navbar.bg-inverse {
 body > .navbar .navbar-brand {
     margin-right: 1.5em;
 }
+
+.bf-nav-tree > li {
+    margin-left: 0;
+}
+
+.bf-nav-tree .nav-link {
+    border-radius: 4px;
+    width: 100%;
+    padding: 4px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+    padding-left: 0.5em;
+}
+
+.bf-nav-tree .nav-link:hover {
+    background-color: rgba(0,0,0,.075);
+}
+
+.bf-nav-tree .nav-link.active {
+    background-color: #0275d8;
+    color: white;
+    font-weight: bold;
+}
+
+.bf-nav-tree .bf-nav-tree-title {
+    font-weight: bold;
+}
+
+.bf-nav-tree > .nav-item:not(:first-child) {
+    margin-top: 1em;
+}
+
+.bf-nav-tree > li li {
+    margin-left: 1em;
+}

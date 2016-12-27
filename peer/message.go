@@ -3,6 +3,7 @@ package peer
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/satori/go.uuid"
 	"github.com/vmihailenco/msgpack"
 	"io"
 	"reflect"
@@ -70,6 +71,7 @@ func (self MessageType) String() string {
 
 type Message struct {
 	io.Reader
+	ID             uuid.UUID
 	Type           MessageType
 	Encoding       MessageEncoding
 	Data           []byte
@@ -79,6 +81,14 @@ type Message struct {
 
 func NewMessage(mt MessageType, data []byte) *Message {
 	return &Message{
+		Type: mt,
+		Data: data,
+	}
+}
+
+func NewMessageReply(id uuid.UUID, mt MessageType, data []byte) *Message {
+	return &Message{
+		ID:   id,
 		Type: mt,
 		Data: data,
 	}
