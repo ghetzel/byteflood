@@ -10,14 +10,15 @@ import (
 )
 
 type Transfer struct {
-	ID               uuid.UUID
-	Peer             *RemotePeer
-	ExpectedSize     uint64
-	BytesReceived    uint64
-	ExpectedChecksum []byte
-	ActualChecksum   []byte
+	ID               uuid.UUID   `json:"id"`
+	Peer             *RemotePeer `json:"peer"`
+	ExpectedSize     uint64      `json:"expected_size"`
+	BytesReceived    uint64      `json:"bytes_received"`
+	ExpectedChecksum []byte      `json:"expected_checksum"`
+	ActualChecksum   []byte      `json:"checksum"`
 	hasher           hash.Hash
 	destination      io.Writer
+	finished         bool
 	completed        chan error
 }
 
@@ -36,7 +37,13 @@ func (self *Transfer) SetWriter(w io.Writer) {
 }
 
 func (self *Transfer) Wait() error {
-	return <-self.completed
+	err := <-self.completed
+	self.finished = true
+	return err
+}
+
+func (self *Transfer) IsFinished() bool {
+	return self.finished
 }
 
 func (self *Transfer) Write(p []byte) (int, error) {

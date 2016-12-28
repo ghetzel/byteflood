@@ -58,6 +58,7 @@ func main() {
 
 		if level, err := logging.LogLevel(c.String(`log-level`)); err == nil {
 			logging.SetLevel(level, ``)
+			logging.SetLevel(logging.INFO, `diecast`)
 		} else {
 			return err
 		}
@@ -166,7 +167,7 @@ func main() {
 				cli.StringFlag{
 					Name: `db`,
 					Usage: `Query the named database`,
-					Value: db.DefaultMetadataCollectionName,
+					Value: db.MetadataCollectionName,
 				},
 			},
 			Action: func(c *cli.Context) {
@@ -214,7 +215,7 @@ func main() {
 					log.Fatal(err)
 				}
 			},
-		}, {
+		},{
 			Name: `call`,
 			Usage: `Perform an HTTP call against the Byteflood API`,
 			Flags: []cli.Flag{
@@ -297,7 +298,9 @@ func main() {
 						log.Debugf("  %s = %s", k, strings.Join(v, `, `))
 					}
 
-					if data, err := client.ParseResponse(response); err == nil && data != nil {
+					data, _ := client.ParseResponse(response)
+
+					if data != nil {
 						printWithFormat(c.String(`format`), data, func(){
 							fmt.Printf("%v\n", data)
 						})

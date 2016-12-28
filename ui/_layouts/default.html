@@ -12,13 +12,39 @@
     <script src="/js/jquery.min.js" integrity="sha384-3ceskX3iaEnIogmQchP8opvBy3Mi7Ce34nWjpBIwVTHfGYWQS9jwHDVRnpKKHJg7" crossorigin="anonymous"></script>
     <script src="/js/tether.min.js" integrity="sha384-XTs3FgkjiBgo8qjEjBk0tGmf3wPrWtA6coPfQDfFEY8AnYJwjalXCiosYRBIBZX8" crossorigin="anonymous"></script>
     <script src="/js/bootstrap.min.js" integrity="sha384-BLiI7JTZm+JWlgKa0M0kGRpJbF2J8q+qreVrKBC47e3K6BW78kGLrCkeRX6I9RoK" crossorigin="anonymous"></script>
+    <script src="/js/stapes.min.js" integrity="sha384-l+Z/WtSkegBMMzrBOVlkaXa+1kXdJSBKmuhw0t6VTyan4gzqm+L/Nd5BS+kik166" crossorigin="anonymous"></script>
+    <script src="/js/bootstrap-notify.min.js" integrity="sha384-Qnyy4lkYCL9J8NhIWAT7bMPccirUwfiBj7PLqr1ZBlSSJ0+A2XDB0UlqZcg+0VGS" crossorigin="anonymous"></script>
 
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="/css/bootstrap.min.css" integrity="sha384-AysaV+vQoT3kOAXZkl02PThvDr8HYKPZhNT5h/CXfBThSRXQ6jW5DO2ekP5ViFdi" crossorigin="anonymous">
-    <link rel="stylesheet" href="/css/app.css">
     <link rel="stylesheet" href="/css/font-awesome.min.css" integrity="sha384-oZMfhCtQRrSYbsX24SR/ieTzAUPm2W17TOVtEMqi/t72HLoBATmm7J82ezlfk7j5" crossorigin="anonymous">
+    <link rel="stylesheet" href="/css/app.css">
 
     <title>Byteflood{{ if .page.title }} :: {{ .page.title }}{{ end }}</title>
+
+    <script type="text/javascript">
+      $(function(){
+        var Byteflood = Stapes.subclass({
+          notify: function(message, type, details, config){
+            $.notify($.extend(details, {
+              'message': message,
+            }), $.extend(config, {
+              'type': (type || 'info'),
+            }));
+          },
+          queueFileForDownload: function(session, file_id) {
+            $.ajax('/api/queue/'+session+'/'+file_id, {
+              method: 'POST',
+              success: function(){
+                this.notify('File '+file_id+' has been queued for download.');
+              }.bind(this),
+            });
+          }
+        });
+
+        window.byteflood = new Byteflood();
+      });
+    </script>
   </head>
   <body>
     <nav class="navbar navbar-dark navbar-static-top bg-inverse ">

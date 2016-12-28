@@ -35,6 +35,7 @@ bindings:
         <th>File Name</th>
         <th>Type</th>
         <th>Size</th>
+        <th>&nbsp;</th>
       </tr>
     </thead>
     <tbody>
@@ -53,6 +54,13 @@ bindings:
           {{   Autobyte .fields.file.size "%.f" }}
           {{ else }}
           &ndash;
+          {{ end }}
+        </td>
+        <td>
+          {{ if not .fields.directory }}
+          <a onclick="byteflood.queueFileForDownload('{{ $session }}', '{{ .id }}');">
+            <i class="fa fa-fw fa-plus"></i>
+          </a>
           {{ end }}
         </td>
       </tr>

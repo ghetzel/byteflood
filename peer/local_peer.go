@@ -57,6 +57,7 @@ type LocalPeer struct {
 	EnableUpnp           bool          `json:"upnp,omitempty"`
 	Address              string        `json:"address,omitempty"`
 	KnownPeers           KnownPeers    `json:"known_peers"`
+	Autoconnect          bool          `json:"autoconnect"`
 	AutoconnectPeers     []string      `json:"autoconnect_peers,omitempty"`
 	PublicKey            []byte        `json:"-"`
 	PrivateKey           []byte        `json:"-"`
@@ -78,6 +79,7 @@ func NewLocalPeer() *LocalPeer {
 	return &LocalPeer{
 		Address:              DEFAULT_PEER_SERVER_ADDRESS,
 		KnownPeers:           make(KnownPeers),
+		Autoconnect:          true,
 		EnableUpnp:           false,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
@@ -409,9 +411,24 @@ func (self *LocalPeer) GetPeers() []*RemotePeer {
 	return peers
 }
 
-func (self *LocalPeer) GetPeer(sessionId string) (*RemotePeer, bool) {
-	remotePeer, ok := self.sessions[sessionId]
-	return remotePeer, ok
+func (self *LocalPeer) GetPeer(sessionOrName string) (*RemotePeer, bool) {
+	if p, ok := self.sessions[sessionOrName]; ok {
+		return p, true
+	}
+
+	remotePeers := make([]*RemotePeer, 0)
+
+	for _, peer := range self.sessions {
+		if peer.Name == sessionOrName {
+			remotePeers = append(remotePeers, peer)
+		}
+	}
+
+	if len(remotePeers) == 1 {
+		return remotePeers[0], true
+	}
+
+	return nil, false
 }
 
 func (self *LocalPeer) RemovePeer(sessionId string) {
@@ -494,8 +511,10 @@ func (self *LocalPeer) ConnectToAndMonitor(address string) {
 }
 
 func (self *LocalPeer) ConnectToAll() error {
-	for _, peerAddr := range self.AutoconnectPeers {
-		go self.ConnectToAndMonitor(peerAddr)
+	if self.Autoconnect {
+		for _, peerAddr := range self.AutoconnectPeers {
+			go self.ConnectToAndMonitor(peerAddr)
+		}
 	}
 
 	return nil

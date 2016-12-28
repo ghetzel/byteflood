@@ -26,14 +26,19 @@ type Application struct {
 	PrivateKeyPath string              `json:"private_key,omitempty"`
 	KnownPeers     map[string][]string `json:"known_peers,omitempty"`
 	Shares         []*shares.Share     `json:"shares,omitempty"`
+	Queue          *DownloadQueue      `json:"queue"`
 	API            *API                `json:"api,omitempty"`
+	running        chan bool
 }
 
 func NewApplicationFromConfig(configFile string) (*Application, error) {
 	app := &Application{
 		LocalPeer: peer.NewLocalPeer(),
 		Database:  db.NewDatabase(),
+		running:   make(chan bool),
 	}
+
+	app.Queue = NewDownloadQueue(app)
 
 	if configFilePath, err := pathutil.ExpandUser(configFile); err == nil {
 		if file, err := os.Open(configFilePath); err == nil {
@@ -145,6 +150,11 @@ func (self *Application) Run() error {
 	// start local API server
 	go func() {
 		errchan <- self.API.Serve()
+	}()
+
+	// start processing the download queue
+	go func() {
+		self.Queue.DownloadAll()
 	}()
 
 	log.Debugf("APP:\n%+v\n", self.String())

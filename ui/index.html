@@ -1,45 +1,80 @@
 ---
 page:
-  title: Home
-  hide_title: true
+    title: Download Queue
+    refresh: 3
 bindings:
-- name: peers
-  resource: :/api/peers
+- name: queue
+  resource: :/api/queue
 ---
-<div class="row">
-  <div class="col-md-3">
-    <div class="card card-outline-primary text-xs-center">
-      <div class="card-block">
-        <h3 class="card-title">{{ len .bindings.peers }} Peers</h3>
-        <p class="card-text">Connected to {{ len .bindings.peers }} peers</p>
-      </div>
-    </div>
+<div class="card">
+  <div class="card-header">
+    Active Downloads
   </div>
 
-  <div class="col-md-3">
-    <div class="card card-outline-success text-xs-center">
-      <div class="card-block">
-        <h3 class="card-title">9.8TB Shared</h3>
-        <p class="card-text">From 7 directories</p>
-      </div>
-    </div>
+  {{ if .bindings.queue.active }}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>File</th>
+        <th>Peer</th>
+        <th>Progress</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .bindings.queue.active }}
+      <tr>
+        <td><i class="fa fa-fw bf-queue-status-{{ .status }}"></i></td>
+        <td>{{ or .metadata.name .file_id }}</td>
+        <td>{{ or .peer .session_id }}</td>
+        <td>
+          <progress class="progress" value="{{ Percent .progress 1.0 }}" max="100"></progress>
+        </td>
+        <td>
+          {{ Percent .progress 1.0 }}% ({{ Autobyte .rate "%.1f" }}/s)
+        </td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+  {{ else }}
+  <div class="card-block">
+    <p class="card-text">There are no active downloads.</p>
   </div>
-
-  <div class="col-md-3">
-    <div class="card card-outline-danger text-xs-center">
-      <div class="card-block">
-        <h3 class="card-title">245,719 Files</h3>
-        <p class="card-text">Currently indexed metadata</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-3">
-    <div class="card card-outline-warning text-xs-center">
-      <div class="card-block">
-        <h3 class="card-title">1.4TB Uploaded</h3>
-        <p class="card-text">Within the past 24 hours</p>
-      </div>
-    </div>
-  </div>
+  {{ end }}
 </div>
+
+<div class="card">
+  <div class="card-header">
+    Download History
+  </div>
+
+  {{ if .bindings.queue.completed }}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>File</th>
+        <th>Peer</th>
+        <th>Size</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .bindings.queue.completed }}
+      <tr>
+        <td><i class="fa fa-fw bf-queue-status-{{ .status }}"></i></td>
+        <td>{{ or .metadata.name .file_id }}</td>
+        <td>{{ or .peer .session_id }}</td>
+        <td>{{ Autobyte .metadata.file.size "%.2f" }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+  {{ else }}
+  <div class="card-block">
+    <p class="card-text">There are no completed downloads.</p>
+  </div>
+  {{ end }}
+</div>
+

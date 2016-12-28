@@ -17,9 +17,9 @@ import (
 )
 
 var BadMessageThreshold = 10
-var ServiceResponseTimeout = 5 * time.Second
-var DefaultHeartbeatInterval = 1 * time.Second
-var DefaultHeartbeatAckTimeout = 3 * time.Second
+var ServiceResponseTimeout = 10 * time.Second
+var DefaultHeartbeatInterval = 10 * time.Second
+var DefaultHeartbeatAckTimeout = 10 * time.Second
 
 type MessageHandler func(*Message)
 
@@ -290,6 +290,7 @@ func (self *RemotePeer) GetInboundTransfer(id uuid.UUID) (*Transfer, bool) {
 
 // Removes an inbound transfer by ID in a thread safe manner.
 func (self *RemotePeer) RemoveInboundTransfer(id uuid.UUID) {
+	log.Debugf("[%v] Transfer %v completed", self, id)
 	self.inboundTransferLock.Lock()
 	delete(self.inboundTransfers, id)
 	self.inboundTransferLock.Unlock()
@@ -341,11 +342,12 @@ func (self *RemotePeer) TransferData(id uuid.UUID, data []byte) error {
 // Transfers the given filename to the peer.
 //
 func (self *RemotePeer) TransferFile(id uuid.UUID, path string) error {
-	log.Debugf("Transferring %s via transfer ID %v", path, id)
 
 	if file, err := os.Open(path); err == nil {
 		if stat, err := file.Stat(); err == nil {
 			if transfer, err := self.CreateOutboundTransfer(id, uint64(stat.Size())); err == nil {
+				log.Debugf("Transferring %s (%d bytes) via transfer ID %v", path, stat.Size(), id)
+
 				if _, err := io.Copy(transfer, file); err == nil {
 					return transfer.Close()
 				} else {
@@ -538,7 +540,7 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 
 		return nil, io.EOF
 	} else {
-		log.Errorf("error receiving message: %v", err)
+		log.Errorf("[%v] message error (%d/%d): %v", self, self.badMessageCount, BadMessageThreshold, err)
 		self.badMessageCount += 1
 
 		if self.badMessageCount >= BadMessageThreshold {

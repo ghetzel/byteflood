@@ -52,3 +52,24 @@ body > .navbar .navbar-brand {
 .bf-nav-tree > li li {
     margin-left: 1em;
 }
+
+
+.bf-queue-status-idle:before {
+    content: '\f1db'; /* circle-thin */
+}
+
+.bf-queue-status-loaded:before {
+    content: '\f141'; /* fa-ellipsis-h */
+}
+
+.bf-queue-status-downloading:before {
+    content: '\f019'; /* fa-download */
+}
+
+.bf-queue-status-completed:before {
+    content: '\f00c'; /* fa=check */
+}
+
+.bf-queue-status-failed:before {
+    content: '\f071'; /* fa-exclamation-triangle */
+}

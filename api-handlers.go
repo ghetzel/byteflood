@@ -3,8 +3,7 @@ package byteflood
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ghetzel/go-stockutil/stringutil"
-	"github.com/ghetzel/pivot/dal"
+	"github.com/ghetzel/byteflood/db"
 	"github.com/julienschmidt/httprouter"
 	"github.com/satori/go.uuid"
 	"io"
@@ -22,8 +21,35 @@ func (self *API) handleGetConfig(w http.ResponseWriter, req *http.Request, param
 	Respond(w, self.application)
 }
 
+func (self *API) handleGetQueue(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	Respond(w, self.application.Queue)
+}
+
+func (self *API) handleEnqueueFile(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	self.application.Queue.Add(params.ByName(`peer`), params.ByName(`file`))
+	http.Error(w, ``, http.StatusNoContent)
+}
+
+func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	if download, err := self.application.Queue.Download(params.ByName(`peer`), params.ByName(`file`)); err == nil {
+		Respond(w, download)
+	} else if os.IsExist(err) {
+		http.Error(w, err.Error(), http.StatusConflict)
+	} else {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 func (self *API) handleGetDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	Respond(w, self.application.Database)
+}
+
+func (self *API) handleGetDatabaseItem(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	if record, err := self.application.Database.RetrieveRecord(params.ByName(`id`)); err == nil {
+		Respond(w, record)
+	} else {
+		http.Error(w, err.Error(), http.StatusNotFound)
+	}
 }
 
 func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
@@ -34,7 +60,7 @@ func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request, p
 			f.Sort = sort
 
 			if recordset, err := self.application.Database.Query(
-				self.application.Database.MetadataCollectionName,
+				db.MetadataCollectionName,
 				f,
 			); err == nil {
 				Respond(w, recordset)
@@ -182,27 +208,6 @@ func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, par
 	}
 }
 
-func (self *API) handleLocalStreamFileById(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
-		if record, err := share.Get(params.ByName(`file`)); err == nil {
-			if absPath, err := share.GetFilePath(params.ByName(`file`)); err == nil {
-				if file, err := os.Open(absPath); err == nil {
-					w.Header().Set(`Content-Type`, fmt.Sprintf("%v", record.Get(`file.mime.type`, `application/octet-stream`)))
-					io.Copy(w, file)
-				} else {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-				}
-			} else {
-				http.Error(w, err.Error(), http.StatusNotFound)
-			}
-		} else {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		}
-	} else {
-		http.Error(w, `Not Found`, http.StatusNotFound)
-	}
-}
-
 func (self *API) handleGetPeerStatus(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	if remotePeer, ok := self.application.LocalPeer.GetPeer(req.Header.Get(`X-Byteflood-Session`)); ok {
 		Respond(w, map[string]interface{}{
@@ -218,40 +223,23 @@ func (self *API) handleGetPeerStatus(w http.ResponseWriter, req *http.Request, p
 	}
 }
 
-func (self *API) handleViewFileById(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
-		if record, err := share.Get(params.ByName(`file`)); err == nil {
-			Respond(w, record)
-		} else {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		}
-	} else {
-		http.Error(w, `Not Found`, http.StatusNotFound)
-	}
-}
-
 func (self *API) handleRequestFileFromShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	// get remote peer from proxied request
 	if remotePeer, ok := self.application.LocalPeer.GetPeer(req.Header.Get(`X-Byteflood-Session`)); ok {
-		// get share by name
-		if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
-			// get the absolute filesystem path to the file at :id
-			if absPath, err := share.GetFilePath(params.ByName(`file`)); err == nil {
-				// parse the given :transfer UUID
-				if transferId, err := uuid.FromString(params.ByName(`transfer`)); err == nil {
-					// kick off the transfer on our end
-					// TODO: this should be entered into an upload queue
-					// self.application.QueueUpload(remotePeer, transferId, absPath)
-					go remotePeer.TransferFile(transferId, absPath)
-					http.Error(w, ``, http.StatusNoContent)
-				} else {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-				}
+		// get the absolute filesystem path to the file at :id
+		if absPath, err := self.application.Database.GetFileAbsolutePath(params.ByName(`file`)); err == nil {
+			// parse the given :transfer UUID
+			if transferId, err := uuid.FromString(params.ByName(`transfer`)); err == nil {
+				// kick off the transfer on our end
+				// TODO: this should be entered into an upload queue
+				// self.application.QueueUpload(remotePeer, transferId, absPath)
+				go remotePeer.TransferFile(transferId, absPath)
+				http.Error(w, ``, http.StatusNoContent)
 			} else {
-				http.Error(w, err.Error(), http.StatusNotFound)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 			}
 		} else {
-			http.Error(w, `Not Found`, http.StatusNotFound)
+			http.Error(w, err.Error(), http.StatusNotFound)
 		}
 	} else {
 		http.Error(w, `unknown peer`, http.StatusForbidden)

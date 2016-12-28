@@ -6,6 +6,8 @@ import (
     "time"
     "strings"
     "io"
+    "io/ioutil"
+    "bytes"
     "encoding/json"
     "github.com/op/go-logging"
 )
@@ -71,9 +73,14 @@ func ParseResponse(response *http.Response) (map[string]interface{}, error) {
         return nil, nil
     }
 
-    if err := json.NewDecoder(response.Body).Decode(&rv); err == nil {
+    body, _ := ioutil.ReadAll(response.Body)
+
+    if err := json.NewDecoder(bytes.NewBuffer(body)).Decode(&rv); err == nil {
         return rv, nil
     }else{
-        return nil, err
+        return map[string]interface{}{
+            `body`: strings.TrimSpace(string(body[:])),
+            `error`: err.Error(),
+        }, err
     }
 }

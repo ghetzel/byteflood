@@ -10,7 +10,6 @@ import (
 	"github.com/op/go-logging"
 	"io"
 	"io/ioutil"
-	"os"
 	"strings"
 )
 
@@ -110,7 +109,7 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 			f.Sort = sort
 		}
 
-		return self.metabase.Query(self.metabase.MetadataCollectionName, f)
+		return self.metabase.Query(db.MetadataCollectionName, f)
 	} else {
 		return nil, err
 	}
@@ -118,7 +117,7 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 
 func (self *Share) Get(id string) (*dal.Record, error) {
 	if f, err := self.metabase.ParseFilter(self.GetQuery(fmt.Sprintf("_id=is:%s", id))); err == nil {
-		if recordset, err := self.metabase.Query(self.metabase.MetadataCollectionName, f); err == nil {
+		if recordset, err := self.metabase.Query(db.MetadataCollectionName, f); err == nil {
 			switch len(recordset.Records) {
 			case 1:
 				if recordset.Records[0].ID == id {
@@ -136,22 +135,6 @@ func (self *Share) Get(id string) (*dal.Record, error) {
 		}
 	} else {
 		return nil, err
-	}
-}
-
-func (self *Share) GetFilePath(id string) (string, error) {
-	if record, err := self.Get(id); err == nil {
-		if v := self.metabase.PropertyGet(fmt.Sprintf("metadata.paths.%s", record.ID)); v != nil {
-			if absPath, ok := v.(string); ok {
-				if _, err := os.Stat(absPath); err == nil {
-					return absPath, nil
-				}
-			}
-		}
-
-		return ``, fmt.Errorf("invalid entry")
-	} else {
-		return ``, err
 	}
 }
 

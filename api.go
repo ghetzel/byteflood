@@ -64,6 +64,30 @@ func (self *API) Serve() error {
 
 	ui.AdditionalFunctions = template.FuncMap{
 		`Autobyte`: stringutil.ToByteString,
+		`Percent`: func(value interface{}, args ...interface{}) (string, error) {
+			if v, err := stringutil.ConvertToFloat(value); err == nil {
+				outOf := 100.0
+				format := "%.f"
+
+				if len(args) > 0 {
+					if o, err := stringutil.ConvertToFloat(args[0]); err == nil {
+						outOf = o
+					} else {
+						return ``, err
+					}
+				}
+
+				if len(args) > 1 {
+					format = fmt.Sprintf("%v", args[1])
+				}
+
+				percent := float64((float64(v) / float64(outOf)) * 100.0)
+
+				return fmt.Sprintf(format, percent), nil
+			} else {
+				return ``, err
+			}
+		},
 	}
 
 	// if self.UiDirectory == `embedded` {
@@ -79,25 +103,25 @@ func (self *API) Serve() error {
 
 	router.GET(`/api/status`, self.handleStatus)
 	router.GET(`/api/configuration`, self.handleGetConfig)
+	router.GET(`/api/queue`, self.handleGetQueue)
+	router.POST(`/api/queue/:peer/:file`, self.handleEnqueueFile)
 	router.GET(`/api/db`, self.handleGetDatabase)
+	router.GET(`/api/db/view/:id`, self.handleGetDatabaseItem)
 	router.GET(`/api/db/query/*query`, self.handleQueryDatabase)
 	router.POST(`/api/db/actions/:action`, self.handleActionDatabase)
 	router.GET(`/api/peers`, self.handleGetPeers)
 	router.POST(`/api/peers`, self.handleConnectPeer)
 	router.GET(`/api/peers/:peer`, self.handleGetPeer)
+	router.GET(`/api/peers/:peer/files/:file`, self.handleDownloadFile)
 
 	for _, method := range []string{`GET`, `POST`, `PUT`, `DELETE`, `HEAD`} {
 		router.Handle(method, `/api/peers/:peer/proxy/*path`, self.handleProxyToPeer)
 	}
 
-	router.GET(`/api/peers/:peer/shares/:share/stream/:file`, self.handleRemoteStreamFileById)
-	// router.POST(`/api/peers/:id/shares/:share/enqueue/:id`, self.handleEnqueueFileById)
-
 	router.GET(`/api/shares`, self.handleGetShares)
 	router.GET(`/api/shares/:share`, self.handleGetShare)
 	router.GET(`/api/shares/:share/query/*query`, self.handleQueryShare)
 	router.GET(`/api/shares/:share/browse/*path`, self.handleBrowseShare)
-	router.GET(`/api/shares/:share/stream/:file`, self.handleLocalStreamFileById)
 
 	server.UseHandler(router)
 
@@ -111,12 +135,12 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 	router := httprouter.New()
 
 	router.GET(`/`, self.handleGetPeerStatus)
+	router.GET(`/files/:id`, self.handleGetDatabaseItem)
+	router.POST(`/transfers/:transfer/:file`, self.handleRequestFileFromShare)
 	router.GET(`/shares`, self.handleGetShares)
 	router.GET(`/shares/:share`, self.handleGetShare)
 	router.GET(`/shares/:share/query/*query`, self.handleQueryShare)
 	router.GET(`/shares/:share/browse/*path`, self.handleBrowseShare)
-	router.GET(`/shares/:share/view/:file`, self.handleViewFileById)
-	router.POST(`/shares/:share/transfers/:transfer/:file`, self.handleRequestFileFromShare)
 
 	return router
 }

@@ -8,13 +8,12 @@ import (
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/filter"
 	"github.com/op/go-logging"
+	"os"
 	"time"
 )
 
 var log = logging.MustGetLogger(`byteflood/scanner`)
 
-var DefaultMetadataCollectionName = `metadata`
-var DefaultSystemCollectionName = `byteflood`
 var DefaultGlobalExclusions = []string{
 	`._.DS_Store`,
 	`._.Trashes`,
@@ -26,24 +25,24 @@ var DefaultGlobalExclusions = []string{
 	`Thumbs.db`,
 }
 
+var MetadataCollectionName = `metadata`
+var SubscriptionsCollectionName = `subscriptions`
+var SystemCollectionName = `byteflood`
+
 type Database struct {
-	Directories            []*Directory `json:"directories,omitempty"`
-	URI                    string       `json:"uri,omitempty"`
-	MetadataCollectionName string       `json:"metadata_collection_name,omitempty"`
-	SystemCollectionName   string       `json:"system_collection_name,omitempty"`
-	ScanInProgress         bool         `json:"scan_in_progress"`
-	GlobalExclusions       []string     `json:"global_exclusions,omitempty"`
-	ForceRescan            bool
-	db                     backends.Backend
+	Directories      []*Directory `json:"directories,omitempty"`
+	URI              string       `json:"uri,omitempty"`
+	ScanInProgress   bool         `json:"scan_in_progress"`
+	GlobalExclusions []string     `json:"global_exclusions,omitempty"`
+	ForceRescan      bool
+	db               backends.Backend
 }
 
 func NewDatabase() *Database {
 	return &Database{
-		Directories: make([]*Directory, 0),
-		URI:         `boltdb:///~/.local/share/byteflood/db`,
-		MetadataCollectionName: DefaultMetadataCollectionName,
-		SystemCollectionName:   DefaultSystemCollectionName,
-		GlobalExclusions:       DefaultGlobalExclusions,
+		Directories:      make([]*Directory, 0),
+		URI:              `boltdb:///~/.local/share/byteflood/db`,
+		GlobalExclusions: DefaultGlobalExclusions,
 	}
 }
 
@@ -96,12 +95,12 @@ func (self *Database) Query(collectionName string, f filter.Filter) (*dal.Record
 
 // Return whethere a metadata record with the given ID exists
 func (self *Database) RecordExists(id string) bool {
-	return self.db.Exists(self.MetadataCollectionName, id)
+	return self.db.Exists(MetadataCollectionName, id)
 }
 
 // Retrieve a metadata record by ID
 func (self *Database) RetrieveRecord(id string) (*dal.Record, error) {
-	if record, err := self.db.Retrieve(self.MetadataCollectionName, id); err == nil {
+	if record, err := self.db.Retrieve(MetadataCollectionName, id); err == nil {
 		return record, nil
 	} else {
 		return nil, err
@@ -110,20 +109,20 @@ func (self *Database) RetrieveRecord(id string) (*dal.Record, error) {
 
 // Save a given metadata record
 func (self *Database) PersistRecord(id string, data map[string]interface{}) error {
-	return self.db.Insert(self.MetadataCollectionName, dal.NewRecordSet(
+	return self.db.Insert(MetadataCollectionName, dal.NewRecordSet(
 		dal.NewRecord(id).SetFields(data),
 	))
 }
 
 // Delete metadata records that match the given set of IDs
 func (self *Database) DeleteRecords(ids ...string) error {
-	return self.db.Delete(self.MetadataCollectionName, ids)
+	return self.db.Delete(MetadataCollectionName, ids)
 }
 
 // Query records from the metadata collection
 func (self *Database) QueryMetadata(filterString string) (*dal.RecordSet, error) {
 	if f, err := self.ParseFilter(filterString); err == nil {
-		return self.Query(self.MetadataCollectionName, f)
+		return self.Query(MetadataCollectionName, f)
 	} else {
 		return nil, err
 	}
@@ -132,7 +131,7 @@ func (self *Database) QueryMetadata(filterString string) (*dal.RecordSet, error)
 // Query records from the system data collection
 func (self *Database) QuerySystem(filterString string) (*dal.RecordSet, error) {
 	if f, err := self.ParseFilter(filterString); err == nil {
-		return self.Query(self.SystemCollectionName, f)
+		return self.Query(SystemCollectionName, f)
 	} else {
 		return nil, err
 	}
@@ -162,11 +161,11 @@ func (self *Database) PropertySet(key string, value interface{}, fields ...map[s
 	record.Set(`key`, key)
 	record.Set(`value`, value)
 
-	return self.db.Insert(self.SystemCollectionName, dal.NewRecordSet(record))
+	return self.db.Insert(SystemCollectionName, dal.NewRecordSet(record))
 }
 
 func (self *Database) PropertyGet(key string, fallback ...interface{}) interface{} {
-	if record, err := self.db.Retrieve(self.SystemCollectionName, key); err == nil {
+	if record, err := self.db.Retrieve(SystemCollectionName, key); err == nil {
 		return record.Get(`value`, fallback...)
 	} else {
 		if len(fallback) > 0 {
@@ -174,6 +173,22 @@ func (self *Database) PropertyGet(key string, fallback ...interface{}) interface
 		} else {
 			return nil
 		}
+	}
+}
+
+func (self *Database) GetFileAbsolutePath(id string) (string, error) {
+	if record, err := self.RetrieveRecord(id); err == nil {
+		if v := self.PropertyGet(fmt.Sprintf("metadata.paths.%s", record.ID)); v != nil {
+			if absPath, ok := v.(string); ok {
+				if _, err := os.Stat(absPath); err == nil {
+					return absPath, nil
+				}
+			}
+		}
+
+		return ``, fmt.Errorf("invalid entry")
+	} else {
+		return ``, err
 	}
 }
 
