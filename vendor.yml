@@ -55,6 +55,8 @@ vendors:
   rev: c42d9e0ca023e2198120196f842701bb4c55d7b9
 - path: github.com/julienschmidt/httprouter
   rev: 5dd70ee059943e81987a817fa1a755b11dd119c1
+- path: github.com/oleiade/lane
+  rev: 3053869314bb02cb983dc2205da8ea2abe46fa96
 - path: github.com/onsi/ginkgo
   rev: e185767ab450dd717718019ebe6115112af5c575
 - path: github.com/onsi/gomega

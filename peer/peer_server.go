@@ -68,6 +68,8 @@ func (self *PeerServer) HandleRequest(remotePeer *RemotePeer, w io.Writer, data 
 			request.URL = url
 			request.RequestURI = `` // client complains if this isn't blank
 
+			request.Header.Set(`X-Byteflood-Session`, remotePeer.SessionID())
+
 			log.Debugf("[%s] Got request %s %s, rewrote to %s", remotePeer.String(), request.Method, request.URL.Path, request.URL.String())
 
 			if response, err := http.DefaultClient.Do(request); err == nil {

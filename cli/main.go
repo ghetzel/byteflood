@@ -118,12 +118,14 @@ func main() {
 			Usage: `Scans all configured source directories for changes`,
 			Flags: []cli.Flag{
 				cli.BoolFlag{
-					Name: `quick, q`,
-					Usage: `Only import files not already in the metadata database.`,
+					Name: `force, F`,
+					Usage: `Force a rescan of all file metadata regardless of age.`,
 				},
 			},
 			Action: func(c *cli.Context) {
 				if app, err := createApplication(c); err == nil {
+					app.Database.ForceRescan = c.Bool(`force`)
+
 					if err := app.Scan(c.Args()...); err != nil {
 						log.Fatalf("Failed to scan: %v", err)
 					}

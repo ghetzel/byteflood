@@ -71,10 +71,10 @@ func (self MessageType) String() string {
 
 type Message struct {
 	io.Reader
-	ID             uuid.UUID
 	Type           MessageType
 	Encoding       MessageEncoding
 	Data           []byte
+	GroupID        uuid.UUID
 	actualSize     int
 	actualChecksum []byte
 }
@@ -86,11 +86,11 @@ func NewMessage(mt MessageType, data []byte) *Message {
 	}
 }
 
-func NewMessageReply(id uuid.UUID, mt MessageType, data []byte) *Message {
+func NewGroupedMessage(id uuid.UUID, mt MessageType, data []byte) *Message {
 	return &Message{
-		ID:   id,
-		Type: mt,
-		Data: data,
+		Type:    mt,
+		Data:    data,
+		GroupID: id,
 	}
 }
 

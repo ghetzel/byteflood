@@ -1,0 +1,18 @@
+---
+bindings:
+- name: shares
+  resource: :/api{{ if .request.url.query.session }}/peers/{{ .request.url.query.session }}/proxy{{ end }}/shares
+  params:
+    limit: '{{ or .request.url.query.limit 100 }}'
+    offset: '{{ or .request.url.query.offset 0 }}'
+    sort:   '{{ .request.url.query.sort }}'
+---
+{{ $share := or .request.url.query.name `` }}
+{{ $session := or .request.url.query.session `` }}
+<ul class="nav">
+  {{ range .bindings.shares }}
+  <li class="nav-item">
+      <a class="nav-link{{ if eq .name $share }} active{{ end }}" href="/shares/?session={{ $session }}&amp;name={{ .name }}">{{ .name }}</a>
+  </li>
+  {{ end }}
+</ul>

@@ -136,20 +136,23 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	// get file implementation
 	file := NewFile(name)
 
-	if stat, err := os.Stat(name); err == nil {
-		if record, err := self.db.RetrieveRecord(file.ID()); err == nil {
-			lastModifiedAt := record.Get(`last_modified_at`, int64(0))
+	// unless we're forcing the scan, see if we can skip this file
+	if !self.db.ForceRescan {
+		if stat, err := os.Stat(name); err == nil {
+			if record, err := self.db.RetrieveRecord(file.ID()); err == nil {
+				lastModifiedAt := record.Get(`last_modified_at`, int64(0))
 
-			if epochNs, ok := lastModifiedAt.(int64); ok {
-				if !stat.ModTime().After(time.Unix(0, epochNs)) {
-					return nil, nil
+				if epochNs, ok := lastModifiedAt.(int64); ok {
+					if !stat.ModTime().After(time.Unix(0, epochNs)) {
+						return nil, nil
+					}
 				}
 			}
-		}
 
-		file.Metadata[`last_modified_at`] = stat.ModTime().UnixNano()
-	} else {
-		return nil, err
+			file.Metadata[`last_modified_at`] = stat.ModTime().UnixNano()
+		} else {
+			return nil, err
+		}
 	}
 
 	file.Metadata[`name`] = self.normalizeFileName(file.Name)
@@ -166,6 +169,9 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	if err := self.db.PersistRecord(file.ID(), file.Metadata); err != nil {
 		return nil, err
 	}
+
+	// store the absolute filesystem path separately
+	self.db.PropertySet(fmt.Sprintf("metadata.paths.%s", file.ID()), name)
 
 	return file, nil
 }

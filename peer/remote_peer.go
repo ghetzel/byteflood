@@ -31,7 +31,8 @@ type RemotePeer struct {
 	HeartbeatInterval     time.Duration
 	HeartbeatAckTimeout   time.Duration
 	messageFn             MessageHandler
-	inboundTransfer       *Transfer
+	inboundTransfers      map[uuid.UUID]*Transfer
+	inboundTransferLock   sync.RWMutex
 	connection            *net.TCPConn
 	publicKey             []byte
 	readLimiter           *util.RateLimitingReadWriter
@@ -52,6 +53,7 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 			publicKey:             request.PublicKey,
 			connection:            connection,
 			originalRequest:       request,
+			inboundTransfers:      make(map[uuid.UUID]*Transfer),
 			messagesAwaitingReply: make(map[uuid.UUID]chan *Message),
 		}, nil
 	} else {
@@ -236,45 +238,69 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 }
 
 func (self *RemotePeer) SendMessageChecked(message *Message, timeout time.Duration) (*Message, error) {
+	if uuid.Equal(message.GroupID, uuid.Nil) {
+		message.GroupID = uuid.NewV4()
+	}
+
 	replyChan := make(chan *Message)
 	self.messageReplyLock.Lock()
-	message.ID = uuid.NewV4()
-	self.messagesAwaitingReply[message.ID] = replyChan
+	self.messagesAwaitingReply[message.GroupID] = replyChan
 	self.messageReplyLock.Unlock()
 
-	defer self.ClearMessageReply(message)
+	defer self.RemoveMessageReply(message.GroupID)
 
 	if _, err := self.SendMessage(message); err == nil {
 		select {
 		case reply := <-replyChan:
-			// log.Debugf("[%s] Recevied reply to message %v(%v): %v", self.String(), message.Type, message.ID, reply.Type)
+			// log.Debugf("[%s] Recevied reply to message %v(%v): %v", self.String(), message.Type, message.GroupID, reply.Type)
 			return reply, nil
 		case <-time.After(timeout):
-			return nil, fmt.Errorf("Timed out waiting for reply to message %v", message.ID)
+			return nil, fmt.Errorf("Timed out waiting for reply to message %v", message.GroupID)
 		}
 	} else {
 		return nil, err
 	}
 }
 
-func (self *RemotePeer) ClearMessageReply(message *Message) {
-	self.messageReplyLock.RLock()
-	_, ok := self.messagesAwaitingReply[message.ID]
-	self.messageReplyLock.RUnlock()
+func (self *RemotePeer) RemoveMessageReply(id uuid.UUID) {
+	self.messageReplyLock.Lock()
+	delete(self.messagesAwaitingReply, id)
+	self.messageReplyLock.Unlock()
+}
 
-	if ok {
-		self.messageReplyLock.Lock()
-		delete(self.messagesAwaitingReply, message.ID)
-		self.messageReplyLock.Unlock()
-	}
+// Sets up a new inbound transfer.  Only data messages belonging to a known inbound transfer will be
+// accepted.
+func (self *RemotePeer) CreateInboundTransfer(size uint64) *Transfer {
+	transfer := NewTransfer(self, size)
+
+	self.inboundTransferLock.Lock()
+	self.inboundTransfers[transfer.ID] = transfer
+	self.inboundTransferLock.Unlock()
+
+	return transfer
+}
+
+// Retrieves an in-progress inbound transfer in a thread safe manner.
+func (self *RemotePeer) GetInboundTransfer(id uuid.UUID) (*Transfer, bool) {
+	self.inboundTransferLock.RLock()
+	transfer, ok := self.inboundTransfers[id]
+	self.inboundTransferLock.RUnlock()
+	return transfer, ok
+}
+
+// Removes an inbound transfer by ID in a thread safe manner.
+func (self *RemotePeer) RemoveInboundTransfer(id uuid.UUID) {
+	self.inboundTransferLock.Lock()
+	delete(self.inboundTransfers, id)
+	self.inboundTransferLock.Unlock()
 }
 
 // Starts an outbound transfer. If a non-zero size is specified, the receiving peer will
 // verify that the received data is exactly that length.  If size is zero, this verification will not
 // be performed. It is recommended that if the size is known beforehand that it should be sent.
 //
-func (self *RemotePeer) CreateTransfer(size int) (*OutboundTransfer, error) {
-	transfer := NewOutboundTransfer(self, size)
+func (self *RemotePeer) CreateOutboundTransfer(id uuid.UUID, size uint64) (*OutboundTransfer, error) {
+	transfer := NewOutboundTransfer(self, id, size)
 
 	if err := transfer.Initialize(); err == nil {
 		return transfer, nil
@@ -285,8 +311,8 @@ func (self *RemotePeer) CreateTransfer(size int) (*OutboundTransfer, error) {
 
 // Transfers the contents of the given io.Reader to the peer in a streaming fashion.
 //
-func (self *RemotePeer) TransferStream(stream io.Reader) error {
-	if transfer, err := self.CreateTransfer(0); err == nil {
+func (self *RemotePeer) TransferStream(id uuid.UUID, stream io.Reader) error {
+	if transfer, err := self.CreateOutboundTransfer(id, 0); err == nil {
 		if _, err := io.Copy(transfer, stream); err == nil {
 			return transfer.Close()
 		} else {
@@ -299,8 +325,8 @@ func (self *RemotePeer) TransferStream(stream io.Reader) error {
 
 // Transfers the given byte slice to the peer.
 //
-func (self *RemotePeer) TransferData(data []byte) error {
-	if transfer, err := self.CreateTransfer(len(data)); err == nil {
+func (self *RemotePeer) TransferData(id uuid.UUID, data []byte) error {
+	if transfer, err := self.CreateOutboundTransfer(id, uint64(len(data))); err == nil {
 		// send the data
 		if _, err := io.Copy(transfer, bytes.NewBuffer(data)); err == nil {
 			return transfer.Close()
@@ -314,10 +340,12 @@ func (self *RemotePeer) TransferData(data []byte) error {
 
 // Transfers the given filename to the peer.
 //
-func (self *RemotePeer) TransferFile(path string) error {
+func (self *RemotePeer) TransferFile(id uuid.UUID, path string) error {
+	log.Debugf("Transferring %s via transfer ID %v", path, id)
+
 	if file, err := os.Open(path); err == nil {
 		if stat, err := file.Stat(); err == nil {
-			if transfer, err := self.CreateTransfer(int(stat.Size())); err == nil {
+			if transfer, err := self.CreateOutboundTransfer(id, uint64(stat.Size())); err == nil {
 				if _, err := io.Copy(transfer, file); err == nil {
 					return transfer.Close()
 				} else {
@@ -374,24 +402,32 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 
 		switch message.Type {
 		case DataStart:
-			if self.inboundTransfer == nil {
+			// only accept data for known transfers
+			if transfer, ok := self.GetInboundTransfer(message.GroupID); ok {
 				v, ok := message.Value().(uint64)
 
 				if !ok {
 					v = 0
 				}
 
-				// create a new inbound transfer
-				self.inboundTransfer = NewTransfer(self, int(v))
+				// check that the data size we're receiving is what we were expecting
+				if v == transfer.ExpectedSize {
+					// TODO: local can reject by sending DataTerminate w/ an optional string reason
+					//       based on a to-be-determined file receive policy
 
-				// TODO: local can reject by sending DataTerminate w/ an optional string reason
-				//       based on a to-be-determined file receive policy
-
-				// give peer the go-ahead to start writing data
-				_, err = self.SendMessage(NewMessageReply(message.ID, DataProceed, nil))
+					// give peer the go-ahead to start writing data
+					_, replyErr = self.SendMessage(NewGroupedMessage(message.GroupID, DataProceed, nil))
+				} else {
+					if m, err := NewMessageEncoded(DataTerminate, "invalid transfer size", StringEncoding); err == nil {
+						m.GroupID = message.GroupID
+						_, replyErr = self.SendMessage(m)
+					} else {
+						replyErr = err
+					}
+				}
 			} else {
-				if m, err := NewMessageEncoded(DataTerminate, "A transfer is already in progress with this peer", StringEncoding); err == nil {
-					m.ID = message.ID
+				if m, err := NewMessageEncoded(DataTerminate, "unsolicited data", StringEncoding); err == nil {
+					m.GroupID = message.GroupID
 					_, replyErr = self.SendMessage(m)
 				} else {
 					replyErr = err
@@ -401,11 +437,14 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 		case DataProceed:
 			// this is explicitly waited for by RemotePeer, nothing to do here
 
+		case DataTerminate:
+			// TODO: handle when remote side terminates an inbound transfer
+
 		case DataBlock:
-			if self.inboundTransfer != nil {
-				_, replyErr = self.inboundTransfer.Write(message.Data)
+			if transfer, ok := self.GetInboundTransfer(message.GroupID); ok {
+				_, replyErr = transfer.Write(message.Data)
 			} else {
-				log.Warningf("Received %d byte block outside of an active transfer", len(message.Data))
+				log.Warningf("unsolicited data block (%d bytes)", len(message.Data))
 			}
 
 			if replyErr != nil {
@@ -417,32 +456,44 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 			}
 
 		case DataFinalize:
-			if self.inboundTransfer != nil {
-				if err := self.inboundTransfer.Verify(message.Data); err == nil {
+			if transfer, ok := self.GetInboundTransfer(message.GroupID); ok {
+				if err := transfer.Verify(message.Data); err == nil {
 					// if the transfer was successful, inform the peer with an Acknowledgment
-					_, replyErr = self.SendMessage(NewMessage(Acknowledgment, nil))
+					_, replyErr = self.SendMessage(NewGroupedMessage(message.GroupID, Acknowledgment, nil))
+
+					select {
+					case transfer.completed <- nil:
+					default:
+					}
+
 				} else {
 					log.Errorf("[%s] Transfer failed verification: %v", self.String(), err)
 
 					// if the transfer failed verification, reply with a failure message
 					if m, err := NewMessageEncoded(DataFailed, err.Error(), StringEncoding); err == nil {
+						m.GroupID = message.GroupID
 						_, replyErr = self.SendMessage(m)
 					} else {
 						replyErr = err
 					}
+
+					select {
+					case transfer.completed <- err:
+					default:
+					}
 				}
 
-				self.inboundTransfer = nil
+				self.RemoveInboundTransfer(transfer.ID)
 			} else {
-				log.Warningf("Received DataFinalize outside of an active transfer")
+				log.Warningf("unsolicited data finalize message")
 			}
 
 		case ServiceRequest:
 			responseBuffer := bytes.NewBuffer(nil)
 
 			if err := localPeer.PeerServer().HandleRequest(self, responseBuffer, message.Data); err == nil {
-				_, replyErr = self.SendMessage(NewMessageReply(
-					message.ID,
+				_, replyErr = self.SendMessage(NewGroupedMessage(
+					message.GroupID,
 					ServiceResponse,
 					responseBuffer.Bytes(),
 				))
@@ -451,6 +502,7 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 			}
 
 		case Heartbeat:
+			// change the type of the message and reply with it
 			message.Type = HeartbeatAck
 			_, replyErr = self.SendMessage(message)
 		}
@@ -464,7 +516,7 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 
 		// if this message ID is being waited on, dispatch it
 		self.messageReplyLock.RLock()
-		replyChan, ok := self.messagesAwaitingReply[message.ID]
+		replyChan, ok := self.messagesAwaitingReply[message.GroupID]
 		self.messageReplyLock.RUnlock()
 
 		if ok {
@@ -475,7 +527,7 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 
 				// it is normally the caller's responsibility to cleanup the message, but since
 				// nobody was waiting, we'll do it.
-				self.ClearMessageReply(message)
+				self.RemoveMessageReply(message.GroupID)
 			}
 		}
 

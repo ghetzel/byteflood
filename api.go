@@ -84,16 +84,20 @@ func (self *API) Serve() error {
 	router.POST(`/api/db/actions/:action`, self.handleActionDatabase)
 	router.GET(`/api/peers`, self.handleGetPeers)
 	router.POST(`/api/peers`, self.handleConnectPeer)
-	router.GET(`/api/peers/:id`, self.handleGetPeer)
+	router.GET(`/api/peers/:peer`, self.handleGetPeer)
 
 	for _, method := range []string{`GET`, `POST`, `PUT`, `DELETE`, `HEAD`} {
-		router.Handle(method, `/api/proxy/:session/*path`, self.handleProxyToPeer)
+		router.Handle(method, `/api/peers/:peer/proxy/*path`, self.handleProxyToPeer)
 	}
 
+	router.GET(`/api/peers/:peer/shares/:share/stream/:file`, self.handleRemoteStreamFileById)
+	// router.POST(`/api/peers/:id/shares/:share/enqueue/:id`, self.handleEnqueueFileById)
+
 	router.GET(`/api/shares`, self.handleGetShares)
-	router.GET(`/api/shares/:name`, self.handleGetShare)
-	router.GET(`/api/shares/:name/query/*query`, self.handleQueryShare)
-	router.GET(`/api/shares/:name/browse/*path`, self.handleBrowseShare)
+	router.GET(`/api/shares/:share`, self.handleGetShare)
+	router.GET(`/api/shares/:share/query/*query`, self.handleQueryShare)
+	router.GET(`/api/shares/:share/browse/*path`, self.handleBrowseShare)
+	router.GET(`/api/shares/:share/stream/:file`, self.handleLocalStreamFileById)
 
 	server.UseHandler(router)
 
@@ -108,9 +112,11 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 
 	router.GET(`/`, self.handleGetPeerStatus)
 	router.GET(`/shares`, self.handleGetShares)
-	router.GET(`/shares/:name`, self.handleGetShare)
-	router.GET(`/shares/:name/query/*query`, self.handleQueryShare)
-	router.GET(`/shares/:name/browse/*path`, self.handleBrowseShare)
+	router.GET(`/shares/:share`, self.handleGetShare)
+	router.GET(`/shares/:share/query/*query`, self.handleQueryShare)
+	router.GET(`/shares/:share/browse/*path`, self.handleBrowseShare)
+	router.GET(`/shares/:share/view/:file`, self.handleViewFileById)
+	router.POST(`/shares/:share/transfers/:transfer/:file`, self.handleRequestFileFromShare)
 
 	return router
 }

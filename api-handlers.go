@@ -3,9 +3,13 @@ package byteflood
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/pivot/dal"
 	"github.com/julienschmidt/httprouter"
+	"github.com/satori/go.uuid"
 	"io"
 	"net/http"
+	"os"
 )
 
 func (self *API) handleStatus(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
@@ -87,7 +91,7 @@ func (self *API) handleConnectPeer(w http.ResponseWriter, req *http.Request, par
 }
 
 func (self *API) handleGetPeer(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`id`)); ok {
+	if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`peer`)); ok {
 		if err := json.NewEncoder(w).Encode(remotePeer.ToMap()); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -97,7 +101,7 @@ func (self *API) handleGetPeer(w http.ResponseWriter, req *http.Request, params 
 }
 
 func (self *API) handleProxyToPeer(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`session`)); ok {
+	if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`peer`)); ok {
 		if response, err := remotePeer.ServiceRequest(
 			req.Method,
 			params.ByName(`path`),
@@ -131,7 +135,7 @@ func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, param
 }
 
 func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
+	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
 		if err := json.NewEncoder(w).Encode(share); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -141,7 +145,7 @@ func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, params
 }
 
 func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
+	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
 			if results, err := share.Find(params.ByName(`query`), limit, offset, sort); err == nil {
 				if err := json.NewEncoder(w).Encode(results); err != nil {
@@ -159,7 +163,7 @@ func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, para
 }
 
 func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if share, ok := self.application.GetShareByName(params.ByName(`name`)); ok {
+	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
 			query := fmt.Sprintf("parent=%s", params.ByName(`path`))
 
@@ -178,10 +182,78 @@ func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, par
 	}
 }
 
+func (self *API) handleLocalStreamFileById(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
+		if record, err := share.Get(params.ByName(`file`)); err == nil {
+			if absPath, err := share.GetFilePath(params.ByName(`file`)); err == nil {
+				if file, err := os.Open(absPath); err == nil {
+					w.Header().Set(`Content-Type`, fmt.Sprintf("%v", record.Get(`file.mime.type`, `application/octet-stream`)))
+					io.Copy(w, file)
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+			} else {
+				http.Error(w, err.Error(), http.StatusNotFound)
+			}
+		} else {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		}
+	} else {
+		http.Error(w, `Not Found`, http.StatusNotFound)
+	}
+}
+
 func (self *API) handleGetPeerStatus(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	Respond(w, map[string]interface{}{
-		`peer`: map[string]interface{}{
-			`id`: self.application.LocalPeer.ID(),
-		},
-	})
+	if remotePeer, ok := self.application.LocalPeer.GetPeer(req.Header.Get(`X-Byteflood-Session`)); ok {
+		Respond(w, map[string]interface{}{
+			`peer`: map[string]interface{}{
+				`id`: self.application.LocalPeer.ID(),
+			},
+			`requested_by`: map[string]interface{}{
+				`id`: remotePeer.ID(),
+			},
+		})
+	} else {
+		http.Error(w, `unknown peer`, http.StatusForbidden)
+	}
+}
+
+func (self *API) handleViewFileById(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
+		if record, err := share.Get(params.ByName(`file`)); err == nil {
+			Respond(w, record)
+		} else {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		}
+	} else {
+		http.Error(w, `Not Found`, http.StatusNotFound)
+	}
+}
+
+func (self *API) handleRequestFileFromShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	// get remote peer from proxied request
+	if remotePeer, ok := self.application.LocalPeer.GetPeer(req.Header.Get(`X-Byteflood-Session`)); ok {
+		// get share by name
+		if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
+			// get the absolute filesystem path to the file at :id
+			if absPath, err := share.GetFilePath(params.ByName(`file`)); err == nil {
+				// parse the given :transfer UUID
+				if transferId, err := uuid.FromString(params.ByName(`transfer`)); err == nil {
+					// kick off the transfer on our end
+					// TODO: this should be entered into an upload queue
+					// self.application.QueueUpload(remotePeer, transferId, absPath)
+					go remotePeer.TransferFile(transferId, absPath)
+					http.Error(w, ``, http.StatusNoContent)
+				} else {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+				}
+			} else {
+				http.Error(w, err.Error(), http.StatusNotFound)
+			}
+		} else {
+			http.Error(w, `Not Found`, http.StatusNotFound)
+		}
+	} else {
+		http.Error(w, `unknown peer`, http.StatusForbidden)
+	}
 }

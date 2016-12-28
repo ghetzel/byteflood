@@ -14,8 +14,8 @@ var TransferGoNoGoReplyTimeout = (10 * time.Second)
 
 type OutboundTransfer struct {
 	ID               uuid.UUID
-	ExpectedSize     int
-	BytesSent        int
+	ExpectedSize     uint64
+	BytesSent        uint64
 	ExpectedChecksum []byte
 	ActualChecksum   []byte
 	peer             *RemotePeer
@@ -24,9 +24,9 @@ type OutboundTransfer struct {
 	hasCompleted     bool
 }
 
-func NewOutboundTransfer(peer *RemotePeer, size int) *OutboundTransfer {
+func NewOutboundTransfer(peer *RemotePeer, id uuid.UUID, size uint64) *OutboundTransfer {
 	return &OutboundTransfer{
-		ID:           uuid.NewV4(),
+		ID:           id,
 		ExpectedSize: size,
 		peer:         peer,
 		hasher:       sha256.New(),
@@ -36,6 +36,8 @@ func NewOutboundTransfer(peer *RemotePeer, size int) *OutboundTransfer {
 func (self *OutboundTransfer) Initialize() error {
 	// encode and send the transfer start header
 	if message, err := NewMessageEncoded(DataStart, self.ExpectedSize, BinaryLEUint64); err == nil {
+		message.GroupID = self.ID
+
 		// transfers are answered with a go/no-go reply
 		if message, err := self.peer.SendMessageChecked(message, TransferGoNoGoReplyTimeout); err == nil {
 			switch message.Type {
@@ -61,7 +63,7 @@ func (self *OutboundTransfer) Write(p []byte) (int, error) {
 	}
 
 	// make sure we're not trying to write more than we should
-	if (self.BytesSent + len(p)) > self.ExpectedSize {
+	if (self.BytesSent + uint64(len(p))) > self.ExpectedSize {
 		err := fmt.Errorf(
 			"write exceeds declared size (%d bytes)",
 			self.ExpectedSize,
@@ -77,11 +79,11 @@ func (self *OutboundTransfer) Write(p []byte) (int, error) {
 		}
 
 		// increment bytes written counter
-		self.BytesSent += len(p)
+		self.BytesSent += uint64(len(p))
 	}
 
 	// send the data block message to the peer
-	n, err := self.peer.SendMessage(NewMessage(DataBlock, p))
+	n, err := self.peer.SendMessage(NewGroupedMessage(self.ID, DataBlock, p))
 
 	if err == nil {
 		// if the message was written without error and it wrote more data than was requested,
@@ -124,12 +126,13 @@ func (self *OutboundTransfer) completeTransfer(errs ...error) error {
 
 		// send the transfer termination (successful)
 		log.Debugf("Completed checked transfer: %x", sum)
-		_, err := self.peer.SendMessage(NewMessage(DataFinalize, sum))
+		_, err := self.peer.SendMessage(NewGroupedMessage(self.ID, DataFinalize, sum))
 
 		return err
 	} else {
 		// encode and send the failed transfer termination with error message
 		if errMsg, err := NewMessageEncoded(DataFailed, errs[0].Error(), StringEncoding); err == nil {
+			errMsg.GroupID = self.ID
 			_, err := self.peer.SendMessage(errMsg)
 			return err
 		} else {

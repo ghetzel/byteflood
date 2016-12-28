@@ -33,6 +33,7 @@ type Database struct {
 	SystemCollectionName   string       `json:"system_collection_name,omitempty"`
 	ScanInProgress         bool         `json:"scan_in_progress"`
 	GlobalExclusions       []string     `json:"global_exclusions,omitempty"`
+	ForceRescan            bool
 	db                     backends.Backend
 }
 

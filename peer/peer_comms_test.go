@@ -119,9 +119,14 @@ func TestPeerCheckedTransfer(t *testing.T) {
 	assert.Equal(1, len(p1))
 	peer1fromPeer2 := p1[0]
 	assert.NotNil(peer1fromPeer2)
+
+	// receive incoming messages
 	peer1fromPeer2.SetMessageHandler(func(message *Message) {
 		messages = append(messages, message)
 	})
+
+	// declare that we will receive a new transfer
+	transfer := peer1fromPeer2.CreateInboundTransfer(2048)
 
 	// this is the data we want to send
 	data := make([]byte, 2048)
@@ -130,7 +135,7 @@ func TestPeerCheckedTransfer(t *testing.T) {
 
 	go func() {
 		// peer1 sends data to peer2
-		err = peer2fromPeer1.TransferData(data)
+		err = peer2fromPeer1.TransferData(transfer.ID, data)
 		assert.Nil(err)
 	}()
 
@@ -146,17 +151,20 @@ func TestPeerCheckedTransfer(t *testing.T) {
 
 	// peer2: verify the header
 	assert.NotNil(header)
+	assert.Equal(transfer.ID, header.GroupID)
 	assert.Equal(DataStart, header.Type)
 	assert.Equal(BinaryLEUint64, header.Encoding)
 	assert.Equal(uint64(len(data)), header.Value())
 
 	// peer2: validate data block, trailer, and final ack
 	assert.NotNil(block)
+	assert.Equal(transfer.ID, block.GroupID)
 	assert.Equal(DataBlock, block.Type)
 	assert.Equal(RawEncoding, block.Encoding)
 	assert.Equal(2048, len(block.Data))
 
 	assert.NotNil(trailer)
+	assert.Equal(transfer.ID, trailer.GroupID)
 	assert.Equal(DataFinalize, trailer.Type)
 	assert.Equal(RawEncoding, trailer.Encoding)
 	assert.Equal([]byte(sum[:]), trailer.Value())
