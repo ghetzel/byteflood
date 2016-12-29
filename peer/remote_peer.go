@@ -23,6 +23,13 @@ var DefaultHeartbeatAckTimeout = 10 * time.Second
 
 type MessageHandler func(*Message)
 
+// A RemotePeer represents the remote end of a peer-to-peer connection (as opposed to a
+// LocalPeer). One RemotePeer instance is created for each connection to another peer,
+// regardless of which side initiated the connection.
+//
+// Each RemotePeer operates over an underlying TCP connection, with all traffic encrypted
+// using the encryption.Encrypter and encryption.Decrypter interfaces.
+//
 type RemotePeer struct {
 	Peer                  `json:"-"`
 	Name                  string                `json:"name"`
@@ -145,24 +152,6 @@ func (self *RemotePeer) SetWriteRateLimit(bytesPerSecond int, burstSize int) {
 	self.writeLimiter = util.NewRateLimitingReadWriter(float64(bytesPerSecond), burstSize)
 }
 
-func (self *RemotePeer) getReadRateLimiter(r io.Reader) io.Reader {
-	if self.readLimiter != nil {
-		self.readLimiter.SetReader(r)
-		return self.readLimiter
-	} else {
-		return r
-	}
-}
-
-func (self *RemotePeer) getWriteRateLimiter(w io.Writer) io.Writer {
-	if self.writeLimiter != nil {
-		self.writeLimiter.SetWriter(w)
-		return self.writeLimiter
-	} else {
-		return w
-	}
-}
-
 // Run a continuous periodic heartbeat to ensure remote peer connection is available
 func (self *RemotePeer) Heartbeat() error {
 	if outMessage, err := NewMessageEncoded(Heartbeat, self.heartbeatCount, BinaryLEUint64); err == nil {
@@ -205,7 +194,7 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 	}
 }
 
-// Sends a message packet to this peer.
+// Sends a message to the remote peer.
 //
 func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 	// imposes rate limiting on writes (if configured)
@@ -237,6 +226,13 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 	}
 }
 
+// Sends the supplied message then waits up to the given timeout for a reply.  A reply is any message
+// received whose GroupID field matches the GroupID of the message that was sent.  If the given
+// message does not have a GroupID, one will be randomly generated before the message is sent.
+//
+// It is the remote peer's responsibility to send a message with a matching GroupID before timeout
+// elapses.
+//
 func (self *RemotePeer) SendMessageChecked(message *Message, timeout time.Duration) (*Message, error) {
 	if uuid.Equal(message.GroupID, uuid.Nil) {
 		message.GroupID = uuid.NewV4()
@@ -252,7 +248,7 @@ func (self *RemotePeer) SendMessageChecked(message *Message, timeout time.Durati
 	if _, err := self.SendMessage(message); err == nil {
 		select {
 		case reply := <-replyChan:
-			// log.Debugf("[%s] Recevied reply to message %v(%v): %v", self.String(), message.Type, message.GroupID, reply.Type)
+			// log.Debugf("[%s] Received reply to message %v(%v): %v", self.String(), message.Type, message.GroupID, reply.Type)
 			return reply, nil
 		case <-time.After(timeout):
 			return nil, fmt.Errorf("Timed out waiting for reply to message %v", message.GroupID)
@@ -382,7 +378,7 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 	defer localPeer.RemovePeer(self.SessionID())
 
 	for {
-		if message, err := self.ReceiveMessagesIterate(localPeer); err == nil {
+		if message, err := self.receiveMessagesIterate(localPeer); err == nil {
 			if message != nil && self.messageFn != nil {
 				self.messageFn(message)
 			}
@@ -394,7 +390,7 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 	return fmt.Errorf("Protocol Error")
 }
 
-func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, error) {
+func (self *RemotePeer) receiveMessagesIterate(localPeer *LocalPeer) (*Message, error) {
 	if message, err := self.ReceiveMessage(); err == nil {
 		self.badMessageCount = 0
 
@@ -462,11 +458,7 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 				if err := transfer.Verify(message.Data); err == nil {
 					// if the transfer was successful, inform the peer with an Acknowledgment
 					_, replyErr = self.SendMessage(NewGroupedMessage(message.GroupID, Acknowledgment, nil))
-
-					select {
-					case transfer.completed <- nil:
-					default:
-					}
+					transfer.Complete(nil)
 
 				} else {
 					log.Errorf("[%s] Transfer failed verification: %v", self.String(), err)
@@ -479,10 +471,7 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 						replyErr = err
 					}
 
-					select {
-					case transfer.completed <- err:
-					default:
-					}
+					transfer.Complete(err)
 				}
 
 				self.RemoveInboundTransfer(transfer.ID)
@@ -548,5 +537,23 @@ func (self *RemotePeer) ReceiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 		}
 
 		return nil, nil
+	}
+}
+
+func (self *RemotePeer) getReadRateLimiter(r io.Reader) io.Reader {
+	if self.readLimiter != nil {
+		self.readLimiter.SetReader(r)
+		return self.readLimiter
+	} else {
+		return r
+	}
+}
+
+func (self *RemotePeer) getWriteRateLimiter(w io.Writer) io.Writer {
+	if self.writeLimiter != nil {
+		self.writeLimiter.SetWriter(w)
+		return self.writeLimiter
+	} else {
+		return w
 	}
 }

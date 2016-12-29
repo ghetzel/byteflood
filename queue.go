@@ -16,20 +16,31 @@ import (
 
 var EmptyPollInterval = 3 * time.Second
 
+// A QueuedDownload represents the transfer if a single file object from an actively-connected
+// RemotePeer (identified by its SessionID.)  Downloads move through several discrete states,
+// starting with "idle", which means it is sitting in a queue waiting to start.
+//
+// Once the download commences, it will enter the "waiting" state once file metadata has been
+// successfully read from the remote peer.
+//
+// When data is being actively received, the download will be in the "downloading" state.  Upon
+// completion, the download will either be "completed" (meaning the full file was received and
+// the checksum was verified), or "failed", meaning that some error occurred.
+//
+// Any errors will be available in the Error field if they occur.
+//
 type QueuedDownload struct {
-	Status          string                 `json:"status"`
-	SessionID       string                 `json:"session_id"`
-	FileID          string                 `json:"file_id"`
-	FileName        string                 `json:"name"`
-	Destination     string                 `json:"destination"`
-	Progress        float64                `json:"progress"`
-	Rate            uint64                 `json:"rate"`
-	Size            uint64                 `json:"size"`
-	PeerName        string                 `json:"peer"`
-	Error           string                 `json:"error,omitempty"`
-	Transfer        *peer.Transfer         `json:"transfer,omitempty"`
-	Metadata        map[string]interface{} `json:"metadata"`
-	AddedAt         time.Time              `json:"added_at"`
+	Status          string    `json:"status"`
+	SessionID       string    `json:"session_id"`
+	FileID          string    `json:"file_id"`
+	FileName        string    `json:"name"`
+	Destination     string    `json:"destination"`
+	Progress        float64   `json:"progress"`
+	Rate            uint64    `json:"rate"`
+	Size            uint64    `json:"size"`
+	PeerName        string    `json:"peer"`
+	Error           string    `json:"error,omitempty"`
+	AddedAt         time.Time `json:"added_at"`
 	application     *Application
 	destinationFile io.Reader
 	lastByteSize    uint64
@@ -65,8 +76,7 @@ func (self *QueuedDownload) Download() error {
 						return fmt.Errorf("size unknown")
 					}
 
-					self.Metadata = record.Fields
-					self.Status = `loaded`
+					self.Status = `waiting`
 
 					peerRoot := fmt.Sprintf("/tmp/%s", remotePeer.ID())
 
@@ -79,12 +89,10 @@ func (self *QueuedDownload) Download() error {
 							// make our side of the connection aware of the file transfer
 							transfer := remotePeer.CreateInboundTransfer(uint64(size))
 							transfer.SetWriter(file)
-							self.Transfer = transfer
 
 							// no matter what, we're done with this transfer when this function returns
 							defer func() {
 								remotePeer.RemoveInboundTransfer(transfer.ID)
-								self.Transfer = nil
 							}()
 
 							go func(item *QueuedDownload, t *peer.Transfer) {

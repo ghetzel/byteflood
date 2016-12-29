@@ -58,8 +58,8 @@ body > .navbar .navbar-brand {
     content: '\f1db'; /* circle-thin */
 }
 
-.bf-queue-status-loaded:before {
-    content: '\f141'; /* fa-ellipsis-h */
+.bf-queue-status-waiting:before {
+    content: '\f017'; /* fa-clock-o */
 }
 
 .bf-queue-status-downloading:before {
