@@ -61,7 +61,10 @@ func (self *Transfer) Complete(err error) {
 	default:
 	}
 
-	self.Error = err.Error()
+	if err != nil {
+		self.Error = err.Error()
+	}
+
 	self.finished = true
 }
 
