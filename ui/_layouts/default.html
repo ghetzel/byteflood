@@ -32,6 +32,7 @@
               'type': (type || 'info'),
             }));
           },
+
           queueFileForDownload: function(session, file_id) {
             $.ajax('/api/queue/'+session+'/'+file_id, {
               method: 'POST',
@@ -39,7 +40,25 @@
                 this.notify('File '+file_id+' has been queued for download.');
               }.bind(this),
             });
-          }
+          },
+
+          scan: function() {
+            var scanRequest = '';
+
+            if(arguments.length){
+              scanRequest = JSON.stringify({
+                'labels': $.makeArray(arguments),
+              });
+            }
+
+            $.ajax('/api/db/actions/scan', {
+              method: 'POST',
+              data: scanRequest,
+              success: function(){
+                location.reload();
+              }.bind(this),
+            });
+          },
         });
 
         window.byteflood = new Byteflood();

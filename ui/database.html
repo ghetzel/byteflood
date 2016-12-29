@@ -1,11 +1,13 @@
 ---
 page:
     title: Database
+    refresh: 30
 bindings:
 - name: db
   resource: :/api/db
 ---
-{{ if .bindings.db.scan_in_progress }}
+{{ $scanning := .bindings.db.scan_in_progress }}
+{{ if $scanning }}
 <div class="alert alert-info" role="alert">
   A database scan is currently in progress.
 </div>
@@ -17,18 +19,43 @@ bindings:
   </div>
 
   {{ if .bindings.db.directories }}
-  <table class="table">
+  <table class="table table-sm table-striped table-hover">
     <thead>
       <tr>
         <th>Label</th>
         <th>Path</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
+      <tr>
+        <td></td>
+        <td></td>
+        <td>
+          <button
+            class="btn btn-sm btn-primary"
+            onclick="byteflood.scan()"
+            {{ if $scanning }}disabled{{ end }}
+          >
+            <i class="fa fa-search"></i>
+            Scan All
+          </button>
+        </td>
+      </tr>
       {{ range .bindings.db.directories }}
       <tr>
         <td>{{ .label }}</td>
         <td>{{ .path }}</td>
+        <td>
+          <button
+            class="btn btn-sm btn-success"
+            onclick="byteflood.scan('{{ .label }}')"
+            {{ if $scanning }}disabled{{ end }}
+          >
+            <i class="fa fa-search"></i>
+            Scan
+          </button>
+        </td>
       </tr>
       {{ end }}
     </tbody>
