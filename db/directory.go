@@ -15,6 +15,7 @@ import (
 
 type Directory struct {
 	Path                 string       `json:"path"`
+	Parent               string       `json:"parent"`
 	Label                string       `json:"label,omitempty"`
 	RootPath             string       `json:"root_path,omitempty"`
 	FilePattern          string       `json:"patterns,omitempty"`
@@ -25,9 +26,12 @@ type Directory struct {
 	db                   *Database
 }
 
+var RootDirectoryName = `root`
+
 func NewDirectory(db *Database, path string) *Directory {
 	return &Directory{
 		Path:        path,
+		Parent:      RootDirectoryName,
 		Directories: make([]*Directory, 0),
 		db:          db,
 	}
@@ -65,9 +69,10 @@ func (self *Directory) Scan() error {
 			// recursive directory handling
 			if entry.IsDir() {
 				if !self.NoRecurseDirectories {
-					if _, err := self.indexFile(absPath, true); err == nil {
+					if dirEntry, err := self.indexFile(absPath, true); err == nil {
 						subdirectory := NewDirectory(self.db, absPath)
 
+						subdirectory.Parent = dirEntry.ID()
 						subdirectory.Label = self.Label
 						subdirectory.RootPath = self.RootPath
 						subdirectory.FilePattern = self.FilePattern
@@ -156,7 +161,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	}
 
 	file.Metadata[`name`] = self.normalizeFileName(file.Name)
-	file.Metadata[`parent`] = path.Dir(self.normalizeFileName(file.Name))
+	file.Metadata[`parent`] = self.Parent
 	file.Metadata[`label`] = self.Label
 	file.Metadata[`directory`] = isDir
 

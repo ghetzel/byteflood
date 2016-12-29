@@ -75,6 +75,37 @@ func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request, p
 	}
 }
 
+func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	if limit, offset, sort, err := self.getSearchParams(req); err == nil {
+		var query string
+
+		if parent := params.ByName(`parent`); parent == `` {
+			query = fmt.Sprintf("parent=%s", db.RootDirectoryName)
+		} else {
+			query = fmt.Sprintf("parent=%s", parent)
+		}
+
+		if f, err := self.application.Database.ParseFilter(query); err == nil {
+			f.Limit = limit
+			f.Offset = offset
+			f.Sort = sort
+
+			if recordset, err := self.application.Database.Query(
+				db.MetadataCollectionName,
+				f,
+			); err == nil {
+				Respond(w, recordset)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	} else {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+}
+
 func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	switch params.ByName(`action`) {
 	case `scan`:
@@ -122,9 +153,7 @@ func (self *API) handleConnectPeer(w http.ResponseWriter, req *http.Request, par
 
 func (self *API) handleGetPeer(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`peer`)); ok {
-		if err := json.NewEncoder(w).Encode(remotePeer.ToMap()); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		Respond(w, remotePeer.ToMap())
 	} else {
 		http.Error(w, "peer not found", http.StatusNotFound)
 	}
@@ -159,16 +188,12 @@ func (self *API) handleProxyToPeer(w http.ResponseWriter, req *http.Request, par
 }
 
 func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if err := json.NewEncoder(w).Encode(self.application.Shares); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	Respond(w, self.application.Shares)
 }
 
 func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
-		if err := json.NewEncoder(w).Encode(share); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		Respond(w, share)
 	} else {
 		http.Error(w, `Not Found`, http.StatusNotFound)
 	}
@@ -178,9 +203,7 @@ func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, para
 	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
 			if results, err := share.Find(params.ByName(`query`), limit, offset, sort); err == nil {
-				if err := json.NewEncoder(w).Encode(results); err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-				}
+				Respond(w, results)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -195,12 +218,10 @@ func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, para
 func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
-			query := fmt.Sprintf("parent=%s", params.ByName(`path`))
+			query := fmt.Sprintf("parent=%s", params.ByName(`parent`))
 
 			if results, err := share.Find(query, limit, offset, sort); err == nil {
-				if err := json.NewEncoder(w).Encode(results); err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-				}
+				Respond(w, results)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}

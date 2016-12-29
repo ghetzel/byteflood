@@ -63,107 +63,145 @@ func (self *QueuedDownload) Download() error {
 		self.PeerName = remotePeer.Name
 
 		// get file record from peer
-		if response, err := remotePeer.ServiceRequest(`GET`, fmt.Sprintf("/files/%s", self.FileID), nil, nil); err == nil {
+		if response, err := remotePeer.ServiceRequest(`GET`, fmt.Sprintf("/db/view/%s", self.FileID), nil, nil); err == nil {
 			record := dal.NewRecord(self.FileID)
 
 			// parse and load record
 			if err := json.NewDecoder(response.Body).Decode(record); err == nil {
-				v := maputil.DeepGet(record.Fields, []string{`file`, `size`}, -1)
-
-				if name, ok := record.Fields[`name`]; ok {
-					self.FileName, _ = stringutil.ToString(name)
+				if self.recordIsDirectory(record) {
+					return self.downloadDirectory(remotePeer, record)
 				} else {
-					self.FileName = self.FileID
+					return self.downloadSingleFile(remotePeer, record)
 				}
+			} else {
+				return err
+			}
+		} else {
+			return err
+		}
+	} else {
+		return fmt.Errorf("session %s not found", self.SessionID)
+	}
+}
 
-				// get file size
-				if size, err := stringutil.ConvertToInteger(v); err == nil {
-					if size < 0 {
-						return fmt.Errorf("size unknown")
+func (self *QueuedDownload) recordIsDirectory(record *dal.Record) bool {
+	if directory, ok := record.Fields[`directory`]; ok {
+		if v, ok := directory.(bool); ok && v {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (self *QueuedDownload) downloadDirectory(remotePeer *peer.RemotePeer, record *dal.Record) error {
+	// get file record from peer
+	if response, err := remotePeer.ServiceRequest(`GET`, fmt.Sprintf("/db/list/_id?q=parent=%s", self.FileID), nil, nil); err == nil {
+		recordset := dal.NewRecordSet()
+
+		// parse and load record
+		if err := json.NewDecoder(response.Body).Decode(recordset); err == nil {
+			for _, id := range recordset.Pluck(`value`) {
+				self.application.Queue.Add(self.SessionID, fmt.Sprintf("%v", id))
+			}
+
+			return nil
+		} else {
+			return err
+		}
+	} else {
+		return err
+	}
+}
+
+func (self *QueuedDownload) downloadSingleFile(remotePeer *peer.RemotePeer, record *dal.Record) error {
+	v := maputil.DeepGet(record.Fields, []string{`file`, `size`}, -1)
+
+	if name, ok := record.Fields[`name`]; ok {
+		self.FileName, _ = stringutil.ToString(name)
+	} else {
+		self.FileName = self.FileID
+	}
+
+	// get file size
+	if size, err := stringutil.ConvertToInteger(v); err == nil {
+		if size < 0 {
+			return fmt.Errorf("size unknown")
+		}
+
+		self.Status = `waiting`
+
+		peerRoot := fmt.Sprintf("/tmp/%s", remotePeer.ID())
+
+		// create temporary destination
+		if err := os.Mkdir(peerRoot, 0755); err == nil || os.IsExist(err) {
+			// open the destination file
+			if file, err := os.Create(path.Join(peerRoot, self.FileID)); err == nil {
+				self.Destination = file.Name()
+
+				// make our side of the connection aware of the file transfer
+				transfer := remotePeer.CreateInboundTransfer(uint64(size))
+				transfer.SetWriter(file)
+
+				// no matter what, we're done with this transfer when this function returns
+				defer func() {
+					remotePeer.RemoveInboundTransfer(transfer.ID)
+				}()
+
+				go func(item *QueuedDownload, t *peer.Transfer) {
+					for {
+						if t.IsFinished() {
+							return
+						}
+
+						if t.BytesReceived >= t.ExpectedSize {
+							item.Progress = 1.0
+						} else {
+							item.Progress = float64(t.BytesReceived) / float64(t.ExpectedSize)
+						}
+
+						item.Status = `downloading`
+						item.Size = t.BytesReceived
+
+						time.Sleep(time.Second)
+
+						if item.lastByteSize > 0 {
+							item.Rate = (t.BytesReceived - item.lastByteSize)
+						}
+
+						item.lastByteSize = t.BytesReceived
 					}
+				}(self, transfer)
 
-					self.Status = `waiting`
+				// tell the remote side to start sending data
+				if response, err := remotePeer.ServiceRequest(
+					`POST`,
+					fmt.Sprintf("/transfers/%s/%s", transfer.ID, self.FileID),
+					nil,
+					nil,
+				); err == nil {
+					// if all goes well, block until the download succeeds or fails
+					if response.StatusCode < 400 {
+						// wait for the transfer to complete
+						if err := transfer.Wait(); err == nil {
+							self.Progress = 1.0
+							self.Status = `completed`
+							self.Size = transfer.BytesReceived
 
-					peerRoot := fmt.Sprintf("/tmp/%s", remotePeer.ID())
-
-					// create temporary destination
-					if err := os.Mkdir(peerRoot, 0755); err == nil || os.IsExist(err) {
-						// open the destination file
-						if file, err := os.Create(path.Join(peerRoot, self.FileID)); err == nil {
-							self.Destination = file.Name()
-
-							// make our side of the connection aware of the file transfer
-							transfer := remotePeer.CreateInboundTransfer(uint64(size))
-							transfer.SetWriter(file)
-
-							// no matter what, we're done with this transfer when this function returns
-							defer func() {
-								remotePeer.RemoveInboundTransfer(transfer.ID)
-							}()
-
-							go func(item *QueuedDownload, t *peer.Transfer) {
-								for {
-									if t.IsFinished() {
-										return
-									}
-
-									if t.BytesReceived >= t.ExpectedSize {
-										item.Progress = 1.0
-									} else {
-										item.Progress = float64(t.BytesReceived) / float64(t.ExpectedSize)
-									}
-
-									item.Status = `downloading`
-									item.Size = t.BytesReceived
-
-									time.Sleep(time.Second)
-
-									if item.lastByteSize > 0 {
-										item.Rate = (t.BytesReceived - item.lastByteSize)
-									}
-
-									item.lastByteSize = t.BytesReceived
-								}
-							}(self, transfer)
-
-							// tell the remote side to start sending data
-							if response, err := remotePeer.ServiceRequest(
-								`POST`,
-								fmt.Sprintf("/transfers/%s/%s", transfer.ID, self.FileID),
-								nil,
-								nil,
-							); err == nil {
-								// if all goes well, block until the download succeeds or fails
-								if response.StatusCode < 400 {
-									// wait for the transfer to complete
-									if err := transfer.Wait(); err == nil {
-										self.Progress = 1.0
-										self.Status = `completed`
-										self.Size = transfer.BytesReceived
-
-										// reopen the downloaded file as readable
-										if readFile, err := os.Open(self.Destination); err == nil {
-											self.destinationFile = readFile
-										} else {
-											return err
-										}
-
-										return nil
-									} else {
-										return err
-									}
-								} else {
-									body, _ := ioutil.ReadAll(response.Body)
-									return fmt.Errorf("%s: %v", response.Status, string(body[:]))
-								}
+							// reopen the downloaded file as readable
+							if readFile, err := os.Open(self.Destination); err == nil {
+								self.destinationFile = readFile
 							} else {
 								return err
 							}
+
+							return nil
 						} else {
 							return err
 						}
 					} else {
-						return err
+						body, _ := ioutil.ReadAll(response.Body)
+						return fmt.Errorf("%s: %v", response.Status, string(body[:]))
 					}
 				} else {
 					return err
@@ -175,7 +213,7 @@ func (self *QueuedDownload) Download() error {
 			return err
 		}
 	} else {
-		return fmt.Errorf("session %s not found", self.SessionID)
+		return err
 	}
 }
 

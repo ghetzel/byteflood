@@ -1,14 +1,13 @@
-.PHONY: test vendor
+.PHONY: test
 
-all: vendor fmt build bundle
+all: fmt deps build bundle
+
+deps:
+	go get .
 
 update:
 	-rm -rf vendor
 	govend -u -v -l
-
-vendor:
-	go list github.com/govend/govend || go get github.com/govend/govend
-	govend --strict
 
 clean-bundle:
 	@test -d public && rm -rf public || true

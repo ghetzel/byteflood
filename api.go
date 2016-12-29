@@ -109,6 +109,7 @@ func (self *API) Serve() error {
 	router.GET(`/api/db`, self.handleGetDatabase)
 	router.GET(`/api/db/view/:id`, self.handleGetDatabaseItem)
 	router.GET(`/api/db/query/*query`, self.handleQueryDatabase)
+	router.GET(`/api/db/browse/?parent`, self.handleBrowseDatabase)
 	router.POST(`/api/db/actions/:action`, self.handleActionDatabase)
 	router.GET(`/api/peers`, self.handleGetPeers)
 	router.POST(`/api/peers`, self.handleConnectPeer)
@@ -122,7 +123,7 @@ func (self *API) Serve() error {
 	router.GET(`/api/shares`, self.handleGetShares)
 	router.GET(`/api/shares/:share`, self.handleGetShare)
 	router.GET(`/api/shares/:share/query/*query`, self.handleQueryShare)
-	router.GET(`/api/shares/:share/browse/*path`, self.handleBrowseShare)
+	router.GET(`/api/shares/:share/browse/:parent`, self.handleBrowseShare)
 
 	server.UseHandler(router)
 
@@ -136,7 +137,9 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 	router := httprouter.New()
 
 	router.GET(`/`, self.handleGetPeerStatus)
-	router.GET(`/files/:id`, self.handleGetDatabaseItem)
+	router.GET(`/db/view/:id`, self.handleGetDatabaseItem)
+	router.GET(`/db/query/*query`, self.handleQueryDatabase)
+	router.GET(`/db/browse/?parent`, self.handleBrowseDatabase)
 	router.POST(`/transfers/:transfer/:file`, self.handleRequestFileFromShare)
 	router.GET(`/shares`, self.handleGetShares)
 	router.GET(`/shares/:share`, self.handleGetShare)
@@ -164,6 +167,10 @@ func (self *API) qsBool(req *http.Request, key string) bool {
 	}
 
 	return false
+}
+
+func (self *API) qs(req *http.Request, key string) string {
+	return req.URL.Query().Get(key)
 }
 
 func (self *API) getSearchParams(req *http.Request) (int, int, []string, error) {

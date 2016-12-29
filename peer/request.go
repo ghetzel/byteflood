@@ -3,7 +3,7 @@ package peer
 import (
 	"bytes"
 	"fmt"
-	"github.com/vmihailenco/msgpack"
+	"gopkg.in/vmihailenco/msgpack.v2"
 	"io"
 )
 
