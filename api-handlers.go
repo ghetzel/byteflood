@@ -89,6 +89,8 @@ func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request, 
 			}
 		}
 
+		self.application.Database.ForceRescan = payload.Force
+
 		go self.application.Database.Scan(payload.Labels...)
 		http.Error(w, ``, http.StatusNoContent)
 
