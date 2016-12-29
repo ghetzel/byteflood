@@ -7,7 +7,7 @@ update:
 	govend -u -v -l
 
 vendor:
-	go list github.com/govend/govend
+	go list github.com/govend/govend || go get github.com/govend/govend
 	govend --strict
 
 clean-bundle:
