@@ -57,10 +57,12 @@ bindings:
           {{ end }}
         </td>
         <td>
-          {{ if not .fields.directory }}
-          <a onclick="byteflood.queueFileForDownload('{{ $session }}', '{{ .id }}');">
-            <i class="fa fa-fw fa-plus"></i>
-          </a>
+          {{ if $session }}
+            {{ if not .fields.directory }}
+            <a onclick="byteflood.queueFileForDownload('{{ $session }}', '{{ .id }}');">
+              <i class="fa fa-fw fa-plus"></i>
+            </a>
+            {{ end }}
           {{ end }}
         </td>
       </tr>

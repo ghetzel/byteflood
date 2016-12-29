@@ -39,7 +39,7 @@ bindings:
     </tbody>
   </table>
   {{ else }}
-  <div class="card-block">
+  <div class="card-block text-xs-center">
     <p class="card-text">There are no active downloads.</p>
   </div>
   {{ end }}
@@ -56,6 +56,7 @@ bindings:
       <tr>
         <th>Status</th>
         <th>File</th>
+        <th>Message</th>
         <th>Peer</th>
         <th>Size</th>
       </tr>
@@ -64,7 +65,8 @@ bindings:
       {{ range .bindings.queue.completed }}
       <tr>
         <td><i class="fa fa-fw bf-queue-status-{{ .status }}"></i></td>
-        <td>{{ or .metadata.name .file_id }}</td>
+        <td>{{ or .file_id }}</td>
+        <td>{{ if .error }}{{ .error }}{{ end }}</td>
         <td>{{ or .peer .session_id }}</td>
         <td>{{ Autobyte .metadata.file.size "%.2f" }}</td>
       </tr>
@@ -72,7 +74,7 @@ bindings:
     </tbody>
   </table>
   {{ else }}
-  <div class="card-block">
+  <div class="card-block text-xs-center">
     <p class="card-text">There are no completed downloads.</p>
   </div>
   {{ end }}

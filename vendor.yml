@@ -8,7 +8,7 @@ vendors:
 - path: github.com/blevesearch/segment
   rev: 762005e7a34fd909a84586299f1dd457371d36ee
 - path: github.com/boltdb/bolt
-  rev: 2c3edd782c07f917541f3094a42149bd7e497dc2
+  rev: a705895fdad108f053eae7ee011ed94a0541ee13
 - path: github.com/cockroachdb/c-jemalloc
   rev: d32877eaa9cd9a795073a36e30da919ed52c73f9
 - path: github.com/cockroachdb/c-lz4
@@ -40,7 +40,7 @@ vendors:
 - path: github.com/facebookgo/subset
   rev: 8dac2c3c48703541e481feddf22975953d4ff842
 - path: github.com/ghetzel/diecast
-  rev: 4de94ed69c4f71ea633dced8997faade55a6cf6a
+  rev: 03d8f3855b55cf9517d2ca55b9c63ec1dbc08c3b
 - path: github.com/ghetzel/go-stockutil
   rev: 1d8d62fdf74b5b5e70f0717956d57260d49f4dc0
 - path: github.com/ghetzel/pivot

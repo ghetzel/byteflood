@@ -9,6 +9,8 @@ bindings:
 {{ $view := or .request.url.query.view `files` }}
 {{ $share := or .request.url.query.name `` }}
 {{ $path := or .request.url.query.path `` }}
+{{ $limit := or .request.url.query.limit `` }}
+{{ $offset := or .request.url.query.offset `` }}
 <div class="col-md-2">
     <ul class="nav bf-nav-tree">
         <li class="nav-item">
@@ -39,8 +41,20 @@ bindings:
 <div class="col-md-10">
   <script type="text/javascript" id="share-browser">
     $(function(){
-      $.get('/shares/_peer_browse_{{ $view }}?session={{ $session }}&name={{ $share }}&path={{ $path }}', function(data){
-        $('#share-browser').replaceWith(data);
+      qs = {};
+
+      location.search.slice(1).split('&').map(function(i){
+        var x = i.split('=');
+        qs[x[0]] = x.splice(1).join('=');
+        return [x[0], x.splice(1).join('=')];
+      });
+
+      $.ajax({
+        url: '/shares/_peer_browse_{{ $view }}',
+        data: qs,
+        success: function(data){
+          $('#share-browser').replaceWith(data);
+        },
       });
     })
   </script>

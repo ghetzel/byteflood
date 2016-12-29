@@ -20,9 +20,11 @@ type QueuedDownload struct {
 	Status          string                 `json:"status"`
 	SessionID       string                 `json:"session_id"`
 	FileID          string                 `json:"file_id"`
+	FileName        string                 `json:"name"`
 	Destination     string                 `json:"destination"`
 	Progress        float64                `json:"progress"`
 	Rate            uint64                 `json:"rate"`
+	Size            uint64                 `json:"size"`
 	PeerName        string                 `json:"peer"`
 	Error           string                 `json:"error,omitempty"`
 	Transfer        *peer.Transfer         `json:"transfer,omitempty"`
@@ -42,6 +44,8 @@ func (self *QueuedDownload) Read(p []byte) (int, error) {
 }
 
 func (self *QueuedDownload) Download() error {
+	self.FileName = self.FileID
+
 	// get peer
 	if remotePeer, ok := self.application.LocalPeer.GetPeer(self.SessionID); ok {
 		self.PeerName = remotePeer.Name
@@ -53,6 +57,7 @@ func (self *QueuedDownload) Download() error {
 			// parse and load record
 			if err := json.NewDecoder(response.Body).Decode(record); err == nil {
 				v := maputil.DeepGet(record.Fields, []string{`file`, `size`}, -1)
+				self.FileName, _ = stringutil.ToString(record.Get(`name`, self.FileID))
 
 				// get file size
 				if size, err := stringutil.ConvertToInteger(v); err == nil {
@@ -95,6 +100,8 @@ func (self *QueuedDownload) Download() error {
 									}
 
 									item.Status = `downloading`
+									item.Size = t.BytesReceived
+
 									time.Sleep(time.Second)
 
 									if item.lastByteSize > 0 {
@@ -118,6 +125,7 @@ func (self *QueuedDownload) Download() error {
 									if err := transfer.Wait(); err == nil {
 										self.Progress = 1.0
 										self.Status = `completed`
+										self.Size = transfer.BytesReceived
 
 										// reopen the downloaded file as readable
 										if readFile, err := os.Open(self.Destination); err == nil {
@@ -172,6 +180,8 @@ func NewDownloadQueue(app *Application) *DownloadQueue {
 	}
 }
 
+// Appends a file to the download queue.
+//
 func (self *DownloadQueue) Add(sessionID string, fileID string) *QueuedDownload {
 	now := time.Now()
 
@@ -187,6 +197,10 @@ func (self *DownloadQueue) Add(sessionID string, fileID string) *QueuedDownload 
 	return download
 }
 
+// Downloads the given file ID from a named peer or session ID.  This function will block waiting
+// for the download to finish.  The QueuedDownload that is returned is an io.Reader referencing the
+// downloaded data.
+//
 func (self *DownloadQueue) Download(sessionID string, fileID string) (*QueuedDownload, error) {
 	download := &QueuedDownload{
 		Status:      `idle`,
@@ -199,6 +213,11 @@ func (self *DownloadQueue) Download(sessionID string, fileID string) (*QueuedDow
 	return download, download.Download()
 }
 
+// Downloads all files in the queue.  If no files are currently in the queue,
+// this function will poll the queue on the interval defined in EmptyPollInterval.
+//
+// Completed items will be moved to the CompletedItems slice.
+//
 func (self *DownloadQueue) DownloadAll() {
 	for {
 		self.Size = self.downloadQueue.Size()
