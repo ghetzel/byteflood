@@ -23,6 +23,7 @@ type PeerConnectRequest struct {
 
 type DatabaseScanRequest struct {
 	Labels []string `json:"labels"`
+	Force  bool     `json:"force"`
 }
 
 var DefaultApiAddress = `:11984`
@@ -155,6 +156,14 @@ func (self *API) qsInt(req *http.Request, key string) (int64, error) {
 	}
 
 	return 0, nil
+}
+
+func (self *API) qsBool(req *http.Request, key string) bool {
+	if v := req.URL.Query().Get(key); v == `true` {
+		return true
+	}
+
+	return false
 }
 
 func (self *API) getSearchParams(req *http.Request) (int, int, []string, error) {

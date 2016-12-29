@@ -68,7 +68,13 @@ bindings:
         <td>{{ or .file_id }}</td>
         <td>{{ if .error }}{{ .error }}{{ end }}</td>
         <td>{{ or .peer .session_id }}</td>
-        <td>{{ Autobyte .metadata.file.size "%.2f" }}</td>
+        <td>
+          {{ if .size }}
+          {{ Autobyte .size "%.2f" }}
+          {{ else }}
+          &ndash;
+          {{ end }}
+        </td>
       </tr>
       {{ end }}
     </tbody>

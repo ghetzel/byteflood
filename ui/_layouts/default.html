@@ -51,7 +51,7 @@
               });
             }
 
-            $.ajax('/api/db/actions/scan', {
+            $.ajax('/api/db/actions/scan?force=true', {
               method: 'POST',
               data: scanRequest,
               success: function(){

@@ -78,7 +78,9 @@ func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request, p
 func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	switch params.ByName(`action`) {
 	case `scan`:
-		payload := DatabaseScanRequest{}
+		payload := DatabaseScanRequest{
+			Force: self.qsBool(req, `force`),
+		}
 
 		if req.ContentLength > 0 {
 			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {

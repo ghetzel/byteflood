@@ -9,6 +9,7 @@ import (
 	"github.com/ghetzel/pivot/dal"
 	"github.com/oleiade/lane"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"time"
@@ -68,7 +69,12 @@ func (self *QueuedDownload) Download() error {
 			// parse and load record
 			if err := json.NewDecoder(response.Body).Decode(record); err == nil {
 				v := maputil.DeepGet(record.Fields, []string{`file`, `size`}, -1)
-				self.FileName, _ = stringutil.ToString(record.Get(`name`, self.FileID))
+
+				if name, ok := record.Fields[`name`]; ok {
+					self.FileName, _ = stringutil.ToString(name)
+				} else {
+					self.FileName = self.FileID
+				}
 
 				// get file size
 				if size, err := stringutil.ConvertToInteger(v); err == nil {
@@ -147,7 +153,8 @@ func (self *QueuedDownload) Download() error {
 										return err
 									}
 								} else {
-									return fmt.Errorf(response.Status)
+									body, _ := ioutil.ReadAll(response.Body)
+									return fmt.Errorf("%s: %v", response.Status, string(body[:]))
 								}
 							} else {
 								return err

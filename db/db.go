@@ -193,6 +193,10 @@ func (self *Database) GetFileAbsolutePath(id string) (string, error) {
 }
 
 func (self *Database) Scan(labels ...string) error {
+	defer func() {
+		self.ForceRescan = false
+	}()
+
 	if self.ScanInProgress {
 		log.Warningf("Another scan is already running")
 		return fmt.Errorf("Scan already running")
