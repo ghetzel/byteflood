@@ -61,6 +61,8 @@ func (self *Transfer) IsFinished() bool {
 
 // Mark the transfer as being completed.
 func (self *Transfer) Complete(err error) {
+	defer self.clearDataTimer()
+
 	select {
 	case self.completed <- err:
 	default:
@@ -70,7 +72,7 @@ func (self *Transfer) Complete(err error) {
 		log.Debugf("[%v] Transfer %v completed", self.Peer, self.ID)
 	} else {
 		self.Error = err.Error()
-		log.Debugf("[%v] Transfer %v failed: %v", self.Peer, self.ID, err)
+		log.Warning("[%v] Transfer %v failed: %v", self.Peer, self.ID, err)
 	}
 
 	self.finished = true
@@ -82,7 +84,7 @@ func (self *Transfer) Write(p []byte) (int, error) {
 	defer self.resetDataTimer()
 
 	if self.finished {
-		return 0, fmt.Errorf("attempted write on 	completed transfer")
+		return 0, fmt.Errorf("attempted write on completed transfer")
 	}
 
 	self.BytesReceived += uint64(len(p))
@@ -103,7 +105,7 @@ func (self *Transfer) Write(p []byte) (int, error) {
 	return hashN, err
 }
 
-// Verify that the checksum of data recevied so far matches the given checksum.
+// Verify that the checksum of data received so far matches the given checksum.
 func (self *Transfer) Verify(checksum []byte) error {
 	self.ExpectedChecksum = checksum
 
@@ -140,14 +142,18 @@ func (self *Transfer) verifyChecksum() error {
 	return nil
 }
 
-func (self *Transfer) resetDataTimer() {
+func (self *Transfer) clearDataTimer() {
 	if self.dataTimer != nil {
 		if !self.dataTimer.Stop() {
 			<-self.dataTimer.C
 		}
 	}
+}
+
+func (self *Transfer) resetDataTimer() {
+	self.clearDataTimer()
 
 	self.dataTimer = time.AfterFunc(TransferWriteTimeout, func() {
-		self.Complete(fmt.Errorf("Timed out waiting for next write in transfer %v", self.ID))
+		self.Complete(fmt.Errorf("receive timeout"))
 	})
 }
