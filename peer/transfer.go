@@ -69,7 +69,7 @@ func (self *Transfer) Complete(err error) {
 	}
 
 	if err == nil {
-		log.Debugf("[%v] Transfer %v completed", self.Peer, self.ID)
+		log.Noticef("[%v] Transfer %v received (%d bytes)", self.Peer, self.ID, self.BytesReceived)
 	} else {
 		self.Error = err.Error()
 		log.Warningf("[%v] Transfer %v failed: %v", self.Peer, self.ID, err)

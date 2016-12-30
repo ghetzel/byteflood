@@ -69,7 +69,7 @@ func (self *PeerServer) HandleRequest(remotePeer *RemotePeer, w io.Writer, data 
 
 				if response, err := http.DefaultClient.Do(request); err == nil {
 					log.Debugf(
-						"[%s] %s %s: %s - %d bytes",
+						"[%s] %s %s: %s (%d bytes)",
 						remotePeer.String(),
 						request.Method,
 						request.URL.Path,

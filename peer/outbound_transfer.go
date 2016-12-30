@@ -125,7 +125,6 @@ func (self *OutboundTransfer) completeTransfer(errs ...error) error {
 		sum := self.hasher.Sum(nil)
 
 		// send the transfer termination (successful)
-		log.Debugf("Completed checked transfer: %x", sum)
 		_, err := self.peer.SendMessage(NewGroupedMessage(self.ID, DataFinalize, sum))
 
 		return err

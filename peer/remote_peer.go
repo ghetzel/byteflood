@@ -346,7 +346,7 @@ func (self *RemotePeer) TransferFile(id uuid.UUID, path string) error {
 	if file, err := os.Open(path); err == nil {
 		if stat, err := file.Stat(); err == nil {
 			if transfer, err := self.CreateOutboundTransfer(id, uint64(stat.Size())); err == nil {
-				log.Debugf("Transferring %s (%d bytes) via transfer ID %v", path, stat.Size(), id)
+				log.Debugf("[%v] Sending file %s (%d bytes)", self, path, stat.Size())
 
 				if _, err := io.Copy(transfer, file); err == nil {
 					return transfer.Close()
