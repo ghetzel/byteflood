@@ -81,13 +81,18 @@ func (self *RemotePeer) ID() string {
 }
 
 func (self *RemotePeer) SessionID() string {
-	addr := self.connection.RemoteAddr().String()
-	return base58.Encode([]byte(addr[:]))
+	return self.originalRequest.String()
 }
 
 func (self *RemotePeer) String() string {
+	name := self.Name
+
+	if name == `` {
+		name = `UNKNOWN`
+	}
+
 	return fmt.Sprintf("%s/%s",
-		self.Name,
+		name,
 		self.connection.RemoteAddr().String(),
 	)
 }
@@ -346,7 +351,7 @@ func (self *RemotePeer) TransferFile(id uuid.UUID, path string) error {
 	if file, err := os.Open(path); err == nil {
 		if stat, err := file.Stat(); err == nil {
 			if transfer, err := self.CreateOutboundTransfer(id, uint64(stat.Size())); err == nil {
-				log.Debugf("[%v] Sending file %s (%d bytes)", self, path, stat.Size())
+				log.Infof("[%v] Sending file %s (%d bytes)", self, path, stat.Size())
 
 				if _, err := io.Copy(transfer, file); err == nil {
 					return transfer.Close()

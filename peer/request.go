@@ -2,7 +2,9 @@ package peer
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
+	"github.com/jbenet/go-base58"
 	"gopkg.in/vmihailenco/msgpack.v2"
 	"io"
 )
@@ -11,16 +13,27 @@ var PeeringRequestMaxInitialRead = 32768
 
 type PeeringRequest struct {
 	PublicKey []byte
+	SessionID []byte
 }
 
 func NewPeeringRequest(publicKey []byte) *PeeringRequest {
+	// generate a random session ID
+	var sessionId [8]byte
+	rand.Read(sessionId[:])
+
 	return &PeeringRequest{
 		PublicKey: publicKey,
+		SessionID: []byte(sessionId[:]),
 	}
 }
 
-func GenerateAndWritePeeringRequest(w io.Writer, peer Peer) error {
+func GenerateAndWritePeeringRequest(w io.Writer, peer Peer, sessionId []byte) error {
 	peeringRequest := NewPeeringRequest(peer.GetPublicKey())
+
+	if sessionId != nil {
+		copy(peeringRequest.SessionID, sessionId)
+	}
+
 	_, err := peeringRequest.WriteTo(w)
 	return err
 }
@@ -55,4 +68,8 @@ func (self *PeeringRequest) Validate() error {
 	}
 
 	return nil
+}
+
+func (self *PeeringRequest) String() string {
+	return base58.Encode(self.SessionID)
 }

@@ -9,6 +9,7 @@ import (
 const (
 	BF_ERR_ALREADY_CONNECTED = `already connected`
 	BF_ERR_LOOPBACK_CONN     = `cannot connect to myself`
+	BF_ERR_UNKNOWN_PEER      = `unknown peer`
 )
 
 func min(a, b int) int {
@@ -43,6 +44,14 @@ func IsAlreadyConnectedErr(err error) bool {
 
 func IsLoopbackConnectionErr(err error) bool {
 	if err.Error() == BF_ERR_LOOPBACK_CONN {
+		return true
+	}
+
+	return false
+}
+
+func IsUnknownPeerErr(err error) bool {
+	if err.Error() == BF_ERR_UNKNOWN_PEER {
 		return true
 	}
 

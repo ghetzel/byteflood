@@ -20,14 +20,13 @@ var DefaultPublicKeyPath = `~/.config/byteflood/keys/peer.pub`
 var DefaultPrivateKeyPath = `~/.config/byteflood/keys/peer.key`
 
 type Application struct {
-	LocalPeer      *peer.LocalPeer     `json:"local,omitempty"`
-	Database       *db.Database        `json:"database,omitempty"`
-	PublicKeyPath  string              `json:"public_key,omitempty"`
-	PrivateKeyPath string              `json:"private_key,omitempty"`
-	KnownPeers     map[string][]string `json:"known_peers,omitempty"`
-	Shares         []*shares.Share     `json:"shares,omitempty"`
-	Queue          *DownloadQueue      `json:"queue"`
-	API            *API                `json:"api,omitempty"`
+	LocalPeer      *peer.LocalPeer `json:"local,omitempty"`
+	Database       *db.Database    `json:"database,omitempty"`
+	PublicKeyPath  string          `json:"public_key,omitempty"`
+	PrivateKeyPath string          `json:"private_key,omitempty"`
+	Shares         []*shares.Share `json:"shares,omitempty"`
+	Queue          *DownloadQueue  `json:"queue"`
+	API            *API            `json:"api,omitempty"`
 	running        chan bool
 }
 

@@ -32,7 +32,7 @@ type KnownPeers map[string][]string
 
 func (self KnownPeers) GetPeerNameByID(peerID string) (string, error) {
 	if peerID == `` {
-		return ``, fmt.Errorf("invalid peer ID")
+		return ``, fmt.Errorf(BF_ERR_UNKNOWN_PEER)
 	}
 
 	for peerName, permittedIDs := range self {
@@ -56,7 +56,7 @@ type LocalPeer struct {
 	Peer                 `json:"-"`
 	EnableUpnp           bool          `json:"upnp,omitempty"`
 	Address              string        `json:"address,omitempty"`
-	KnownPeers           KnownPeers    `json:"known_peers"`
+	KnownPeers           KnownPeers    `json:"peers"`
 	Autoconnect          bool          `json:"autoconnect"`
 	AutoconnectPeers     []string      `json:"autoconnect_peers,omitempty"`
 	PublicKey            []byte        `json:"-"`
@@ -321,7 +321,7 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 		log.Debugf("Got new peering request, parsing...")
 		if pReq, err := ParsePeeringRequest(conn); err == nil {
 			log.Debugf("Replying with our peering request...")
-			if err := GenerateAndWritePeeringRequest(conn, self); err == nil {
+			if err := GenerateAndWritePeeringRequest(conn, self, pReq.SessionID); err == nil {
 				remotePeeringRequest = pReq
 			} else {
 				return nil, err
@@ -332,7 +332,7 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 	} else {
 		// write, then read
 		log.Debugf("Sending peering request to %s", conn.RemoteAddr().String())
-		if err := GenerateAndWritePeeringRequest(conn, self); err == nil {
+		if err := GenerateAndWritePeeringRequest(conn, self, nil); err == nil {
 			log.Debugf("Reading peering request reply from %s", conn.RemoteAddr().String())
 			if pReq, err := ParsePeeringRequest(conn); err == nil {
 				remotePeeringRequest = pReq
@@ -348,17 +348,15 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 	// -----------------------------------------
 
 	if remotePeeringRequest != nil {
+		log.Debugf("Peering request exchange completed: session is %v", remotePeeringRequest)
+
 		if remotePeer, err := NewRemotePeerFromRequest(remotePeeringRequest, conn); err == nil {
 			// if this is an incoming registration, make sure we know about them
 			if peerName, err := self.KnownPeers.GetPeerNameByID(remotePeer.ID()); err == nil {
 				remotePeer.Name = peerName
 			} else {
-				if remoteInitiated {
-					log.Errorf("Rejecting unknown peer %s (%s)", remotePeer.ID(), remotePeer.String())
-					return nil, err
-				} else {
-					remotePeer.Name = BF_ANON_PEER_NAME
-				}
+				log.Errorf("rejecting unknown peer %s (%s)", remotePeer.ID(), remotePeer.String())
+				return nil, err
 			}
 
 			// setup encryption and decryption
@@ -512,6 +510,9 @@ func (self *LocalPeer) ConnectToAndMonitor(address string) {
 			// heartbeat failed, disconnect from peer
 			remotePeer.Disconnect()
 
+		} else if IsUnknownPeerErr(err) {
+			log.Warning(err)
+			return
 		} else if IsAlreadyConnectedErr(err) {
 			log.Warning(err)
 			return
