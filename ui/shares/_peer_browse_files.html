@@ -1,7 +1,7 @@
 ---
 bindings:
 - name: results
-  resource: :/api{{ if .request.url.query.session }}/peers/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.name }}/browse{{ .request.url.query.path }}
+  resource: :/api{{ if .request.url.query.session }}/peers/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.name }}/browse/{{ .request.url.query.parent }}
   params:
     limit: '{{ or .request.url.query.limit 100 }}'
     offset: '{{ or .request.url.query.offset 0 }}'
@@ -43,7 +43,7 @@ bindings:
       <tr>
         <td>
           {{ if .fields.directory }}
-          <a href="/shares/?name={{ $share }}&amp;path={{ .fields.name }}&amp;session={{ $session }}">{{ .fields.file.name }}</a>
+          <a href="/shares/?name={{ $share }}&amp;parent={{ .id }}&amp;session={{ $session }}">{{ .fields.file.name }}</a>
           {{ else }}
           {{ .fields.file.name }}
           {{ end }}
@@ -58,11 +58,9 @@ bindings:
         </td>
         <td>
           {{ if $session }}
-            {{ if not .fields.directory }}
-            <a onclick="byteflood.queueFileForDownload('{{ $session }}', '{{ .id }}');">
-              <i class="fa fa-fw fa-plus"></i>
-            </a>
-            {{ end }}
+          <a onclick="byteflood.queueFileForDownload('{{ $session }}', '{{ .id }}');">
+            <i class="fa fa-fw fa-plus"></i>
+          </a>
           {{ end }}
         </td>
       </tr>

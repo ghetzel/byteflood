@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"github.com/alexcesaro/statsd"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"time"
 )
+
+var stats, _ = statsd.New()
 
 type Directory struct {
 	Path                 string       `json:"path"`
@@ -56,6 +59,10 @@ func (self *Directory) Initialize(db *Database) error {
 		self.RootPath = self.Path
 	}
 
+	if self.Parent == `` {
+		self.Parent = RootDirectoryName
+	}
+
 	self.db = db
 
 	return nil
@@ -80,7 +87,7 @@ func (self *Directory) Scan() error {
 						subdirectory.FileMinimumSize = self.FileMinimumSize
 						subdirectory.QuickScan = self.QuickScan
 
-						log.Debugf("[%s] Scanning subdirectory %s", self.Label, subdirectory.Path)
+						log.Debugf("[%s] %s: Scanning subdirectory %s", self.Label, subdirectory.Parent, subdirectory.Path)
 
 						if err := subdirectory.Scan(); err == nil {
 							self.Directories = append(self.Directories, subdirectory)
@@ -120,9 +127,21 @@ func (self *Directory) normalizeFileName(name string) string {
 }
 
 func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
+	defer stats.NewTiming().Send(`byteflood.db.entry_scan_time`)
+	stats.Increment(`byteflood.db.entry`)
+
+	if isDir {
+		stats.Increment(`byteflood.db.directory`)
+	} else {
+		stats.Increment(`byteflood.db.file`)
+	}
+
+	// get file implementation
+	file := NewFile(name)
+
 	// skip the file if it's in the global exclusions list (case sensitive exact match)
 	if sliceutil.ContainsString(self.db.GlobalExclusions, path.Base(name)) {
-		return nil, nil
+		return file, nil
 	}
 
 	if !isDir {
@@ -130,16 +149,13 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 		if self.FilePattern != `` {
 			if rx, err := regexp.Compile(self.FilePattern); err == nil {
 				if !rx.MatchString(name) {
-					return nil, nil
+					return file, nil
 				}
 			} else {
 				return nil, err
 			}
 		}
 	}
-
-	// get file implementation
-	file := NewFile(name)
 
 	// unless we're forcing the scan, see if we can skip this file
 	if !self.db.ForceRescan {
@@ -149,7 +165,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 
 				if epochNs, ok := lastModifiedAt.(int64); ok {
 					if !stat.ModTime().After(time.Unix(0, epochNs)) {
-						return nil, nil
+						return file, nil
 					}
 				}
 			}
@@ -165,18 +181,28 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	file.Metadata[`label`] = self.Label
 	file.Metadata[`directory`] = isDir
 
+	tm := stats.NewTiming()
+
 	// load file metadata
 	if err := file.LoadMetadata(); err != nil {
 		return nil, err
 	}
+
+	tm.Send(`byteflood.db.entry_metadata_load_time`)
+	tm = stats.NewTiming()
 
 	// persist the file record
 	if err := self.db.PersistRecord(file.ID(), file.Metadata); err != nil {
 		return nil, err
 	}
 
+	tm.Send(`byteflood.db.entry_persist_time`)
+	tm = stats.NewTiming()
+
 	// store the absolute filesystem path separately
 	self.db.PropertySet(fmt.Sprintf("metadata.paths.%s", file.ID()), name)
+
+	tm.Send(`byteflood.db.entry_sysprop_time`)
 
 	return file, nil
 }

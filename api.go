@@ -109,7 +109,8 @@ func (self *API) Serve() error {
 	router.GET(`/api/db`, self.handleGetDatabase)
 	router.GET(`/api/db/view/:id`, self.handleGetDatabaseItem)
 	router.GET(`/api/db/query/*query`, self.handleQueryDatabase)
-	router.GET(`/api/db/browse/?parent`, self.handleBrowseDatabase)
+	router.GET(`/api/db/browse/*parent`, self.handleBrowseDatabase)
+	router.GET(`/api/db/list/*fields`, self.handleListValuesInDatabase)
 	router.POST(`/api/db/actions/:action`, self.handleActionDatabase)
 	router.GET(`/api/peers`, self.handleGetPeers)
 	router.POST(`/api/peers`, self.handleConnectPeer)
@@ -123,7 +124,7 @@ func (self *API) Serve() error {
 	router.GET(`/api/shares`, self.handleGetShares)
 	router.GET(`/api/shares/:share`, self.handleGetShare)
 	router.GET(`/api/shares/:share/query/*query`, self.handleQueryShare)
-	router.GET(`/api/shares/:share/browse/:parent`, self.handleBrowseShare)
+	router.GET(`/api/shares/:share/browse/*parent`, self.handleBrowseShare)
 
 	server.UseHandler(router)
 
@@ -139,12 +140,13 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 	router.GET(`/`, self.handleGetPeerStatus)
 	router.GET(`/db/view/:id`, self.handleGetDatabaseItem)
 	router.GET(`/db/query/*query`, self.handleQueryDatabase)
-	router.GET(`/db/browse/?parent`, self.handleBrowseDatabase)
+	router.GET(`/db/browse/*parent`, self.handleBrowseDatabase)
+	router.GET(`/db/list/*fields`, self.handleListValuesInDatabase)
 	router.POST(`/transfers/:transfer/:file`, self.handleRequestFileFromShare)
 	router.GET(`/shares`, self.handleGetShares)
 	router.GET(`/shares/:share`, self.handleGetShare)
 	router.GET(`/shares/:share/query/*query`, self.handleQueryShare)
-	router.GET(`/shares/:share/browse/*path`, self.handleBrowseShare)
+	router.GET(`/shares/:share/browse/*parent`, self.handleBrowseShare)
 
 	return router
 }

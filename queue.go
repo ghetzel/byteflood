@@ -97,15 +97,19 @@ func (self *QueuedDownload) recordIsDirectory(record *dal.Record) bool {
 func (self *QueuedDownload) downloadDirectory(remotePeer *peer.RemotePeer, record *dal.Record) error {
 	// get file record from peer
 	if response, err := remotePeer.ServiceRequest(`GET`, fmt.Sprintf("/db/list/_id?q=parent=%s", self.FileID), nil, nil); err == nil {
-		recordset := dal.NewRecordSet()
+		valueset := make(map[string][]interface{})
 
 		// parse and load record
-		if err := json.NewDecoder(response.Body).Decode(recordset); err == nil {
-			for _, id := range recordset.Pluck(`value`) {
-				self.application.Queue.Add(self.SessionID, fmt.Sprintf("%v", id))
-			}
+		if err := json.NewDecoder(response.Body).Decode(&valueset); err == nil {
+			if values, ok := valueset[`_id`]; ok {
+				for _, id := range values {
+					self.application.Queue.Add(self.SessionID, fmt.Sprintf("%v", id))
+				}
 
-			return nil
+				return nil
+			} else {
+				return fmt.Errorf("Could not load ID list for parent entry %s", self.FileID)
+			}
 		} else {
 			return err
 		}

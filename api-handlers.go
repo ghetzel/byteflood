@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/pivot/dal"
 	"github.com/julienschmidt/httprouter"
 	"github.com/satori/go.uuid"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 func (self *API) handleStatus(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
@@ -59,6 +61,10 @@ func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request, p
 			f.Offset = offset
 			f.Sort = sort
 
+			if v := self.qs(req, `fields`); v != `` {
+				f.Fields = strings.Split(v, `,`)
+			}
+
 			if recordset, err := self.application.Database.Query(
 				db.MetadataCollectionName,
 				f,
@@ -77,18 +83,22 @@ func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request, p
 
 func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	if limit, offset, sort, err := self.getSearchParams(req); err == nil {
-		var query string
+		query := ``
 
-		if parent := params.ByName(`parent`); parent == `` {
+		if parent := params.ByName(`parent`); parent == `/` {
 			query = fmt.Sprintf("parent=%s", db.RootDirectoryName)
 		} else {
-			query = fmt.Sprintf("parent=%s", parent)
+			query = fmt.Sprintf("parent=%s", strings.TrimPrefix(parent, `/`))
 		}
 
 		if f, err := self.application.Database.ParseFilter(query); err == nil {
 			f.Limit = limit
 			f.Offset = offset
 			f.Sort = sort
+
+			if v := self.qs(req, `fields`); v != `` {
+				f.Fields = strings.Split(v, `,`)
+			}
 
 			if recordset, err := self.application.Database.Query(
 				db.MetadataCollectionName,
@@ -104,6 +114,48 @@ func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request, 
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
+}
+
+func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	var recordset *dal.RecordSet
+
+	fV := strings.TrimPrefix(params.ByName(`fields`), `/`)
+
+	if fV == `` {
+		http.Error(w, `Must specify at least one field name to list`, http.StatusBadRequest)
+		return
+	}
+
+	fields := strings.Split(fV, `/`)
+
+	if v := self.qs(req, `q`); v == `` {
+		if rs, err := self.application.Database.ListMetadata(fields); err == nil {
+			recordset = rs
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		if f, err := self.application.Database.ParseFilter(v); err == nil {
+			if rs, err := self.application.Database.ListMetadata(fields, f); err == nil {
+				recordset = rs
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	results := make(map[string]interface{})
+
+	for _, record := range recordset.Records {
+		results[record.ID] = record.Get(`values`)
+	}
+
+	Respond(w, results)
 }
 
 func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
@@ -218,7 +270,13 @@ func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, para
 func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
-			query := fmt.Sprintf("parent=%s", params.ByName(`parent`))
+			query := ``
+
+			if parent := params.ByName(`parent`); parent == `/` {
+				query = fmt.Sprintf("parent=%s", db.RootDirectoryName)
+			} else {
+				query = fmt.Sprintf("parent=%s", strings.TrimPrefix(parent, `/`))
+			}
 
 			if results, err := share.Find(query, limit, offset, sort); err == nil {
 				Respond(w, results)

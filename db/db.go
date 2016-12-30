@@ -80,14 +80,30 @@ func (self *Database) AddGlobalExclusions(patterns ...string) {
 	self.GlobalExclusions = append(self.GlobalExclusions, patterns...)
 }
 
-func (self *Database) ParseFilter(filterString string) (filter.Filter, error) {
-	return filter.Parse(filterString)
+func (self *Database) ParseFilter(spec interface{}) (filter.Filter, error) {
+	switch spec.(type) {
+	case string, interface{}:
+		return filter.Parse(fmt.Sprintf("%v", spec))
+	case map[string]interface{}:
+		return filter.FromMap(spec.(map[string]interface{}))
+	default:
+		return filter.Filter{}, fmt.Errorf("Invalid argument type %T", spec)
+	}
 }
 
 // Query records in the given collection
 func (self *Database) Query(collectionName string, f filter.Filter) (*dal.RecordSet, error) {
 	if index := self.db.WithSearch(); index != nil {
 		return index.Query(collectionName, f)
+	} else {
+		return nil, fmt.Errorf("Backend type %T does not support searching", self.db)
+	}
+}
+
+// List distinct values from the given collection
+func (self *Database) List(collectionName string, fields []string, f filter.Filter) (*dal.RecordSet, error) {
+	if index := self.db.WithSearch(); index != nil {
+		return index.ListValues(collectionName, fields, f)
 	} else {
 		return nil, fmt.Errorf("Backend type %T does not support searching", self.db)
 	}
@@ -128,6 +144,19 @@ func (self *Database) QueryMetadata(filterString string) (*dal.RecordSet, error)
 	}
 }
 
+// Lists distinct values of the given field from the metadata collection.
+func (self *Database) ListMetadata(fields []string, f ...filter.Filter) (*dal.RecordSet, error) {
+	var ft filter.Filter
+
+	if len(f) > 0 {
+		ft = f[0]
+	} else {
+		ft = filter.All
+	}
+
+	return self.List(MetadataCollectionName, fields, ft)
+}
+
 // Query records from the system data collection
 func (self *Database) QuerySystem(filterString string) (*dal.RecordSet, error) {
 	if f, err := self.ParseFilter(filterString); err == nil {
@@ -139,16 +168,32 @@ func (self *Database) QuerySystem(filterString string) (*dal.RecordSet, error) {
 
 // Removes records from the database that would not be added by the current Database instance.
 func (self *Database) CleanRecords() error {
-	// scan all files to get a list of everything currently present
-	//   add file IDs to bloom filter
+	// missingEntries := make([]string, 0)
 
-	// get all IDs currently stored
+	// if index := self.db.WithSearch(); index != nil {
+	// 	if f, err := self.ParseFilter(`key=prefix:metadata.paths.`); err == nil {
+	// 		if err := index.QueryFunc(SystemCollectionName, f, func(record *dal.Record, _ backends.IndexPage) error {
+	// 			fsPath := fmt.Sprintf("%v", record.Get(`value`))
+	// 			log.Debugf("Trying %v", fsPath)
 
-	// stored IDs that aren't in the scan we just did should be deleted.
-	//   if an ID in the database is NOT in the bloom filter, it can be removed
-	//   if an ID is maybe, stat it.  this should reduce the number of stats considerably
+	// 			if _, err := os.Stat(fsPath); os.IsNotExist(err) {
+	// 				missingEntries = append(missingEntries, fsPath)
+	// 			}
 
-	return fmt.Errorf("Not Implemented")
+	// 			return nil
+	// 		}); err != nil {
+	// 			return err
+	// 		}
+	// 	} else {
+	// 		return err
+	// 	}
+	// }
+
+	// for _, fsPath := range missingEntries {
+	// 	log.Debugf("Missing: %s", fsPath)
+	// }
+
+	return nil
 }
 
 func (self *Database) PropertySet(key string, value interface{}, fields ...map[string]interface{}) error {
