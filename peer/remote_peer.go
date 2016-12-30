@@ -286,7 +286,6 @@ func (self *RemotePeer) GetInboundTransfer(id uuid.UUID) (*Transfer, bool) {
 
 // Removes an inbound transfer by ID in a thread safe manner.
 func (self *RemotePeer) RemoveInboundTransfer(id uuid.UUID) {
-	log.Debugf("[%v] Transfer %v completed", self, id)
 	self.inboundTransferLock.Lock()
 	delete(self.inboundTransfers, id)
 	self.inboundTransferLock.Unlock()
@@ -473,8 +472,6 @@ func (self *RemotePeer) receiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 
 					transfer.Complete(err)
 				}
-
-				self.RemoveInboundTransfer(transfer.ID)
 			} else {
 				log.Warningf("unsolicited data finalize message")
 			}

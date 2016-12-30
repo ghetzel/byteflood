@@ -66,8 +66,11 @@ func (self *Transfer) Complete(err error) {
 	default:
 	}
 
-	if err != nil {
+	if err == nil {
+		log.Debugf("[%v] Transfer %v completed", self.Peer, self.ID)
+	} else {
 		self.Error = err.Error()
+		log.Debugf("[%v] Transfer %v failed: %v", self.Peer, self.ID, err)
 	}
 
 	self.finished = true
