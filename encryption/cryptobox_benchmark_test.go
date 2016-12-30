@@ -4,25 +4,30 @@ import (
 	"bytes"
 	"crypto/rand"
 	"io"
+	"io/ioutil"
 	"testing"
 )
 
-var lastErr error
-
-func benchmarkEncDecValue(b *testing.B, value []byte, encrypting bool) {
-	buffer := bytes.NewBuffer(nil)
+func benchmarkEncDecValue(b *testing.B, value []byte, encrypting bool, parallel bool) {
 	encrypter, decrypter := makeTestEncDecPair()
+	encryptedTestData := bytes.NewBuffer(nil)
+	var reader *bytes.Reader
 
-	encrypter.SetTarget(buffer)
-	encrypter.Write(value)
-	reader := bytes.NewReader(buffer.Bytes())
+	if encrypting {
+		encrypter.SetTarget(ioutil.Discard)
+	}else{
+		// populate encrypted data once
+		encrypter.SetTarget(encryptedTestData)
+		encrypter.Write(value)
 
-	if !encrypting {
+		// make the decrypter aware of the encrypted data
+		reader = bytes.NewReader(encryptedTestData.Bytes())
 		decrypter.SetSource(reader)
 	}
 
-	for n := 0; n < b.N; n++ {
+	fn := func(){
 		var err error
+
 		if encrypting {
 			_, err = encrypter.Write(value)
 		} else {
@@ -34,41 +39,69 @@ func benchmarkEncDecValue(b *testing.B, value []byte, encrypting bool) {
 		if err != nil {
 			panic(err)
 		}
+	}
 
-		lastErr = err
+	if parallel {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				fn()
+			}
+		})
+	}else{
+		for n := 0; n < b.N; n++ {
+			fn()
+		}
 	}
 }
 
 func BenchmarkEncrypt_16B(b *testing.B) {
 	value := `This is a test!!`
-	benchmarkEncDecValue(b, []byte(value[:]), true)
+	benchmarkEncDecValue(b, []byte(value[:]), true, false)
 }
 
 func BenchmarkEncrypt_32K(b *testing.B) {
 	value := make([]byte, 32768)
 	rand.Read(value)
-	benchmarkEncDecValue(b, value, true)
+	benchmarkEncDecValue(b, value, true, false)
 }
 
 func BenchmarkEncrypt_1MB(b *testing.B) {
 	value := make([]byte, (1024 * 1024 * 1))
 	rand.Read(value)
-	benchmarkEncDecValue(b, value, true)
+	benchmarkEncDecValue(b, value, true, false)
 }
 
 func BenchmarkDecrypt_16B(b *testing.B) {
 	value := `This is a test!!`
-	benchmarkEncDecValue(b, []byte(value[:]), false)
+	benchmarkEncDecValue(b, []byte(value[:]), false, false)
 }
 
 func BenchmarkDecrypt_32K(b *testing.B) {
 	value := make([]byte, 32768)
 	rand.Read(value)
-	benchmarkEncDecValue(b, value, false)
+	benchmarkEncDecValue(b, value, false, false)
 }
 
 func BenchmarkDecrypt_1MB(b *testing.B) {
 	value := make([]byte, (1024 * 1024 * 1))
 	rand.Read(value)
-	benchmarkEncDecValue(b, value, false)
+	benchmarkEncDecValue(b, value, false, false)
+}
+
+
+func BenchmarkEncryptParallel_16B(b *testing.B) {
+	value := `This is a test!!`
+	benchmarkEncDecValue(b, []byte(value[:]), true, true)
+}
+
+func BenchmarkEncryptParallel_32K(b *testing.B) {
+	value := make([]byte, 32768)
+	rand.Read(value)
+	benchmarkEncDecValue(b, value, true, true)
+}
+
+func BenchmarkEncryptParallel_1MB(b *testing.B) {
+	value := make([]byte, (1024 * 1024 * 1))
+	rand.Read(value)
+	benchmarkEncDecValue(b, value, true, true)
 }

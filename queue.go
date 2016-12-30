@@ -42,6 +42,9 @@ type QueuedDownload struct {
 	PeerName        string    `json:"peer"`
 	Error           string    `json:"error,omitempty"`
 	AddedAt         time.Time `json:"added_at"`
+	FileCount       int       `json:"file_count"`
+	TotalSize       uint64    `json:"total_size"`
+	inherits        *QueuedDownload
 	application     *Application
 	destinationFile io.Reader
 	lastByteSize    uint64
@@ -73,6 +76,7 @@ func (self *QueuedDownload) Download() error {
 				} else {
 					return self.downloadSingleFile(remotePeer, record)
 				}
+
 			} else {
 				return err
 			}
@@ -103,7 +107,13 @@ func (self *QueuedDownload) downloadDirectory(remotePeer *peer.RemotePeer, recor
 		if err := json.NewDecoder(response.Body).Decode(&valueset); err == nil {
 			if values, ok := valueset[`_id`]; ok {
 				for _, id := range values {
-					self.application.Queue.Add(self.SessionID, fmt.Sprintf("%v", id))
+					download := self.application.Queue.Add(self.SessionID, fmt.Sprintf("%v", id))
+
+					if self.inherits == nil {
+						download.inherits = self
+					} else {
+						download.inherits = self.inherits
+					}
 				}
 
 				return nil
@@ -131,6 +141,11 @@ func (self *QueuedDownload) downloadSingleFile(remotePeer *peer.RemotePeer, reco
 	if size, err := stringutil.ConvertToInteger(v); err == nil {
 		if size < 0 {
 			return fmt.Errorf("size unknown")
+		}
+
+		if self.inherits != nil {
+			self.inherits.FileCount += 1
+			self.inherits.TotalSize += uint64(size)
 		}
 
 		self.Status = `waiting`
@@ -191,6 +206,11 @@ func (self *QueuedDownload) downloadSingleFile(remotePeer *peer.RemotePeer, reco
 							self.Progress = 1.0
 							self.Status = `completed`
 							self.Size = transfer.BytesReceived
+
+							if self.inherits != nil {
+								self.inherits.FileCount -= 1
+								self.inherits.TotalSize -= self.Size
+							}
 
 							// reopen the downloaded file as readable
 							if readFile, err := os.Open(self.Destination); err == nil {
@@ -280,7 +300,9 @@ func (self *DownloadQueue) DownloadAll() {
 		self.Size = self.downloadQueue.Size()
 
 		if item := self.CurrentItem(); item != nil {
-			self.ActiveTransfers = []*QueuedDownload{item}
+			if item.inherits == nil {
+				self.ActiveTransfers = []*QueuedDownload{item}
+			}
 
 			if err := item.Download(); err != nil {
 				item.Error = err.Error()
