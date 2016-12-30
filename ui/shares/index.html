@@ -26,10 +26,10 @@ bindings:
         {{ range .bindings.peers }}
         <li class="nav-item">
           <span class="bf-nav-tree-title">{{ .name }}</span>
-          <script type="text/javascript" id="shares-list-{{ .session_id }}">
+          <script type="text/javascript" id="shares-list-{{ .name }}">
             $(function(){
-              $.get('/shares/_peer_shares?session={{ .session_id }}', function(data){
-                $('#shares-list-{{ .session_id }}').replaceWith(data);
+              $.get('/shares/_peer_shares?session={{ .name }}', function(data){
+                $('#shares-list-{{ .name }}').replaceWith(data);
               });
             })
           </script>
