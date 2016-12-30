@@ -7,7 +7,10 @@ import (
 	"github.com/satori/go.uuid"
 	"hash"
 	"io"
+	"time"
 )
+
+var TransferWriteTimeout = 10 * time.Second
 
 // A Transfer represents the transfer of data from a remote peer to the local peer instance. Transfers can
 // have an expected size, or be unbounded.  For bounded transfers, checks are performed to ensure that the
@@ -26,6 +29,8 @@ type Transfer struct {
 	destination      io.Writer
 	finished         bool
 	completed        chan error
+	lastDataReceived time.Time
+	dataTimer        *time.Timer
 }
 
 func NewTransfer(peer *RemotePeer, size uint64) *Transfer {
@@ -71,6 +76,12 @@ func (self *Transfer) Complete(err error) {
 // Implements the io.Writer interface for transfers.  Data will be added to the
 // rolling checksum, and if given, written to the destination io.Writer.
 func (self *Transfer) Write(p []byte) (int, error) {
+	defer self.resetDataTimer()
+
+	if self.finished {
+		return 0, fmt.Errorf("attempted write on 	completed transfer")
+	}
+
 	self.BytesReceived += uint64(len(p))
 
 	if err := self.verifySize(); err != nil {
@@ -124,4 +135,16 @@ func (self *Transfer) verifyChecksum() error {
 	}
 
 	return nil
+}
+
+func (self *Transfer) resetDataTimer() {
+	if self.dataTimer != nil {
+		if !self.dataTimer.Stop() {
+			<-self.dataTimer.C
+		}
+	}
+
+	self.dataTimer = time.AfterFunc(TransferWriteTimeout, func() {
+		self.Complete(fmt.Errorf("Timed out waiting for next write in transfer %v", self.ID))
+	})
 }
