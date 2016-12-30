@@ -200,6 +200,11 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 	// imposes rate limiting on writes (if configured)
 	writer := self.getWriteRateLimiter(self.connection)
 
+	// get an exclusive lock on writing to the encrypter
+	// release it once we've encrypted the data
+	self.Encrypter.Lock()
+	defer self.Encrypter.Unlock()
+
 	// ensures that the encrypter is using the writer we've specified
 	self.Encrypter.SetTarget(writer)
 

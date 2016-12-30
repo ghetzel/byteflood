@@ -4,12 +4,14 @@ import (
 	"crypto/rand"
 	"golang.org/x/crypto/nacl/box"
 	"io"
+	"sync"
 )
 
 type Encrypter struct {
 	publicKey []byte
 	sharedKey [32]byte
 	target    io.Writer
+	writeLock sync.Mutex
 }
 
 func NewEncrypter(publicKey []byte, privateKey []byte, target io.Writer) *Encrypter {
@@ -36,6 +38,16 @@ func NewEncrypter(publicKey []byte, privateKey []byte, target io.Writer) *Encryp
 // Sets the writer to which ciphertext will be written to.
 func (self *Encrypter) SetTarget(w io.Writer) {
 	self.target = w
+}
+
+// Locks the encrypter for exclusive writing.
+func (self *Encrypter) Lock() {
+	self.writeLock.Lock()
+}
+
+// Releases a previously-acquired lock.
+func (self *Encrypter) Unlock() {
+	self.writeLock.Unlock()
 }
 
 func (self *Encrypter) Write(p []byte) (int, error) {

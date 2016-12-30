@@ -29,6 +29,8 @@ func benchmarkEncDecValue(b *testing.B, value []byte, encrypting bool, parallel 
 		var err error
 
 		if encrypting {
+			encrypter.Lock()
+			defer encrypter.Unlock()
 			_, err = encrypter.Write(value)
 		} else {
 			dest := make([]byte, len(value))

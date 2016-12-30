@@ -6,7 +6,7 @@ import (
 	"crypto/sha256"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/nacl/box"
-	// "io"
+	"sync"
 	"testing"
 	"time"
 )
@@ -107,6 +107,7 @@ func TestPeerCheckedTransfer(t *testing.T) {
 	assert := require.New(t)
 	peer1, peer2 := makePeerPair()
 	messages := make([]*Message, 0)
+	var msglock sync.RWMutex
 
 	// peer1 connects to peer2
 	peer2fromPeer1, err := peer1.ConnectTo(peer2.Address)
@@ -122,7 +123,9 @@ func TestPeerCheckedTransfer(t *testing.T) {
 
 	// receive incoming messages
 	peer1fromPeer2.SetMessageHandler(func(message *Message) {
+		msglock.Lock()
 		messages = append(messages, message)
+		msglock.Unlock()
 	})
 
 	// declare that we will receive a new transfer
@@ -141,6 +144,7 @@ func TestPeerCheckedTransfer(t *testing.T) {
 
 	time.Sleep(time.Second)
 
+	msglock.RLock()
 	assert.Equal(3, len(messages))
 
 	var header, block, trailer *Message
@@ -148,6 +152,7 @@ func TestPeerCheckedTransfer(t *testing.T) {
 	header = messages[0]
 	block = messages[1]
 	trailer = messages[2]
+	msglock.RUnlock()
 
 	// peer2: verify the header
 	assert.NotNil(header)
