@@ -157,8 +157,6 @@ func (self *Application) Run() error {
 		self.Queue.DownloadAll()
 	}()
 
-	log.Debugf("APP:\n%+v\n", self.String())
-
 	select {
 	case err := <-errchan:
 		return err
@@ -171,14 +169,6 @@ func (self *Application) Stop() {
 
 func (self *Application) Scan(labels ...string) error {
 	return self.Database.Scan(labels...)
-}
-
-func (self *Application) String() string {
-	if data, err := yaml.Marshal(self); err == nil {
-		return string(data[:])
-	} else {
-		return fmt.Sprintf("INVALID: %v", err)
-	}
 }
 
 func (self *Application) GetShareByName(name string) (*shares.Share, bool) {

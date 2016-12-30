@@ -15,7 +15,7 @@ func benchmarkEncDecValue(b *testing.B, value []byte, encrypting bool, parallel 
 
 	if encrypting {
 		encrypter.SetTarget(ioutil.Discard)
-	}else{
+	} else {
 		// populate encrypted data once
 		encrypter.SetTarget(encryptedTestData)
 		encrypter.Write(value)
@@ -25,7 +25,7 @@ func benchmarkEncDecValue(b *testing.B, value []byte, encrypting bool, parallel 
 		decrypter.SetSource(reader)
 	}
 
-	fn := func(){
+	fn := func() {
 		var err error
 
 		if encrypting {
@@ -47,7 +47,7 @@ func benchmarkEncDecValue(b *testing.B, value []byte, encrypting bool, parallel 
 				fn()
 			}
 		})
-	}else{
+	} else {
 		for n := 0; n < b.N; n++ {
 			fn()
 		}
@@ -87,7 +87,6 @@ func BenchmarkDecrypt_1MB(b *testing.B) {
 	rand.Read(value)
 	benchmarkEncDecValue(b, value, false, false)
 }
-
 
 func BenchmarkEncryptParallel_16B(b *testing.B) {
 	value := `This is a test!!`
