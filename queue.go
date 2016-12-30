@@ -285,10 +285,12 @@ func (self *DownloadQueue) DownloadAll() {
 			if err := item.Download(); err != nil {
 				item.Error = err.Error()
 				item.Status = `failed`
+				self.Add(item.SessionID, item.FileID)
+			} else {
+				self.CompletedItems = append(self.CompletedItems, item)
 			}
 
 			self.downloadQueue.Pop()
-			self.CompletedItems = append(self.CompletedItems, item)
 		} else {
 			self.ActiveTransfers = nil
 			time.Sleep(EmptyPollInterval)
