@@ -70,9 +70,16 @@ func (self *PeerServer) HandleRequest(remotePeer *RemotePeer, w io.Writer, data 
 
 			request.Header.Set(`X-Byteflood-Session`, remotePeer.SessionID())
 
-			log.Debugf("[%s] Got request %s %s, rewrote to %s", remotePeer.String(), request.Method, request.URL.Path, request.URL.String())
-
 			if response, err := http.DefaultClient.Do(request); err == nil {
+				log.Debugf(
+					"[%s] %s %s: %s - %d bytes",
+					remotePeer.String(),
+					request.Method,
+					request.URL.Path,
+					response.Status,
+					response.ContentLength,
+				)
+
 				return response.Write(w)
 			} else {
 				return err

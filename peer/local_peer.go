@@ -69,7 +69,7 @@ type LocalPeer struct {
 	port                 int
 	upnpPortMapping      *PortMapping
 	sessions             map[string]*RemotePeer
-	sessionLock          sync.Mutex
+	sessionLock          sync.RWMutex
 	listening            chan bool
 	peerServer           *PeerServer
 	peerRequestHandler   http.Handler
@@ -292,6 +292,9 @@ func (self *LocalPeer) RunPeerServer() error {
 func (self *LocalPeer) GetPeersByKey(publicKey []byte) []*RemotePeer {
 	peers := make([]*RemotePeer, 0)
 
+	self.sessionLock.RLock()
+	defer self.sessionLock.RUnlock()
+
 	for _, remotePeer := range self.sessions {
 		if bytes.Compare(publicKey, remotePeer.GetPublicKey()) == 0 {
 			peers = append(peers, remotePeer)
@@ -402,6 +405,9 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 }
 
 func (self *LocalPeer) GetPeers() []*RemotePeer {
+	self.sessionLock.RLock()
+	defer self.sessionLock.RUnlock()
+
 	peers := make([]*RemotePeer, 0)
 
 	for _, peer := range self.sessions {
@@ -412,6 +418,9 @@ func (self *LocalPeer) GetPeers() []*RemotePeer {
 }
 
 func (self *LocalPeer) GetPeer(sessionOrName string) (*RemotePeer, bool) {
+	self.sessionLock.RLock()
+	defer self.sessionLock.RUnlock()
+
 	if p, ok := self.sessions[sessionOrName]; ok {
 		return p, true
 	}
@@ -432,14 +441,20 @@ func (self *LocalPeer) GetPeer(sessionOrName string) (*RemotePeer, bool) {
 }
 
 func (self *LocalPeer) RemovePeer(sessionId string) {
-	if remotePeer, ok := self.sessions[sessionId]; ok {
+	self.sessionLock.RLock()
+	remotePeer, ok := self.sessions[sessionId]
+	self.sessionLock.RUnlock()
+
+	if ok {
 		log.Errorf("Removing peer %s", remotePeer.String())
 
 		if err := remotePeer.Disconnect(); err != nil {
 			log.Errorf("Error disconnecting from peer: %v", err)
 		}
 
+		self.sessionLock.Lock()
 		delete(self.sessions, sessionId)
+		self.sessionLock.Unlock()
 
 		log.Debugf("%d peers registered", len(self.sessions))
 	}
@@ -491,6 +506,10 @@ func (self *LocalPeer) ConnectToAndMonitor(address string) {
 
 				time.Sleep(remotePeer.HeartbeatInterval)
 			}
+
+			// heartbeat failed, disconnect from peer
+			remotePeer.Disconnect()
+
 		} else if IsAlreadyConnectedErr(err) {
 			log.Warning(err)
 			return
