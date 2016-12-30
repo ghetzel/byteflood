@@ -55,28 +55,32 @@ func (self *PeerServer) Serve(addr string, handler http.Handler) error {
 
 // Handle requests received from the given remote peer
 func (self *PeerServer) HandleRequest(remotePeer *RemotePeer, w io.Writer, data []byte) error {
-	buffer := bytes.NewBuffer(data)
+	if self.server != nil {
+		buffer := bytes.NewBuffer(data)
 
-	// read the request as it came from the remote peer
-	if request, err := http.ReadRequest(bufio.NewReader(buffer)); err == nil {
-		// rewrite the URL to point it at the local running PeerServer
-		if url, err := url.Parse(fmt.Sprintf("http://%s%s", self.server.Addr, request.RequestURI)); err == nil {
-			request.URL = url
-			request.RequestURI = `` // client complains if this isn't blank
+		// read the request as it came from the remote peer
+		if request, err := http.ReadRequest(bufio.NewReader(buffer)); err == nil {
+			// rewrite the URL to point it at the local running PeerServer
+			if url, err := url.Parse(fmt.Sprintf("http://%s%s", self.server.Addr, request.RequestURI)); err == nil {
+				request.URL = url
+				request.RequestURI = `` // client complains if this isn't blank
 
-			request.Header.Set(`X-Byteflood-Session`, remotePeer.SessionID())
+				request.Header.Set(`X-Byteflood-Session`, remotePeer.SessionID())
 
-			if response, err := http.DefaultClient.Do(request); err == nil {
-				log.Debugf(
-					"[%s] %s %s: %s - %d bytes",
-					remotePeer.String(),
-					request.Method,
-					request.URL.Path,
-					response.Status,
-					response.ContentLength,
-				)
+				if response, err := http.DefaultClient.Do(request); err == nil {
+					log.Debugf(
+						"[%s] %s %s: %s - %d bytes",
+						remotePeer.String(),
+						request.Method,
+						request.URL.Path,
+						response.Status,
+						response.ContentLength,
+					)
 
-				return response.Write(w)
+					return response.Write(w)
+				} else {
+					return err
+				}
 			} else {
 				return err
 			}
@@ -84,6 +88,6 @@ func (self *PeerServer) HandleRequest(remotePeer *RemotePeer, w io.Writer, data 
 			return err
 		}
 	} else {
-		return err
+		return fmt.Errorf("server not initialized")
 	}
 }
