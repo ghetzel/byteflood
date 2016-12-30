@@ -90,6 +90,7 @@ func NewLocalPeer() *LocalPeer {
 }
 
 func (self *LocalPeer) Initialize() error {
+	// get ephemeral port for remote connections
 	if a, p, err := net.SplitHostPort(self.Address); err == nil {
 		if p == `0` {
 			if eport, err := ephemeralPort(); err == nil {
@@ -101,6 +102,9 @@ func (self *LocalPeer) Initialize() error {
 	} else {
 		return err
 	}
+
+	// create peer server instance
+	self.peerServer = NewPeerServer(self)
 
 	return nil
 }
@@ -280,10 +284,8 @@ func (self *LocalPeer) PermitConnectionFrom(conn net.Conn) bool {
 
 func (self *LocalPeer) RunPeerServer() error {
 	if p, err := ephemeralPort(); err == nil {
-		self.peerServer = NewPeerServer(self, fmt.Sprintf("127.0.0.1:%d", p), self.peerRequestHandler)
-
 		// run peer server (long running)
-		return self.peerServer.Serve()
+		return self.peerServer.Serve(fmt.Sprintf("127.0.0.1:%d", p), self.peerRequestHandler)
 	} else {
 		return err
 	}

@@ -11,24 +11,14 @@ import (
 )
 
 type PeerServer struct {
-	addr     string
 	peer     *LocalPeer
 	server   *http.Server
 	listener net.Listener
-	handler  http.Handler
 }
 
-func NewPeerServer(peer *LocalPeer, addr string, handler http.Handler) *PeerServer {
-	if a, p, err := net.SplitHostPort(addr); err == nil {
-		if a == `` {
-			addr = fmt.Sprintf("127.0.0.1:%s", p)
-		}
-	}
-
+func NewPeerServer(peer *LocalPeer) *PeerServer {
 	return &PeerServer{
-		peer:    peer,
-		addr:    addr,
-		handler: handler,
+		peer: peer,
 	}
 }
 
@@ -39,15 +29,21 @@ func NewPeerServerListener(peer *LocalPeer, listener net.Listener) *PeerServer {
 	}
 }
 
-func (self *PeerServer) Serve() error {
-	if self.handler == nil {
-		self.handler = http.DefaultServeMux
+func (self *PeerServer) Serve(addr string, handler http.Handler) error {
+	if a, p, err := net.SplitHostPort(addr); err == nil {
+		if a == `` {
+			addr = fmt.Sprintf("127.0.0.1:%s", p)
+		}
+	}
+
+	if handler == nil {
+		handler = http.DefaultServeMux
 		log.Warningf("Peer Server is not registered to a running application.  Remote peers will not have access to the remote command API")
 	}
 
 	self.server = &http.Server{
-		Addr:    self.addr,
-		Handler: self.handler,
+		Addr:    addr,
+		Handler: handler,
 	}
 
 	if self.listener == nil {
@@ -64,7 +60,7 @@ func (self *PeerServer) HandleRequest(remotePeer *RemotePeer, w io.Writer, data 
 	// read the request as it came from the remote peer
 	if request, err := http.ReadRequest(bufio.NewReader(buffer)); err == nil {
 		// rewrite the URL to point it at the local running PeerServer
-		if url, err := url.Parse(fmt.Sprintf("http://%s%s", self.addr, request.RequestURI)); err == nil {
+		if url, err := url.Parse(fmt.Sprintf("http://%s%s", self.server.Addr, request.RequestURI)); err == nil {
 			request.URL = url
 			request.RequestURI = `` // client complains if this isn't blank
 
