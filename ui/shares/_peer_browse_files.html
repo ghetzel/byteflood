@@ -1,15 +1,17 @@
 ---
 bindings:
 - name: results
-  resource: :/api{{ if .request.url.query.session }}/peers/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.name }}/browse/{{ .request.url.query.parent }}
+  resource: :/api{{ if .request.url.query.session }}/peers/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}/browse/{{ .request.url.query.parent }}
   params:
-    limit: '{{ or .request.url.query.limit 100 }}'
+    limit: '{{ or .request.url.query.limit 15 }}'
     offset: '{{ or .request.url.query.offset 0 }}'
     sort:   '{{ .request.url.query.sort }}'
   optional: true
 ---
 {{ $session := or .request.url.query.session `` }}
-{{ $share := or .request.url.query.name `` }}
+{{ $share := or .request.url.query.share `` }}
+{{ $parent := or .request.url.query.parent `` }}
+{{ $offset := or .request.url.query.offset 0 }}
 {{ if .bindings.results }}
 <div class="card">
   <div class="card-header">
@@ -29,6 +31,8 @@ bindings:
   </div>
 
   {{ if .bindings.results.result_count }}
+    {{ $page := .bindings.results.page }}
+    {{ $perPage := .bindings.results.records_per_page }}
   <table class="table table-sm table-striped table-hover">
     <thead>
       <tr>
@@ -43,7 +47,7 @@ bindings:
       <tr>
         <td>
           {{ if .fields.directory }}
-          <a href="/shares/?name={{ $share }}&amp;parent={{ .id }}&amp;session={{ $session }}">{{ .fields.file.name }}</a>
+          <a href="/shares/?share={{ $share }}&amp;parent={{ .id }}&amp;session={{ $session }}">{{ .fields.file.name }}</a>
           {{ else }}
           {{ .fields.file.name }}
           {{ end }}
@@ -51,7 +55,7 @@ bindings:
         <td>{{ .fields.file.extension }}</td>
         <td>
           {{ if .fields.file.size }}
-          {{   Autobyte .fields.file.size "%.f" }}
+          {{   autobyte .fields.file.size "%.f" }}
           {{ else }}
           &ndash;
           {{ end }}
@@ -69,8 +73,45 @@ bindings:
   </table>
 
   <div class="card-footer">
+    <!-- {{ if gt (asInt .bindings.results.total_pages) 1 }}
+    <nav aria-label="Share navigation" class="pull-left">
+      <ul class="pagination pagination-sm mt-0 mb-0">
+        <li class="page-item">
+          <a
+            class="page-link"
+            href="?offset={{ multiply (asFloat $perPage) (asFloat $page) }}&amp;parent={{ $parent }}&amp;share={{ $share }}&amp;session={{ $session }}"
+            aria-label="Previous"
+          >
+            <span aria-hidden="true">&laquo;</span>
+            <span class="sr-only">Previous</span>
+          </a>
+        </li>
+
+        {{ range $i := sequence .bindings.results.total_pages }}
+        <li class="page-item">
+          <a
+            class="page-link"
+            href="?offset={{ multiply (asFloat $perPage) (asFloat $i) }}&amp;parent={{ $parent }}&amp;share={{ $share }}&amp;session={{ $session }}"
+          >{{ asFloat $i | add 1 }}</a>
+        </li>
+        {{ end }}
+
+        <li class="page-item">
+          <a
+            class="page-link"
+            href="?offset={{ add (asFloat $offset) 1 }}&amp;parent={{ $parent }}&amp;share={{ $share }}&amp;session={{ $session }}"
+            aria-label="Next"
+          >
+            <span aria-hidden="true">&raquo;</span>
+            <span class="sr-only">Next</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+    {{ end }} -->
+
     <span class="pull-right">
-      Showing {{ len .bindings.results.records }} of {{ .bindings.results.result_count }}
+      Showing {{ len .bindings.results.records }}{{ if gt (asInt .bindings.results.total_pages) 1 }} of {{ .bindings.results.result_count }}{{ end }} results
     </span>
   </div>
   {{ else }}

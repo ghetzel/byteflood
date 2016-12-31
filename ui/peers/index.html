@@ -26,7 +26,7 @@ bindings:
         <td>{{ .name }}</td>
         <td>{{ .session_id }}</td>
         <td>{{ .address }}</td>
-        <td>{{ Time .last_seen_at `15:04:05` }}</td>
+        <td>{{ time .last_seen_at `15:04:05` }}</td>
       </tr>
       {{ end }}
     </tbody>

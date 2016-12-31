@@ -1,13 +1,9 @@
-.PHONY: test
+.PHONY: test deps
 
 all: fmt deps build bundle
 
 deps:
 	go get .
-
-update:
-	-rm -rf vendor
-	govend -u -v -l
 
 clean-bundle:
 	@test -d public && rm -rf public || true

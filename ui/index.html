@@ -29,10 +29,10 @@ bindings:
         <td>{{ or .metadata.name .file_id }}</td>
         <td>{{ or .peer .session_id }}</td>
         <td>
-          <progress class="progress" value="{{ Percent .progress 1.0 }}" max="100"></progress>
+          <progress class="progress" value="{{ percent .progress 1.0 }}" max="100"></progress>
         </td>
         <td>
-          {{ Percent .progress 1.0 }}% ({{ Autobyte .rate "%.1f" }}/s)
+          {{ percent .progress 1.0 }}% ({{ autobyte .rate "%.1f" }}/s)
         </td>
       </tr>
       {{ end }}
@@ -70,7 +70,7 @@ bindings:
         <td>{{ or .peer .session_id }}</td>
         <td>
           {{ if .size }}
-          {{ Autobyte .size "%.2f" }}
+          {{ autobyte .size "%.2f" }}
           {{ else }}
           &ndash;
           {{ end }}

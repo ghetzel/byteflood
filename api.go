@@ -6,7 +6,7 @@ import (
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/julienschmidt/httprouter"
 	"github.com/urfave/negroni"
-	"html/template"
+	// "html/template"
 	"net/http"
 	"strings"
 )
@@ -63,33 +63,7 @@ func (self *API) Serve() error {
 	router := httprouter.New()
 	ui := diecast.NewServer(uiDir, `*.html`)
 
-	ui.AdditionalFunctions = template.FuncMap{
-		`Autobyte`: stringutil.ToByteString,
-		`Percent`: func(value interface{}, args ...interface{}) (string, error) {
-			if v, err := stringutil.ConvertToFloat(value); err == nil {
-				outOf := 100.0
-				format := "%.f"
-
-				if len(args) > 0 {
-					if o, err := stringutil.ConvertToFloat(args[0]); err == nil {
-						outOf = o
-					} else {
-						return ``, err
-					}
-				}
-
-				if len(args) > 1 {
-					format = fmt.Sprintf("%v", args[1])
-				}
-
-				percent := float64((float64(v) / float64(outOf)) * 100.0)
-
-				return fmt.Sprintf(format, percent), nil
-			} else {
-				return ``, err
-			}
-		},
-	}
+	// ui.AdditionalFunctions = template.FuncMap{}
 
 	// if self.UiDirectory == `embedded` {
 	// 	ui.SetFileSystem(assetFS())

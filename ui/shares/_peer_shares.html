@@ -3,16 +3,33 @@ bindings:
 - name: shares
   resource: :/api{{ if .request.url.query.session }}/peers/{{ .request.url.query.session }}/proxy{{ end }}/shares
   params:
-    limit: '{{ or .request.url.query.limit 100 }}'
+    limit: '{{ or .request.url.query.limit 15 }}'
     offset: '{{ or .request.url.query.offset 0 }}'
     sort:   '{{ .request.url.query.sort }}'
 ---
-{{ $share := or .request.url.query.name `` }}
+{{ $share := or .request.url.query.share `` }}
 {{ $session := or .request.url.query.session `` }}
 <ul class="nav">
   {{ range .bindings.shares }}
   <li class="nav-item">
-      <a class="nav-link{{ if eq .name $share }} active{{ end }}" href="/shares/?session={{ $session }}&amp;name={{ .name }}">{{ .name }}</a>
+      <a
+        class="nav-link{{ if eq .name $share }} active{{ end }}"
+        style="width: calc(100% - 32px)"
+        href="/shares/?share={{ .name }}{{ if $session }}&amp;session={{ $session }}{{ end }}"
+      >
+        {{ .name }}
+      </a>
+      <div
+        class="pull-right"
+        style="max-width: 28px; line-height: 1.5; vertical-align: middle;"
+      >
+        <a
+          href="/api/{{ if $session }}/peers/{{ $session }}/proxy{{ end }}/shares/{{ .name }}/browse/"
+          target="_blank"
+        >
+          <i class="fa fa-external-link-square"></i>
+        </a>
+      </div>
   </li>
   {{ end }}
 </ul>

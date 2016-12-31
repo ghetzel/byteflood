@@ -7,7 +7,7 @@ bindings:
 ---
 {{ $session := or .request.url.query.session `` }}
 {{ $view := or .request.url.query.view `files` }}
-{{ $share := or .request.url.query.name `` }}
+{{ $share := or .request.url.query.share `` }}
 {{ $path := or .request.url.query.path `` }}
 {{ $limit := or .request.url.query.limit `` }}
 {{ $offset := or .request.url.query.offset `` }}
@@ -41,7 +41,9 @@ bindings:
 <div class="col-md-10">
   <script type="text/javascript" id="share-browser">
     $(function(){
-      qs = {};
+      qs = {
+        'limit': 15,
+      };
 
       location.search.slice(1).split('&').map(function(i){
         var x = i.split('=');

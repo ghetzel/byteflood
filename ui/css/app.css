@@ -1,20 +1,55 @@
-.root-container {
-    margin-top: 1em;
+/* small and below */
+@media (max-width: 1199px) {
+    .content-container {
+        width: 100%;
+        padding-top: 15px;
+    }
 }
 
-.root-container > h1 {
-    margin-bottom: 1em;
+/* large and above */
+@media (min-width: 1200px) {
+    .navbar.site-main {
+        width: 200px;
+        position: fixed;
+        height: 100%;
+    }
+
+    .navbar .navbar-brand,
+    .navbar .nav-item {
+        width: 100%;
+        margin-left: 0 !important;
+    }
+
+    .navbar .navbar-brand {
+        text-align: center;
+    }
+
+    .content-container {
+        margin-left: 200px;
+        margin-right: 200px;
+    }
 }
 
-body > .navbar {
+.content-container {
+    padding-left: 15px;
+    padding-right: 15px;
+}
+
+.content-container > h1 {
+    padding-top: 0.25em;
+    padding-bottom: 0.5em;
+}
+
+
+.navbar.site-main {
     border-radius: 0;
 }
 
-body > .navbar.bg-inverse {
+.navbar.site-main {
     background-color: #162d50 !important;
 }
 
-body > .navbar .navbar-brand {
+.navbar.site-main .navbar-brand {
     margin-right: 1.5em;
 }
 
