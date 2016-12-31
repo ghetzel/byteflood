@@ -24,7 +24,7 @@ bindings:
         style="max-width: 28px; line-height: 1.5; vertical-align: middle;"
       >
         <a
-          href="/api/{{ if $session }}/peers/{{ $session }}/proxy{{ end }}/shares/{{ .name }}/browse/"
+          href="/api{{ if $session }}/peers/{{ $session }}/proxy{{ end }}/shares/{{ .name }}/browse/"
           target="_blank"
         >
           <i class="fa fa-external-link-square"></i>
