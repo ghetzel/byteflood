@@ -58,15 +58,15 @@ bindings:
       <tr>
         <td>
           {{ if .fields.directory }}
-          <a href="/shares/?share={{ $share }}&amp;parent={{ .id }}&amp;session={{ $session }}">{{ .fields.file.name }}</a>
+          <a href="/shares/?share={{ $share }}&amp;parent={{ .id }}&amp;session={{ $session }}">{{ .fields.metadata.file.name }}</a>
           {{ else }}
-          {{ .fields.file.name }}
+          {{ .fields.metadata.file.name }}
           {{ end }}
         </td>
-        <td>{{ .fields.file.extension }}</td>
+        <td>{{ .fields.metadata.file.extension }}</td>
         <td>
-          {{ if .fields.file.size }}
-          {{   autobyte .fields.file.size "%.f" }}
+          {{ if .fields.metadata.file.size }}
+          {{   autobyte .fields.metadata.file.size "%.f" }}
           {{ else }}
           &ndash;
           {{ end }}

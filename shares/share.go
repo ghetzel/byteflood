@@ -109,7 +109,7 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 			f.Sort = sort
 		}
 
-		return self.metabase.Query(db.MetadataCollectionName, f)
+		return self.metabase.Query(db.MetadataSchema.Name, f)
 	} else {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 
 func (self *Share) Get(id string) (*dal.Record, error) {
 	if f, err := self.metabase.ParseFilter(self.GetQuery(fmt.Sprintf("_id=is:%s", id))); err == nil {
-		if recordset, err := self.metabase.Query(db.MetadataCollectionName, f); err == nil {
+		if recordset, err := self.metabase.Query(db.MetadataSchema.Name, f); err == nil {
 			switch len(recordset.Records) {
 			case 1:
 				if recordset.Records[0].ID == id {

@@ -25,40 +25,6 @@ var DefaultGlobalExclusions = []string{
 	`Thumbs.db`,
 }
 
-var MetadataCollectionName = `metadata`
-
-// var SubscriptionsCollectionName = `subscriptions`
-
-var metadataSchema = dal.NewCollection(MetadataCollectionName).
-	AddFields(dal.Field{
-		Name: `name`,
-		Type: dal.StringType,
-	}, dal.Field{
-		Name: `parent`,
-		Type: dal.StringType,
-	}, dal.Field{
-		Name: `label`,
-		Type: dal.StringType,
-	}, dal.Field{
-		Name: `directory`,
-		Type: dal.BooleanType,
-	}, dal.Field{
-		Name: `last_modified_at`,
-		Type: dal.IntType,
-	}, dal.Field{
-		Name: `metadata`,
-		Type: dal.ObjectType,
-	})
-
-var systemSchema = dal.NewCollection(`system`).
-	AddFields(dal.Field{
-		Name: `key`,
-		Type: dal.StringType,
-	}, dal.Field{
-		Name: `value`,
-		Type: dal.ObjectType,
-	})
-
 type Database struct {
 	Directories      []*Directory `json:"directories,omitempty"`
 	URI              string       `json:"uri,omitempty"`
@@ -83,8 +49,8 @@ func (self *Database) Initialize() error {
 	filter.CriteriaSeparator = `;`
 	filter.FieldTermSeparator = `=`
 
-	metadataSchema.IdentityFieldType = dal.StringType
-	systemSchema.IdentityFieldType = dal.StringType
+	MetadataSchema.IdentityFieldType = dal.StringType
+	SystemSchema.IdentityFieldType = dal.StringType
 
 	if db, err := pivot.NewDatabaseWithOptions(self.URI, backends.ConnectOptions{
 		Indexer: self.Indexer,
@@ -95,15 +61,15 @@ func (self *Database) Initialize() error {
 	}
 
 	// create / verify metadata collection
-	if _, err := self.db.GetCollection(metadataSchema.Name); dal.IsCollectionNotFoundErr(err) {
-		if err := self.db.CreateCollection(metadataSchema); err != nil {
+	if _, err := self.db.GetCollection(MetadataSchema.Name); dal.IsCollectionNotFoundErr(err) {
+		if err := self.db.CreateCollection(MetadataSchema); err != nil {
 			return err
 		}
 	}
 
 	// create / verify system collection
-	if _, err := self.db.GetCollection(systemSchema.Name); dal.IsCollectionNotFoundErr(err) {
-		if err := self.db.CreateCollection(systemSchema); err != nil {
+	if _, err := self.db.GetCollection(SystemSchema.Name); dal.IsCollectionNotFoundErr(err) {
+		if err := self.db.CreateCollection(SystemSchema); err != nil {
 			return err
 		}
 	}
@@ -162,12 +128,12 @@ func (self *Database) List(collectionName string, fields []string, f filter.Filt
 
 // Return whethere a metadata record with the given ID exists
 func (self *Database) RecordExists(id string) bool {
-	return self.db.Exists(metadataSchema.Name, id)
+	return self.db.Exists(MetadataSchema.Name, id)
 }
 
 // Retrieve a metadata record by ID
 func (self *Database) RetrieveRecord(id string) (*dal.Record, error) {
-	if record, err := self.db.Retrieve(metadataSchema.Name, id); err == nil {
+	if record, err := self.db.Retrieve(MetadataSchema.Name, id); err == nil {
 		return record, nil
 	} else {
 		return nil, err
@@ -177,11 +143,11 @@ func (self *Database) RetrieveRecord(id string) (*dal.Record, error) {
 // Save a given metadata record
 func (self *Database) PersistRecord(id string, data map[string]interface{}) error {
 	if self.RecordExists(id) {
-		return self.db.Update(metadataSchema.Name, dal.NewRecordSet(
+		return self.db.Update(MetadataSchema.Name, dal.NewRecordSet(
 			dal.NewRecord(id).SetFields(data),
 		))
 	} else {
-		return self.db.Insert(metadataSchema.Name, dal.NewRecordSet(
+		return self.db.Insert(MetadataSchema.Name, dal.NewRecordSet(
 			dal.NewRecord(id).SetFields(data),
 		))
 	}
@@ -189,13 +155,13 @@ func (self *Database) PersistRecord(id string, data map[string]interface{}) erro
 
 // Delete metadata records that match the given set of IDs
 func (self *Database) DeleteRecords(ids ...string) error {
-	return self.db.Delete(metadataSchema.Name, ids)
+	return self.db.Delete(MetadataSchema.Name, ids)
 }
 
 // Query records from the metadata collection
 func (self *Database) QueryMetadata(filterString string) (*dal.RecordSet, error) {
 	if f, err := self.ParseFilter(filterString); err == nil {
-		return self.Query(metadataSchema.Name, f)
+		return self.Query(MetadataSchema.Name, f)
 	} else {
 		return nil, err
 	}
@@ -211,13 +177,13 @@ func (self *Database) ListMetadata(fields []string, f ...filter.Filter) (*dal.Re
 		ft = filter.All
 	}
 
-	return self.List(metadataSchema.Name, fields, ft)
+	return self.List(MetadataSchema.Name, fields, ft)
 }
 
 // Query records from the system data collection
 func (self *Database) QuerySystem(filterString string) (*dal.RecordSet, error) {
 	if f, err := self.ParseFilter(filterString); err == nil {
-		return self.Query(systemSchema.Name, f)
+		return self.Query(SystemSchema.Name, f)
 	} else {
 		return nil, err
 	}
@@ -229,7 +195,7 @@ func (self *Database) CleanRecords() error {
 
 	// if index := self.db.WithSearch(); index != nil {
 	// 	if f, err := self.ParseFilter(`key=prefix:metadata.paths.`); err == nil {
-	// 		if err := index.QueryFunc(systemSchema.Name, f, func(record *dal.Record, _ backends.IndexPage) error {
+	// 		if err := index.QueryFunc(SystemSchema.Name, f, func(record *dal.Record, _ backends.IndexPage) error {
 	// 			fsPath := fmt.Sprintf("%v", record.Get(`value`))
 	// 			log.Debugf("Trying %v", fsPath)
 
@@ -263,11 +229,11 @@ func (self *Database) PropertySet(key string, value interface{}, fields ...map[s
 	record.Set(`key`, key)
 	record.Set(`value`, value)
 
-	return self.db.Insert(systemSchema.Name, dal.NewRecordSet(record))
+	return self.db.Insert(SystemSchema.Name, dal.NewRecordSet(record))
 }
 
 func (self *Database) PropertyGet(key string, fallback ...interface{}) interface{} {
-	if record, err := self.db.Retrieve(systemSchema.Name, key); err == nil {
+	if record, err := self.db.Retrieve(SystemSchema.Name, key); err == nil {
 		return record.Get(`value`, fallback...)
 	} else {
 		if len(fallback) > 0 {

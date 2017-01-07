@@ -38,6 +38,10 @@ func main() {
 			Value:  `debug`,
 			EnvVar: `LOGLEVEL`,
 		},
+		cli.BoolFlag{
+			Name:  `log-queries, Q`,
+			Usage: `Whether to include queries in the logging output`,
+		},
 		cli.StringFlag{
 			Name:  `config, c`,
 			Usage: `The path to the configuration file`,
@@ -62,6 +66,13 @@ func main() {
 		} else {
 			return err
 		}
+
+		if c.Bool(`log-queries`) {
+			logging.SetLevel(logging.DEBUG, `pivot/querylog`)
+		} else {
+			logging.SetLevel(logging.CRITICAL, `pivot/querylog`)
+		}
+
 
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
 
@@ -167,7 +178,7 @@ func main() {
 				cli.StringFlag{
 					Name: `db`,
 					Usage: `Query the named database`,
-					Value: db.MetadataCollectionName,
+					Value: db.MetadataSchema.Name,
 				},
 			},
 			Action: func(c *cli.Context) {

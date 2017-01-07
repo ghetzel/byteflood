@@ -66,7 +66,7 @@ func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request, p
 			}
 
 			if recordset, err := self.application.Database.Query(
-				db.MetadataCollectionName,
+				db.MetadataSchema.Name,
 				f,
 			); err == nil {
 				Respond(w, recordset)
@@ -101,7 +101,7 @@ func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request, 
 			}
 
 			if recordset, err := self.application.Database.Query(
-				db.MetadataCollectionName,
+				db.MetadataSchema.Name,
 				f,
 			); err == nil {
 				Respond(w, recordset)
