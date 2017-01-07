@@ -16,8 +16,13 @@ import (
 const FileFingerprintSize = 16777216
 
 type File struct {
-	Name     string
-	Metadata map[string]interface{}
+	Name           string                 `pivot:"-"`
+	RelativePath   string                 `pivot:"name"`
+	Parent         string                 `pivot:"parent,omitempty"`
+	Label          string                 `pivot:"label,omitempty"`
+	IsDirectory    bool                   `pivot:"directory,omitempty"`
+	LastModifiedAt int64                  `pivot:"last_modified_at,omitempty"`
+	Metadata       map[string]interface{} `pivot:"metadata"`
 }
 
 func NewFile(name string) *File {

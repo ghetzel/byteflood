@@ -170,16 +170,16 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 				}
 			}
 
-			file.Metadata[`last_modified_at`] = stat.ModTime().UnixNano()
+			file.LastModifiedAt = stat.ModTime().UnixNano()
 		} else {
 			return nil, err
 		}
 	}
 
-	file.Metadata[`name`] = self.normalizeFileName(file.Name)
-	file.Metadata[`parent`] = self.Parent
-	file.Metadata[`label`] = self.Label
-	file.Metadata[`directory`] = isDir
+	file.RelativePath = self.normalizeFileName(file.Name)
+	file.Parent = self.Parent
+	file.Label = self.Label
+	file.IsDirectory = isDir
 
 	tm := stats.NewTiming()
 

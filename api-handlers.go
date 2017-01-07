@@ -149,7 +149,7 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 		}
 	}
 
-	results := make(map[string]interface{})
+	results := make(map[interface{}]interface{})
 
 	for _, record := range recordset.Records {
 		results[record.ID] = record.Get(`values`)
