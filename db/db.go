@@ -31,32 +31,32 @@ var MetadataCollectionName = `metadata`
 
 var metadataSchema = dal.NewCollection(MetadataCollectionName).
 	AddFields(dal.Field{
-		Name: `path`,
-		Type: `str`,
+		Name: `name`,
+		Type: dal.StringType,
 	}, dal.Field{
 		Name: `parent`,
-		Type: `str`,
+		Type: dal.StringType,
 	}, dal.Field{
 		Name: `label`,
-		Type: `str`,
+		Type: dal.StringType,
 	}, dal.Field{
-		Name: `is_directory`,
-		Type: `bool`,
+		Name: `directory`,
+		Type: dal.BooleanType,
 	}, dal.Field{
 		Name: `last_modified_at`,
-		Type: `int`,
+		Type: dal.IntType,
 	}, dal.Field{
 		Name: `metadata`,
-		Type: `object`,
+		Type: dal.ObjectType,
 	})
 
 var systemSchema = dal.NewCollection(`system`).
 	AddFields(dal.Field{
 		Name: `key`,
-		Type: `str`,
+		Type: dal.StringType,
 	}, dal.Field{
 		Name: `value`,
-		Type: `str`,
+		Type: dal.ObjectType,
 	})
 
 type Database struct {
@@ -83,6 +83,9 @@ func (self *Database) Initialize() error {
 	filter.CriteriaSeparator = `;`
 	filter.FieldTermSeparator = `=`
 
+	metadataSchema.IdentityFieldType = dal.StringType
+	systemSchema.IdentityFieldType = dal.StringType
+
 	if db, err := pivot.NewDatabaseWithOptions(self.URI, backends.ConnectOptions{
 		Indexer: self.Indexer,
 	}); err == nil {
@@ -94,6 +97,13 @@ func (self *Database) Initialize() error {
 	// create / verify metadata collection
 	if _, err := self.db.GetCollection(metadataSchema.Name); dal.IsCollectionNotFoundErr(err) {
 		if err := self.db.CreateCollection(metadataSchema); err != nil {
+			return err
+		}
+	}
+
+	// create / verify system collection
+	if _, err := self.db.GetCollection(systemSchema.Name); dal.IsCollectionNotFoundErr(err) {
+		if err := self.db.CreateCollection(systemSchema); err != nil {
 			return err
 		}
 	}
@@ -166,9 +176,15 @@ func (self *Database) RetrieveRecord(id string) (*dal.Record, error) {
 
 // Save a given metadata record
 func (self *Database) PersistRecord(id string, data map[string]interface{}) error {
-	return self.db.Insert(metadataSchema.Name, dal.NewRecordSet(
-		dal.NewRecord(id).SetFields(data),
-	))
+	if self.RecordExists(id) {
+		return self.db.Update(metadataSchema.Name, dal.NewRecordSet(
+			dal.NewRecord(id).SetFields(data),
+		))
+	} else {
+		return self.db.Insert(metadataSchema.Name, dal.NewRecordSet(
+			dal.NewRecord(id).SetFields(data),
+		))
+	}
 }
 
 // Delete metadata records that match the given set of IDs
