@@ -16,6 +16,7 @@ import (
 const FileFingerprintSize = 16777216
 
 type File struct {
+	Model          `pivot:"metadata"`
 	Name           string                 `pivot:"-"`
 	RelativePath   string                 `pivot:"name"`
 	Parent         string                 `pivot:"parent,omitempty"`
