@@ -118,7 +118,7 @@ func (self *Database) Query(collectionName string, f filter.Filter) (*dal.Record
 }
 
 // List distinct values from the given collection
-func (self *Database) List(collectionName string, fields []string, f filter.Filter) (*dal.RecordSet, error) {
+func (self *Database) List(collectionName string, fields []string, f filter.Filter) (map[string][]interface{}, error) {
 	if index := self.db.WithSearch(); index != nil {
 		return index.ListValues(collectionName, fields, f)
 	} else {
@@ -168,7 +168,7 @@ func (self *Database) QueryMetadata(filterString string) (*dal.RecordSet, error)
 }
 
 // Lists distinct values of the given field from the metadata collection.
-func (self *Database) ListMetadata(fields []string, f ...filter.Filter) (*dal.RecordSet, error) {
+func (self *Database) ListMetadata(fields []string, f ...filter.Filter) (map[string][]interface{}, error) {
 	var ft filter.Filter
 
 	if len(f) > 0 {

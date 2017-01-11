@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
-	"github.com/ghetzel/pivot/dal"
 	"github.com/julienschmidt/httprouter"
 	"github.com/satori/go.uuid"
 	"io"
@@ -117,8 +116,6 @@ func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request, 
 }
 
 func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	var recordset *dal.RecordSet
-
 	fV := strings.TrimPrefix(params.ByName(`fields`), `/`)
 
 	if fV == `` {
@@ -130,7 +127,8 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 
 	if v := self.qs(req, `q`); v == `` {
 		if rs, err := self.application.Database.ListMetadata(fields); err == nil {
-			recordset = rs
+			Respond(w, rs)
+			return
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -138,7 +136,8 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 	} else {
 		if f, err := self.application.Database.ParseFilter(v); err == nil {
 			if rs, err := self.application.Database.ListMetadata(fields, f); err == nil {
-				recordset = rs
+				Respond(w, rs)
+				return
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -148,14 +147,6 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 			return
 		}
 	}
-
-	results := make(map[interface{}]interface{})
-
-	for _, record := range recordset.Records {
-		results[record.ID] = record.Get(`values`)
-	}
-
-	Respond(w, results)
 }
 
 func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {

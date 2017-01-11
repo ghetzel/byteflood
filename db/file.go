@@ -6,6 +6,7 @@ import (
 	"github.com/ghetzel/byteflood/db/metadata"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/pivot/dal"
 	"github.com/jbenet/go-base58"
 	"github.com/spaolacci/murmur3"
 	"math/big"
@@ -16,29 +17,31 @@ import (
 const FileFingerprintSize = 16777216
 
 type File struct {
-	Model          `pivot:"metadata"`
-	Name           string                 `pivot:"-"`
+	dal.Model      `pivot:"metadata"`
+	ID             string                 `pivot:"id"`
 	RelativePath   string                 `pivot:"name"`
 	Parent         string                 `pivot:"parent,omitempty"`
 	Label          string                 `pivot:"label,omitempty"`
 	IsDirectory    bool                   `pivot:"directory,omitempty"`
 	LastModifiedAt int64                  `pivot:"last_modified_at,omitempty"`
 	Metadata       map[string]interface{} `pivot:"metadata"`
+	filename       string
 }
 
 func NewFile(name string) *File {
 	return &File{
-		Name:     name,
+		ID:       FileIdFromName(name),
 		Metadata: make(map[string]interface{}),
+		filename: name,
 	}
 }
 
 func (self *File) LoadMetadata() error {
-	for _, loader := range metadata.GetLoadersForFile(self.Name) {
-		if data, err := loader.LoadMetadata(self.Name); err == nil {
+	for _, loader := range metadata.GetLoadersForFile(self.filename) {
+		if data, err := loader.LoadMetadata(self.filename); err == nil {
 			self.Metadata[self.normalizeLoaderName(loader)] = data
 		} else {
-			log.Warningf("Problem loading %T for file %q: %v", loader, self.Name, err)
+			log.Warningf("Problem loading %T for file %q: %v", loader, self.filename, err)
 		}
 	}
 
@@ -53,15 +56,11 @@ func (self *File) String() string {
 	}
 }
 
-func (self *File) ID() string {
-	return FileIdFromName(self.Name)
-}
-
 // func (self *File) getFingerprintData() ([]byte, error) {
 //  rv := bytes.NewBuffer()
 
-//  if file, err := os.Open(self.Name); err == nil {
-//      fmt.Fprintf(rv, "%s:%d:", self.Name, self.Get(`file.size`, -1))
+//  if file, err := os.Open(self.filename); err == nil {
+//      fmt.Fprintf(rv, "%s:%d:", self.filename, self.Get(`file.size`, -1))
 
 //      if _, err := io.CopyN(rv, file, FileFingerprintSize); err == nil {
 //          return rv.Bytes(), nil

@@ -83,7 +83,7 @@ func (self *Directory) Scan() error {
 					if dirEntry, err := self.indexFile(absPath, true); err == nil {
 						subdirectory := NewDirectory(self.db, absPath)
 
-						subdirectory.Parent = dirEntry.ID()
+						subdirectory.Parent = dirEntry.ID
 						subdirectory.Label = self.Label
 						subdirectory.RootPath = self.RootPath
 						subdirectory.FilePattern = self.FilePattern
@@ -164,7 +164,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	// unless we're forcing the scan, see if we can skip this file
 	if !self.db.ForceRescan {
 		if stat, err := os.Stat(name); err == nil {
-			if record, err := self.db.RetrieveRecord(file.ID()); err == nil {
+			if record, err := self.db.RetrieveRecord(file.ID); err == nil {
 				lastModifiedAt := record.Get(`last_modified_at`, int64(0))
 
 				if epochNs, ok := lastModifiedAt.(int64); ok {
@@ -180,7 +180,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 		}
 	}
 
-	file.RelativePath = self.normalizeFileName(file.Name)
+	file.RelativePath = self.normalizeFileName(file.filename)
 	file.Parent = self.Parent
 	file.Label = self.Label
 	file.IsDirectory = isDir
@@ -196,7 +196,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	tm = stats.NewTiming()
 
 	// persist the file record
-	if err := self.db.PersistRecord(file.ID(), structs.New(file).Map()); err != nil {
+	if err := self.db.PersistRecord(file.ID, structs.New(file).Map()); err != nil {
 		return nil, err
 	}
 
@@ -204,7 +204,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	tm = stats.NewTiming()
 
 	// store the absolute filesystem path separately
-	self.db.PropertySet(fmt.Sprintf("metadata.paths.%s", file.ID()), name)
+	self.db.PropertySet(fmt.Sprintf("metadata.paths.%s", file.ID), name)
 
 	tm.Send(`byteflood.db.entry_sysprop_time`)
 
