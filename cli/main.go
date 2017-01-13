@@ -1,23 +1,23 @@
 package main
 
 import (
+	"encoding/json"
+	"encoding/xml"
 	"fmt"
-	"io"
 	"github.com/ghetzel/byteflood"
-	"github.com/ghetzel/byteflood/encryption"
-	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/client"
+	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/cli"
-	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/go-stockutil/maputil"
+	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
+	"io"
 	"os"
 	"os/signal"
-	"text/tabwriter"
-	"encoding/json"
-	"github.com/ghodss/yaml"
-	"encoding/xml"
 	"strings"
+	"text/tabwriter"
 )
 
 const DEFAULT_FORMAT = `text`
@@ -73,7 +73,6 @@ func main() {
 			logging.SetLevel(logging.CRITICAL, `pivot/querylog`)
 		}
 
-
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
 
 		return nil
@@ -81,8 +80,8 @@ func main() {
 
 	app.Commands = []cli.Command{
 		{
-			Name:      `run`,
-			Usage:     `Start a file transfer peer using the given configuration`,
+			Name:  `run`,
+			Usage: `Start a file transfer peer using the given configuration`,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  `address, a`,
@@ -130,7 +129,7 @@ func main() {
 			Usage: `Scans all configured source directories for changes`,
 			Flags: []cli.Flag{
 				cli.BoolFlag{
-					Name: `force, F`,
+					Name:  `force, F`,
 					Usage: `Force a rescan of all file metadata regardless of age.`,
 				},
 			},
@@ -161,9 +160,9 @@ func main() {
 					log.Fatalf("Must specify a base filename")
 				}
 			},
-		},{
-			Name: `query`,
-			Usage: `Query the metadata database.`,
+		}, {
+			Name:      `query`,
+			Usage:     `Query the metadata database.`,
 			ArgsUsage: `FILTER`,
 			Flags: []cli.Flag{
 				cli.StringFlag{
@@ -172,18 +171,18 @@ func main() {
 					Value: DEFAULT_FORMAT,
 				},
 				cli.StringSliceFlag{
-					Name: `field, F`,
+					Name:  `field, F`,
 					Usage: `Additional fields to include in output tables in addition to ID and path`,
 				},
 				cli.StringFlag{
-					Name: `db`,
+					Name:  `db`,
 					Usage: `Query the named database`,
 					Value: db.MetadataSchema.Name,
 				},
 			},
 			Action: func(c *cli.Context) {
 				if app, err := createApplication(c); err == nil {
-					if f, err := app.Database.ParseFilter(strings.Join(c.Args(), `/`)); err == nil {
+					if f, err := db.ParseFilter(strings.Join(c.Args(), `/`)); err == nil {
 						if rs, err := app.Database.Query(c.String(`db`), f); err == nil {
 							printWithFormat(c.String(`format`), rs, func() {
 								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
@@ -207,7 +206,7 @@ func main() {
 						} else {
 							log.Fatal(err)
 						}
-					}else{
+					} else {
 						log.Fatal(err)
 					}
 				} else {
@@ -215,19 +214,19 @@ func main() {
 				}
 			},
 		}, {
-			Name: `cleanup`,
+			Name:  `cleanup`,
 			Usage: `Cleanup the metadata database.`,
 			Action: func(c *cli.Context) {
 				if app, err := createApplication(c); err == nil {
 					if err := app.Database.CleanRecords(); err != nil {
 						log.Fatal(err)
 					}
-				}else{
+				} else {
 					log.Fatal(err)
 				}
 			},
-		},{
-			Name: `call`,
+		}, {
+			Name:  `call`,
 			Usage: `Perform an HTTP call against the Byteflood API`,
 			Flags: []cli.Flag{
 				cli.StringFlag{
@@ -241,7 +240,7 @@ func main() {
 					Value: client.DefaultAddress,
 				},
 				cli.DurationFlag{
-					Name: `timeout, t`,
+					Name:  `timeout, t`,
 					Usage: `HTTP request timeout`,
 					Value: client.DefaultRequestTimeout,
 				},
@@ -290,11 +289,11 @@ func main() {
 
 				var input io.Reader
 
-			    if stat, err := os.Stdin.Stat(); err == nil {
-			        if (stat.Mode() & os.ModeCharDevice) == 0 {
-			        	input = os.Stdin
-			        }
-			    }
+				if stat, err := os.Stdin.Stat(); err == nil {
+					if (stat.Mode() & os.ModeCharDevice) == 0 {
+						input = os.Stdin
+					}
+				}
 
 				if response, err := bf.Request(
 					c.String(`method`),
@@ -312,17 +311,17 @@ func main() {
 					data, _ := client.ParseResponse(response)
 
 					if data != nil {
-						printWithFormat(c.String(`format`), data, func(){
+						printWithFormat(c.String(`format`), data, func() {
 							fmt.Printf("%v\n", data)
 						})
 					}
 
 					if response.StatusCode < 400 {
 						os.Exit(0)
-					}else{
+					} else {
 						os.Exit(1)
 					}
-				}else{
+				} else {
 					log.Fatal(err)
 				}
 			},
@@ -358,7 +357,7 @@ func createApplication(c *cli.Context) (*byteflood.Application, error) {
 			}(app)
 
 			return app, nil
-		}else{
+		} else {
 			return nil, err
 		}
 

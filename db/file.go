@@ -17,14 +17,14 @@ import (
 const FileFingerprintSize = 16777216
 
 type File struct {
-	dal.Model      `pivot:"metadata"`
-	ID             string                 `pivot:"id"`
-	RelativePath   string                 `pivot:"name"`
-	Parent         string                 `pivot:"parent,omitempty"`
-	Label          string                 `pivot:"label,omitempty"`
-	IsDirectory    bool                   `pivot:"directory,omitempty"`
-	LastModifiedAt int64                  `pivot:"last_modified_at,omitempty"`
-	Metadata       map[string]interface{} `pivot:"metadata"`
+	dal.Model      `json:"metadata"`
+	ID             string                 `json:"id"`
+	RelativePath   string                 `json:"name"`
+	Parent         string                 `json:"parent,omitempty"`
+	Label          string                 `json:"label,omitempty"`
+	IsDirectory    bool                   `json:"directory,omitempty"`
+	LastModifiedAt int64                  `json:"last_modified_at,omitempty"`
+	Metadata       map[string]interface{} `json:"metadata"`
 	filename       string
 }
 

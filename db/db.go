@@ -7,12 +7,17 @@ import (
 	"github.com/ghetzel/pivot/backends"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/filter"
+	"github.com/ghetzel/pivot/mapper"
 	"github.com/op/go-logging"
 	"os"
 	"time"
 )
 
 var log = logging.MustGetLogger(`byteflood/scanner`)
+
+var Metadata *mapper.Model
+var Shares *mapper.Model
+var System *mapper.Model
 
 var DefaultGlobalExclusions = []string{
 	`._.DS_Store`,
@@ -44,13 +49,28 @@ func NewDatabase() *Database {
 	}
 }
 
+func ParseFilter(spec interface{}, fmtvalues ...interface{}) (filter.Filter, error) {
+	switch spec.(type) {
+	case string, interface{}:
+		if len(fmtvalues) > 0 {
+			return filter.Parse(fmt.Sprintf(fmt.Sprintf("%v", spec), fmtvalues...))
+		} else {
+			return filter.Parse(fmt.Sprintf("%v", spec))
+		}
+	case map[string]interface{}:
+		return filter.FromMap(spec.(map[string]interface{}))
+	default:
+		return filter.Filter{}, fmt.Errorf("Invalid argument type %T", spec)
+	}
+}
+
 // Initialize the Database by opening the underlying database
 func (self *Database) Initialize() error {
 	filter.CriteriaSeparator = `;`
 	filter.FieldTermSeparator = `=`
 
-	MetadataSchema.IdentityFieldType = dal.StringType
-	SystemSchema.IdentityFieldType = dal.StringType
+	// reuse the "json:" struct tag for loading dal.Record into/out of structs
+	dal.RecordStructTag = `json`
 
 	if db, err := pivot.NewDatabaseWithOptions(self.URI, backends.ConnectOptions{
 		Indexer: self.Indexer,
@@ -60,24 +80,14 @@ func (self *Database) Initialize() error {
 		return err
 	}
 
-	// create / verify metadata collection
-	if _, err := self.db.GetCollection(MetadataSchema.Name); dal.IsCollectionNotFoundErr(err) {
-		if err := self.db.CreateCollection(MetadataSchema); err != nil {
-			return err
-		}
-	}
-
-	// create / verify system collection
-	if _, err := self.db.GetCollection(SystemSchema.Name); dal.IsCollectionNotFoundErr(err) {
-		if err := self.db.CreateCollection(SystemSchema); err != nil {
-			return err
-		}
-	}
-
 	for _, directory := range self.Directories {
 		if err := directory.Initialize(self); err != nil {
 			return err
 		}
+	}
+
+	if err := self.setupSchemata(); err != nil {
+		return err
 	}
 
 	return nil
@@ -95,17 +105,6 @@ func (self *Database) AddDirectory(directory *Directory) error {
 
 func (self *Database) AddGlobalExclusions(patterns ...string) {
 	self.GlobalExclusions = append(self.GlobalExclusions, patterns...)
-}
-
-func (self *Database) ParseFilter(spec interface{}) (filter.Filter, error) {
-	switch spec.(type) {
-	case string, interface{}:
-		return filter.Parse(fmt.Sprintf("%v", spec))
-	case map[string]interface{}:
-		return filter.FromMap(spec.(map[string]interface{}))
-	default:
-		return filter.Filter{}, fmt.Errorf("Invalid argument type %T", spec)
-	}
 }
 
 // Query records in the given collection
@@ -160,7 +159,7 @@ func (self *Database) DeleteRecords(ids ...string) error {
 
 // Query records from the metadata collection
 func (self *Database) QueryMetadata(filterString string) (*dal.RecordSet, error) {
-	if f, err := self.ParseFilter(filterString); err == nil {
+	if f, err := ParseFilter(filterString); err == nil {
 		return self.Query(MetadataSchema.Name, f)
 	} else {
 		return nil, err
@@ -182,7 +181,7 @@ func (self *Database) ListMetadata(fields []string, f ...filter.Filter) (map[str
 
 // Query records from the system data collection
 func (self *Database) QuerySystem(filterString string) (*dal.RecordSet, error) {
-	if f, err := self.ParseFilter(filterString); err == nil {
+	if f, err := ParseFilter(filterString); err == nil {
 		return self.Query(SystemSchema.Name, f)
 	} else {
 		return nil, err
@@ -194,7 +193,7 @@ func (self *Database) CleanRecords() error {
 	// missingEntries := make([]string, 0)
 
 	// if index := self.db.WithSearch(); index != nil {
-	// 	if f, err := self.ParseFilter(`key=prefix:metadata.paths.`); err == nil {
+	// 	if f, err := ParseFilter(`key=prefix:metadata.paths.`); err == nil {
 	// 		if err := index.QueryFunc(SystemSchema.Name, f, func(record *dal.Record, _ backends.IndexPage) error {
 	// 			fsPath := fmt.Sprintf("%v", record.Get(`value`))
 	// 			log.Debugf("Trying %v", fsPath)
@@ -303,4 +302,25 @@ func (self *Database) Scan(labels ...string) error {
 	}
 
 	return self.PropertySet(`metadata.last_scan`, minLastSeen)
+}
+
+func (self *Database) setupSchemata() error {
+	// setup mappers for all schemata
+	Metadata = mapper.NewModel(self.db, MetadataSchema)
+	Shares = mapper.NewModel(self.db, SharesSchema)
+	System = mapper.NewModel(self.db, SystemSchema)
+
+	if err := Metadata.Migrate(); err != nil {
+		return err
+	}
+
+	if err := Shares.Migrate(); err != nil {
+		return err
+	}
+
+	if err := System.Migrate(); err != nil {
+		return err
+	}
+
+	return nil
 }

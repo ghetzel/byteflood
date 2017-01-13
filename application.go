@@ -1,14 +1,11 @@
 package byteflood
 
 import (
-	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/go-stockutil/pathutil"
-	"github.com/ghetzel/go-stockutil/sliceutil"
-	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
 	"io/ioutil"
@@ -24,7 +21,6 @@ type Application struct {
 	Database       *db.Database    `json:"database,omitempty"`
 	PublicKeyPath  string          `json:"public_key,omitempty"`
 	PrivateKeyPath string          `json:"private_key,omitempty"`
-	Shares         []*shares.Share `json:"shares,omitempty"`
 	Queue          *DownloadQueue  `json:"queue"`
 	API            *API            `json:"api,omitempty"`
 	running        chan bool
@@ -116,25 +112,6 @@ func (self *Application) Initialize() error {
 		return err
 	}
 
-	// initialize all shares
-	sharesInitialized := make([]string, 0)
-
-	for _, share := range self.Shares {
-		name := stringutil.Underscore(share.Name)
-
-		if !sliceutil.ContainsString(sharesInitialized, name) {
-			share.SetMetabase(self.Database)
-
-			if err := share.Initialize(); err != nil {
-				return err
-			}
-
-			sharesInitialized = append(sharesInitialized, name)
-		} else {
-			return fmt.Errorf("a share named %q already exists", share.Name)
-		}
-	}
-
 	return nil
 }
 
@@ -171,10 +148,20 @@ func (self *Application) Scan(labels ...string) error {
 }
 
 func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
-	for _, share := range self.Shares {
-		if stringutil.Underscore(share.Name) == stringutil.Underscore(name) {
-			return share, true
+	if f, err := db.ParseFilter("name=%s", name); err == nil {
+		var shares []*shares.Share
+
+		if err := db.Shares.Find(f, &shares); err == nil {
+			if len(shares) == 1 {
+				return shares[0], true
+			} else if len(shares) > 1 {
+				return nil, false
+			}
+		} else {
+			return nil, false
 		}
+	} else {
+		return nil, false
 	}
 
 	return nil, false

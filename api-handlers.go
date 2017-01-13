@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/byteflood/shares"
 	"github.com/julienschmidt/httprouter"
 	"github.com/satori/go.uuid"
 	"io"
@@ -55,7 +56,7 @@ func (self *API) handleGetDatabaseItem(w http.ResponseWriter, req *http.Request,
 
 func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	if limit, offset, sort, err := self.getSearchParams(req); err == nil {
-		if f, err := self.application.Database.ParseFilter(params.ByName(`query`)); err == nil {
+		if f, err := db.ParseFilter(params.ByName(`query`)); err == nil {
 			f.Limit = limit
 			f.Offset = offset
 			f.Sort = sort
@@ -90,7 +91,7 @@ func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request, 
 			query = fmt.Sprintf("parent=%s", strings.TrimPrefix(parent, `/`))
 		}
 
-		if f, err := self.application.Database.ParseFilter(query); err == nil {
+		if f, err := db.ParseFilter(query); err == nil {
 			f.Limit = limit
 			f.Offset = offset
 			f.Sort = sort
@@ -134,7 +135,7 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 			return
 		}
 	} else {
-		if f, err := self.application.Database.ParseFilter(v); err == nil {
+		if f, err := db.ParseFilter(v); err == nil {
 			if rs, err := self.application.Database.ListMetadata(fields, f); err == nil {
 				Respond(w, rs)
 				return
@@ -231,7 +232,13 @@ func (self *API) handleProxyToPeer(w http.ResponseWriter, req *http.Request, par
 }
 
 func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	Respond(w, self.application.Shares)
+	var shares []shares.Share
+
+	if err := db.Shares.All(&shares); err == nil {
+		Respond(w, shares)
+	} else {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
 }
 
 func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {

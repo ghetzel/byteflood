@@ -3,51 +3,26 @@ package shares
 import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/filter"
-	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
-	"io"
-	"io/ioutil"
 	"strings"
 )
 
 var log = logging.MustGetLogger(`byteflood/shares`)
 
 type Share struct {
+	ID              int      `json:"id"`
 	Name            string   `json:"name"`
 	BaseFilter      string   `json:"filter,omitempty"`
 	Description     string   `json:"description,omitempty"`
 	FilterTemplates []string `json:"filter_templates,omitempty"`
-	metabase        *db.Database
-}
-
-func LoadShare(metabase *db.Database, reader io.Reader) (*Share, error) {
-	if data, err := ioutil.ReadAll(reader); err == nil {
-		share := NewShare()
-		share.SetMetabase(metabase)
-
-		if err := yaml.Unmarshal(data, share); err == nil {
-			if err := share.Initialize(); err == nil {
-				return share, nil
-			} else {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
-	} else {
-		return nil, err
-	}
 }
 
 func NewShare() *Share {
-	return &Share{}
-}
-
-func (self *Share) SetMetabase(metabase *db.Database) {
-	self.metabase = metabase
+	return new(Share)
 }
 
 func (self *Share) Initialize() error {
@@ -57,10 +32,6 @@ func (self *Share) Initialize() error {
 
 	if self.BaseFilter == `` {
 		self.BaseFilter = fmt.Sprintf("label%s%s", filter.FieldTermSeparator, stringutil.Underscore(self.Name))
-	}
-
-	if self.metabase == nil {
-		return fmt.Errorf("share must be attached to a metadata database")
 	}
 
 	return nil
@@ -75,31 +46,25 @@ func (self *Share) GetQuery(filters ...string) string {
 		self.prepareFilter(self.BaseFilter),
 	}, filters...)
 
-	return strings.Join(filters, filter.CriteriaSeparator)
+	return strings.Join(sliceutil.CompactString(filters), filter.CriteriaSeparator)
 }
 
 func (self *Share) Length() int {
-	if rs, err := self.metabase.QueryMetadata(self.GetQuery()); err == nil {
-		return int(rs.ResultCount)
+	var entries []*db.File
+
+	if f, err := db.ParseFilter(self.GetQuery()); err == nil {
+		if err := db.Metadata.Find(f, &entries); err == nil {
+			return len(entries)
+		} else {
+			return 0
+		}
 	} else {
 		return 0
 	}
 }
 
-func (self *Share) FindFunc(f string, recordFn func(*dal.Record)) error {
-	if rs, err := self.metabase.QueryMetadata(self.GetQuery(f)); err == nil {
-		for _, record := range rs.Records {
-			recordFn(record)
-		}
-	} else {
-		return err
-	}
-
-	return nil
-}
-
 func (self *Share) Find(filterString string, limit int, offset int, sort []string) (*dal.RecordSet, error) {
-	if f, err := self.metabase.ParseFilter(self.GetQuery(filterString)); err == nil {
+	if f, err := db.ParseFilter(self.GetQuery(filterString)); err == nil {
 		f.Limit = limit
 		f.Offset = offset
 
@@ -109,30 +74,23 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 			f.Sort = sort
 		}
 
-		return self.metabase.Query(db.MetadataSchema.Name, f)
+		recordset := dal.NewRecordSet()
+
+		if err := db.Metadata.Find(f, recordset); err == nil {
+			return recordset, nil
+		} else {
+			return nil, err
+		}
 	} else {
 		return nil, err
 	}
 }
 
-func (self *Share) Get(id string) (*dal.Record, error) {
-	if f, err := self.metabase.ParseFilter(self.GetQuery(fmt.Sprintf("_id=is:%s", id))); err == nil {
-		if recordset, err := self.metabase.Query(db.MetadataSchema.Name, f); err == nil {
-			switch len(recordset.Records) {
-			case 1:
-				if recordset.Records[0].ID == id {
-					return recordset.Records[0], nil
-				} else {
-					return nil, fmt.Errorf("wrong record returned")
-				}
-			case 0:
-				return nil, fmt.Errorf("not found")
-			default:
-				return nil, fmt.Errorf("too many results")
-			}
-		} else {
-			return nil, err
-		}
+func (self *Share) Get(id string) (*db.File, error) {
+	entry := new(db.File)
+
+	if err := db.Metadata.Get(id, entry); err == nil {
+		return entry, nil
 	} else {
 		return nil, err
 	}
