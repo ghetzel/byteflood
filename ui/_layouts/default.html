@@ -25,6 +25,14 @@
     <script type="text/javascript">
       $(function(){
         var Byteflood = Stapes.subclass({
+          constructor: function(){
+            // prevent normal form submissions, we'll handle them here
+            $('form').on('submit', function(e){
+              this.submitForm(e);
+              e.preventDefault();
+            }.bind(this));
+          },
+
           notify: function(message, type, details, config){
             $.notify($.extend(details, {
               'message': message,
@@ -58,6 +66,51 @@
                 location.reload();
               }.bind(this),
             });
+          },
+
+          submitForm: function(event){
+            var form = $(event.target);
+            var url = '';
+
+            if(form.action && form.action.length > 0){
+              url = form.action;
+            }else if(name = form.attr('name')){
+              url = '/api/' + name;
+            }else{
+              this.notify('Could not determine path to submit data to', 'error');
+              return;
+            }
+
+            var createNew = true;
+            var record = {
+              'fields': {},
+            };
+
+            $.each(form.serializeArray(), function(i, field) {
+              if(field.value == '' || field.value == '0'){
+                delete field['value'];
+              }
+
+              if(field.name == "id"){
+                if(field.value){
+                  createNew = false;
+                }
+
+                record['id'] = field.value;
+              }else if(field.value !== undefined){
+                record['fields'][field.name] = field.value;
+              }
+            });
+
+            $.ajax(url, {
+              method: (createNew ? 'POST' : 'PUT'),
+              data: JSON.stringify({
+                'records': [record],
+              }),
+              success: function(){
+                location.href = '/shares';
+              }.bind(this),
+            })
           },
         });
 

@@ -9,20 +9,25 @@ var MetadataSchema = dal.Collection{
 	IdentityFieldType: dal.StringType,
 	Fields: []dal.Field{
 		{
-			Name: `name`,
-			Type: dal.StringType,
+			Name:     `name`,
+			Type:     dal.StringType,
+			Required: true,
 		}, {
-			Name: `parent`,
-			Type: dal.StringType,
+			Name:     `parent`,
+			Type:     dal.StringType,
+			Required: true,
 		}, {
-			Name: `label`,
-			Type: dal.StringType,
+			Name:     `label`,
+			Type:     dal.StringType,
+			Required: true,
 		}, {
-			Name: `directory`,
-			Type: dal.BooleanType,
+			Name:     `directory`,
+			Type:     dal.BooleanType,
+			Required: true,
 		}, {
-			Name: `last_modified_at`,
-			Type: dal.IntType,
+			Name:     `last_modified_at`,
+			Type:     dal.IntType,
+			Required: true,
 		}, {
 			Name: `metadata`,
 			Type: dal.ObjectType,
@@ -34,8 +39,10 @@ var SharesSchema = dal.Collection{
 	Name: `shares`,
 	Fields: []dal.Field{
 		{
-			Name: `name`,
-			Type: dal.StringType,
+			Name:     `name`,
+			Type:     dal.StringType,
+			Required: true,
+			Unique:   true,
 		}, {
 			Name: `filter`,
 			Type: dal.StringType,
@@ -54,8 +61,9 @@ var SystemSchema = dal.Collection{
 	IdentityFieldType: dal.StringType,
 	Fields: []dal.Field{
 		{
-			Name: `key`,
-			Type: dal.StringType,
+			Name:     `key`,
+			Type:     dal.StringType,
+			Identity: true,
 		}, {
 			Name: `value`,
 			Type: dal.ObjectType,

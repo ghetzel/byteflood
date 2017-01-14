@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/shares"
-	"github.com/julienschmidt/httprouter"
+	"github.com/ghetzel/pivot/dal"
+	"github.com/ghetzel/pivot/mapper"
+	"github.com/husobee/vestigo"
 	"github.com/satori/go.uuid"
 	"io"
 	"net/http"
@@ -13,27 +15,118 @@ import (
 	"strings"
 )
 
-func (self *API) handleStatus(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (self *API) handleStatus(w http.ResponseWriter, req *http.Request) {
 	Respond(w, map[string]interface{}{
 		`version`: Version,
 	})
 }
 
-func (self *API) handleGetConfig(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (self *API) handleGetConfig(w http.ResponseWriter, req *http.Request) {
 	Respond(w, self.application)
 }
 
-func (self *API) handleGetQueue(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (self *API) handleGetNewModelInstance(w http.ResponseWriter, req *http.Request) {
+	parts := strings.Split(req.URL.Path, `/`)
+
+	if len(parts) >= 3 {
+		modelName := parts[2]
+
+		switch modelName {
+		case `shares`:
+			Respond(w, shares.NewShare())
+		default:
+			http.Error(w, fmt.Sprintf("Unknown model '%s'", modelName), http.StatusNotFound)
+		}
+	} else {
+		http.Error(w, `Not Found`, http.StatusNotFound)
+	}
+}
+
+func (self *API) handleSaveModel(w http.ResponseWriter, req *http.Request) {
+	parts := strings.Split(req.URL.Path, `/`)
+
+	if len(parts) >= 3 {
+		var recordset dal.RecordSet
+		var model mapper.Mapper
+		modelName := parts[2]
+
+		switch modelName {
+		case `shares`:
+			model = db.Shares
+		default:
+			http.Error(w, fmt.Sprintf("Unknown model '%s'", modelName), http.StatusNotFound)
+			return
+		}
+
+		if err := json.NewDecoder(req.Body).Decode(&recordset); err == nil {
+			var err error
+
+			for _, record := range recordset.Records {
+				if req.Method == `POST` {
+					err = model.Create(record)
+				} else {
+					err = model.Update(record)
+				}
+
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+			}
+
+			http.Error(w, ``, http.StatusNoContent)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	} else {
+		http.Error(w, ``, http.StatusNotFound)
+	}
+}
+
+func (self *API) handleDeleteModel(w http.ResponseWriter, req *http.Request) {
+	parts := strings.Split(req.URL.Path, `/`)
+
+	if len(parts) >= 3 {
+		var model mapper.Mapper
+
+		modelName := parts[2]
+
+		switch modelName {
+		case `shares`:
+			model = db.Shares
+		default:
+			http.Error(w, fmt.Sprintf("Unknown model '%s'", modelName), http.StatusNotFound)
+			return
+		}
+
+		if err := model.Delete(vestigo.Param(req, `id`)); err == nil {
+			http.Error(w, ``, http.StatusNoContent)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	} else {
+		http.Error(w, ``, http.StatusNotFound)
+	}
+}
+
+func (self *API) handleGetQueue(w http.ResponseWriter, req *http.Request) {
 	Respond(w, self.application.Queue)
 }
 
-func (self *API) handleEnqueueFile(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	self.application.Queue.Add(params.ByName(`peer`), params.ByName(`file`))
+func (self *API) handleEnqueueFile(w http.ResponseWriter, req *http.Request) {
+	self.application.Queue.Add(
+		vestigo.Param(req, `peer`),
+		vestigo.Param(req, `file`),
+	)
+
 	http.Error(w, ``, http.StatusNoContent)
 }
 
-func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if download, err := self.application.Queue.Download(params.ByName(`peer`), params.ByName(`file`)); err == nil {
+func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
+	if download, err := self.application.Queue.Download(
+		vestigo.Param(req, `peer`),
+		vestigo.Param(req, `file`),
+	); err == nil {
 		Respond(w, download)
 	} else if os.IsExist(err) {
 		http.Error(w, err.Error(), http.StatusConflict)
@@ -42,21 +135,21 @@ func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request, pa
 	}
 }
 
-func (self *API) handleGetDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (self *API) handleGetDatabase(w http.ResponseWriter, req *http.Request) {
 	Respond(w, self.application.Database)
 }
 
-func (self *API) handleGetDatabaseItem(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if record, err := self.application.Database.RetrieveRecord(params.ByName(`id`)); err == nil {
+func (self *API) handleGetDatabaseItem(w http.ResponseWriter, req *http.Request) {
+	if record, err := self.application.Database.RetrieveRecord(vestigo.Param(req, `id`)); err == nil {
 		Respond(w, record)
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
 	}
 }
 
-func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request) {
 	if limit, offset, sort, err := self.getSearchParams(req); err == nil {
-		if f, err := db.ParseFilter(params.ByName(`query`)); err == nil {
+		if f, err := db.ParseFilter(vestigo.Param(req, `_name`)); err == nil {
 			f.Limit = limit
 			f.Offset = offset
 			f.Sort = sort
@@ -81,11 +174,11 @@ func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request, p
 	}
 }
 
-func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request) {
 	if limit, offset, sort, err := self.getSearchParams(req); err == nil {
 		query := ``
 
-		if parent := params.ByName(`parent`); parent == `/` {
+		if parent := vestigo.Param(req, `parent`); parent == `` {
 			query = fmt.Sprintf("parent=%s", db.RootDirectoryName)
 		} else {
 			query = fmt.Sprintf("parent=%s", strings.TrimPrefix(parent, `/`))
@@ -116,8 +209,8 @@ func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request, 
 	}
 }
 
-func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	fV := strings.TrimPrefix(params.ByName(`fields`), `/`)
+func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Request) {
+	fV := strings.TrimPrefix(vestigo.Param(req, `fields`), `/`)
 
 	if fV == `` {
 		http.Error(w, `Must specify at least one field name to list`, http.StatusBadRequest)
@@ -150,8 +243,8 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 	}
 }
 
-func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	switch params.ByName(`action`) {
+func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request) {
+	switch vestigo.Param(req, `action`) {
 	case `scan`:
 		payload := DatabaseScanRequest{
 			Force: self.qsBool(req, `force`),
@@ -174,7 +267,7 @@ func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request, 
 	}
 }
 
-func (self *API) handleGetPeers(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (self *API) handleGetPeers(w http.ResponseWriter, req *http.Request) {
 	rv := make([]map[string]interface{}, 0)
 
 	for _, peer := range self.application.LocalPeer.GetPeers() {
@@ -184,7 +277,7 @@ func (self *API) handleGetPeers(w http.ResponseWriter, req *http.Request, params
 	Respond(w, &rv)
 }
 
-func (self *API) handleConnectPeer(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (self *API) handleConnectPeer(w http.ResponseWriter, req *http.Request) {
 	payload := PeerConnectRequest{}
 
 	if err := json.NewDecoder(req.Body).Decode(&payload); err == nil {
@@ -195,19 +288,19 @@ func (self *API) handleConnectPeer(w http.ResponseWriter, req *http.Request, par
 	}
 }
 
-func (self *API) handleGetPeer(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`peer`)); ok {
+func (self *API) handleGetPeer(w http.ResponseWriter, req *http.Request) {
+	if remotePeer, ok := self.application.LocalPeer.GetPeer(vestigo.Param(req, `peer`)); ok {
 		Respond(w, remotePeer.ToMap())
 	} else {
 		http.Error(w, "peer not found", http.StatusNotFound)
 	}
 }
 
-func (self *API) handleProxyToPeer(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if remotePeer, ok := self.application.LocalPeer.GetPeer(params.ByName(`peer`)); ok {
+func (self *API) handleProxyToPeer(w http.ResponseWriter, req *http.Request) {
+	if remotePeer, ok := self.application.LocalPeer.GetPeer(vestigo.Param(req, `peer`)); ok {
 		if response, err := remotePeer.ServiceRequest(
 			req.Method,
-			params.ByName(`path`),
+			vestigo.Param(req, `path`),
 			req.Body,
 			nil,
 		); err == nil {
@@ -231,7 +324,7 @@ func (self *API) handleProxyToPeer(w http.ResponseWriter, req *http.Request, par
 	}
 }
 
-func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request) {
 	var shares []shares.Share
 
 	if err := db.Shares.All(&shares); err == nil {
@@ -241,18 +334,22 @@ func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, param
 	}
 }
 
-func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
+func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request) {
+	share := shares.NewShare()
+
+	if err := db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		Respond(w, share)
 	} else {
-		http.Error(w, `Not Found`, http.StatusNotFound)
+		http.Error(w, err.Error(), http.StatusNotFound)
 	}
 }
 
-func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
+func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request) {
+	share := shares.NewShare()
+
+	if err := db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
-			if results, err := share.Find(params.ByName(`query`), limit, offset, sort); err == nil {
+			if results, err := share.Find(vestigo.Param(req, `_name`), limit, offset, sort); err == nil {
 				Respond(w, results)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -261,16 +358,18 @@ func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, para
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 	} else {
-		http.Error(w, `Not Found`, http.StatusNotFound)
+		http.Error(w, err.Error(), http.StatusNotFound)
 	}
 }
 
-func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	if share, ok := self.application.GetShareByName(params.ByName(`share`)); ok {
+func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request) {
+	share := shares.NewShare()
+
+	if err := db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
 			query := ``
 
-			if parent := params.ByName(`parent`); parent == `/` {
+			if parent := vestigo.Param(req, `parent`); parent == `` {
 				query = fmt.Sprintf("parent=%s", db.RootDirectoryName)
 			} else {
 				query = fmt.Sprintf("parent=%s", strings.TrimPrefix(parent, `/`))
@@ -285,11 +384,11 @@ func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, par
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 	} else {
-		http.Error(w, `Not Found`, http.StatusNotFound)
+		http.Error(w, err.Error(), http.StatusNotFound)
 	}
 }
 
-func (self *API) handleGetPeerStatus(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (self *API) handleGetPeerStatus(w http.ResponseWriter, req *http.Request) {
 	if remotePeer, ok := self.application.LocalPeer.GetPeer(req.Header.Get(`X-Byteflood-Session`)); ok {
 		Respond(w, map[string]interface{}{
 			`peer`: map[string]interface{}{
@@ -304,13 +403,13 @@ func (self *API) handleGetPeerStatus(w http.ResponseWriter, req *http.Request, p
 	}
 }
 
-func (self *API) handleRequestFileFromShare(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (self *API) handleRequestFileFromShare(w http.ResponseWriter, req *http.Request) {
 	// get remote peer from proxied request
 	if remotePeer, ok := self.application.LocalPeer.GetPeer(req.Header.Get(`X-Byteflood-Session`)); ok {
 		// get the absolute filesystem path to the file at :id
-		if absPath, err := self.application.Database.GetFileAbsolutePath(params.ByName(`file`)); err == nil {
+		if absPath, err := self.application.Database.GetFileAbsolutePath(vestigo.Param(req, `file`)); err == nil {
 			// parse the given :transfer UUID
-			if transferId, err := uuid.FromString(params.ByName(`transfer`)); err == nil {
+			if transferId, err := uuid.FromString(vestigo.Param(req, `transfer`)); err == nil {
 				// kick off the transfer on our end
 				// TODO: this should be entered into an upload queue
 				// self.application.QueueUpload(remotePeer, transferId, absPath)

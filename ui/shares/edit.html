@@ -1,0 +1,65 @@
+---
+page:
+  title: Share Editor
+bindings:
+- name: share
+  resource: :/api/shares/{{ or .request.url.query.id "new" }}
+---
+<div class="col-sm-12 col-md-6">
+    <form name="shares">
+        <input name="id" type="hidden" value="{{ .bindings.share.id }}">
+
+        <div class="form-group">
+            <label for="name">Share Name</label>
+            <input
+                type="text"
+                class="form-control"
+                name="name"
+                aria-describedby="nameHelp"
+                placeholder="Public share name..."
+                required
+                autofocus
+                value="{{ .bindings.share.name }}"
+            >
+
+            <small id="nameHelp" class="form-text text-muted">
+                This is the name that other users will see when browsing your content.
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description</label>
+            <input
+                type="text"
+                class="form-control"
+                name="description"
+                aria-describedby="descriptionHelp"
+                value="{{ .bindings.share.description }}"
+            >
+
+            <small id="descriptionHelp" class="form-text text-muted">
+                A short description of what content is in this share.
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="filter">Content Filter</label>
+            <input
+                type="text"
+                class="form-control"
+                name="filter"
+                aria-describedby="filterHelp"
+                placeholder="label=music;media.artist=John Williams"
+                value="{{ .bindings.share.filter }}"
+            >
+
+            <small id="filterHelp" class="form-text text-muted">
+                A database query that can be used to fine-tune which content appears in this share.
+                If left blank, the share's name will be used to search for content with a matching label.
+                (e.g.: name "Movies" becomes a <i>label=movies</i> database query.)
+            </small>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Save</button>
+    </form>
+</div>

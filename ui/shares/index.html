@@ -14,7 +14,11 @@ bindings:
 <div class="col-md-2">
     <ul class="nav bf-nav-tree">
         <li class="nav-item">
-          <span class="bf-nav-tree-title">Local</span>
+          <span class="bf-nav-tree-title">
+            Local
+
+            <a class="pull-right" href="/shares/edit"><i class="fa fa-plus"></i></a>
+          </span>
           <script type="text/javascript" id="shares-list-local">
             $(function(){
               $.get('/shares/_peer_shares', function(data){

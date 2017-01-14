@@ -3,7 +3,6 @@ package db
 import (
 	"fmt"
 	"github.com/alexcesaro/statsd"
-	"github.com/fatih/structs"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
@@ -42,9 +41,6 @@ func NewDirectory(db *Database, path string) *Directory {
 }
 
 func (self *Directory) Initialize(db *Database) error {
-	// placeholder until we move this into the library
-	structs.DefaultTagName = `pivot`
-
 	if self.Path == `` {
 		return fmt.Errorf("Directory path must be specified.")
 	} else {
@@ -196,7 +192,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	tm = stats.NewTiming()
 
 	// persist the file record
-	if err := self.db.PersistRecord(file.ID, structs.New(file).Map()); err != nil {
+	if err := Metadata.CreateOrUpdate(file.ID, file); err != nil {
 		return nil, err
 	}
 

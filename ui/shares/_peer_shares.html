@@ -11,25 +11,26 @@ bindings:
 {{ $session := or .request.url.query.session `` }}
 <ul class="nav">
   {{ range .bindings.shares }}
-  <li class="nav-item">
+  <li>
       <a
-        class="nav-link{{ if eq .name $share }} active{{ end }}"
-        style="width: calc(100% - 32px)"
-        href="/shares/?share={{ .name }}{{ if $session }}&amp;session={{ $session }}{{ end }}"
+        class="{{ if eq .name $share }} active{{ end }}"
+        href="/shares/?share={{ .id }}{{ if $session }}&amp;session={{ $session }}{{ end }}"
       >
         {{ .name }}
       </a>
-      <div
+      <span
         class="pull-right"
-        style="max-width: 28px; line-height: 1.5; vertical-align: middle;"
       >
+        {{ if not $session }}
         <a
-          href="/api{{ if $session }}/peers/{{ $session }}/proxy{{ end }}/shares/{{ .name }}/browse/"
+          href="/shares/edit?id={{ .id }}"
+        ><i class="fa fa-pencil"></i></a>
+        {{ end }}
+        <a
+          href="/api{{ if $session }}/peers/{{ $session }}/proxy{{ end }}/shares/{{ .id }}/browse/"
           target="_blank"
-        >
-          <i class="fa fa-external-link-square"></i>
-        </a>
-      </div>
+        ><i class="fa fa-external-link-square"></i></a>
+      </span>
   </li>
   {{ end }}
 </ul>

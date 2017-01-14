@@ -25,19 +25,11 @@ func NewShare() *Share {
 	return new(Share)
 }
 
-func (self *Share) Initialize() error {
-	if self.Name == `` {
-		return fmt.Errorf("share must have a name")
-	}
-
+func (self *Share) GetQuery(filters ...string) string {
 	if self.BaseFilter == `` {
 		self.BaseFilter = fmt.Sprintf("label%s%s", filter.FieldTermSeparator, stringutil.Underscore(self.Name))
 	}
 
-	return nil
-}
-
-func (self *Share) GetQuery(filters ...string) string {
 	for i, f := range filters {
 		filters[i] = self.prepareFilter(f)
 	}
@@ -74,10 +66,10 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 			f.Sort = sort
 		}
 
-		recordset := dal.NewRecordSet()
+		var recordset dal.RecordSet
 
-		if err := db.Metadata.Find(f, recordset); err == nil {
-			return recordset, nil
+		if err := db.Metadata.Find(f, &recordset); err == nil {
+			return &recordset, nil
 		} else {
 			return nil, err
 		}

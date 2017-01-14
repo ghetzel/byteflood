@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/diecast"
 	"github.com/ghetzel/go-stockutil/stringutil"
-	"github.com/julienschmidt/httprouter"
+	"github.com/husobee/vestigo"
 	"github.com/urfave/negroni"
 	// "html/template"
 	"net/http"
@@ -60,7 +60,7 @@ func (self *API) Serve() error {
 	}
 
 	server := negroni.New()
-	router := httprouter.New()
+	router := vestigo.NewRouter()
 	ui := diecast.NewServer(uiDir, `*.html`)
 
 	// ui.AdditionalFunctions = template.FuncMap{}
@@ -74,31 +74,40 @@ func (self *API) Serve() error {
 	}
 
 	// routes not registered below will fallback to the UI server
-	router.NotFound = ui
+	vestigo.CustomNotFoundHandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		ui.ServeHTTP(w, req)
+	})
 
-	router.GET(`/api/status`, self.handleStatus)
-	router.GET(`/api/configuration`, self.handleGetConfig)
-	router.GET(`/api/queue`, self.handleGetQueue)
-	router.POST(`/api/queue/:peer/:file`, self.handleEnqueueFile)
-	router.GET(`/api/db`, self.handleGetDatabase)
-	router.GET(`/api/db/view/:id`, self.handleGetDatabaseItem)
-	router.GET(`/api/db/query/*query`, self.handleQueryDatabase)
-	router.GET(`/api/db/browse/*parent`, self.handleBrowseDatabase)
-	router.GET(`/api/db/list/*fields`, self.handleListValuesInDatabase)
-	router.POST(`/api/db/actions/:action`, self.handleActionDatabase)
-	router.GET(`/api/peers`, self.handleGetPeers)
-	router.POST(`/api/peers`, self.handleConnectPeer)
-	router.GET(`/api/peers/:peer`, self.handleGetPeer)
-	router.GET(`/api/peers/:peer/files/:file`, self.handleDownloadFile)
+	router.Get(`/api/status`, self.handleStatus)
+	router.Get(`/api/configuration`, self.handleGetConfig)
+	router.Get(`/api/queue`, self.handleGetQueue)
+	router.Post(`/api/queue/:peer/:file`, self.handleEnqueueFile)
+	router.Get(`/api/db`, self.handleGetDatabase)
+	router.Get(`/api/db/:id`, self.handleGetDatabaseItem)
+	router.Get(`/api/db/query/*`, self.handleQueryDatabase)
+	router.Get(`/api/db/browse/`, self.handleBrowseDatabase)
+	router.Get(`/api/db/browse/:parent`, self.handleBrowseDatabase)
+	router.Get(`/api/db/list/*fields`, self.handleListValuesInDatabase)
+	router.Post(`/api/db/actions/:action`, self.handleActionDatabase)
+	router.Get(`/api/peers`, self.handleGetPeers)
+	router.Post(`/api/peers`, self.handleConnectPeer)
+	router.Get(`/api/peers/:peer`, self.handleGetPeer)
+	router.Get(`/api/peers/:peer/files/:file`, self.handleDownloadFile)
 
 	for _, method := range []string{`GET`, `POST`, `PUT`, `DELETE`, `HEAD`} {
-		router.Handle(method, `/api/peers/:peer/proxy/*path`, self.handleProxyToPeer)
+		router.Add(method, `/api/peers/:peer/proxy/*path`, self.handleProxyToPeer)
 	}
 
-	router.GET(`/api/shares`, self.handleGetShares)
-	router.GET(`/api/shares/:share`, self.handleGetShare)
-	router.GET(`/api/shares/:share/query/*query`, self.handleQueryShare)
-	router.GET(`/api/shares/:share/browse/*parent`, self.handleBrowseShare)
+	router.Get(`/api/shares`, self.handleGetShares)
+	router.Post(`/api/shares`, self.handleSaveModel)
+	router.Put(`/api/shares`, self.handleSaveModel)
+	router.Delete(`/api/shares/:id`, self.handleDeleteModel)
+	router.Get(`/api/shares/new`, self.handleGetNewModelInstance)
+
+	router.Get(`/api/shares/:id`, self.handleGetShare)
+	router.Get(`/api/shares/:id/query/*`, self.handleQueryShare)
+	router.Get(`/api/shares/:id/browse/`, self.handleBrowseShare)
+	router.Get(`/api/shares/:id/browse/:parent`, self.handleBrowseShare)
 
 	server.UseHandler(router)
 
@@ -109,18 +118,20 @@ func (self *API) Serve() error {
 
 // This returns an http.Handler that will respond to HTTP requests from remote peers.
 func (self *API) GetPeerRequestHandler() http.Handler {
-	router := httprouter.New()
+	router := vestigo.NewRouter()
 
-	router.GET(`/`, self.handleGetPeerStatus)
-	router.GET(`/db/view/:id`, self.handleGetDatabaseItem)
-	router.GET(`/db/query/*query`, self.handleQueryDatabase)
-	router.GET(`/db/browse/*parent`, self.handleBrowseDatabase)
-	router.GET(`/db/list/*fields`, self.handleListValuesInDatabase)
-	router.POST(`/transfers/:transfer/:file`, self.handleRequestFileFromShare)
-	router.GET(`/shares`, self.handleGetShares)
-	router.GET(`/shares/:share`, self.handleGetShare)
-	router.GET(`/shares/:share/query/*query`, self.handleQueryShare)
-	router.GET(`/shares/:share/browse/*parent`, self.handleBrowseShare)
+	router.Get(`/`, self.handleGetPeerStatus)
+	router.Get(`/db/:id`, self.handleGetDatabaseItem)
+	router.Get(`/db/query/*`, self.handleQueryDatabase)
+	router.Get(`/db/browse/`, self.handleBrowseDatabase)
+	router.Get(`/db/browse/:parent`, self.handleBrowseDatabase)
+	router.Get(`/db/list/*fields`, self.handleListValuesInDatabase)
+	router.Post(`/transfers/:transfer/:file`, self.handleRequestFileFromShare)
+	router.Get(`/shares`, self.handleGetShares)
+	router.Get(`/shares/:share`, self.handleGetShare)
+	router.Get(`/shares/:share/query/*`, self.handleQueryShare)
+	router.Get(`/shares/:share/browse/`, self.handleBrowseShare)
+	router.Get(`/shares/:share/browse/:parent`, self.handleBrowseShare)
 
 	return router
 }
