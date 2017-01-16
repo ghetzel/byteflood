@@ -17,6 +17,8 @@ var log = logging.MustGetLogger(`byteflood/scanner`)
 
 var Metadata *mapper.Model
 var Shares *mapper.Model
+var Downloads *mapper.Model
+var AuthorizedPeers *mapper.Model
 var System *mapper.Model
 
 var DefaultGlobalExclusions = []string{
@@ -42,9 +44,9 @@ type Database struct {
 
 func NewDatabase() *Database {
 	return &Database{
-		Directories:      make([]*Directory, 0),
-		URI:              `sqlite:///~/.config/byteflood/info.db`,
-		Indexer:          `bleve:///~/.config/byteflood/index`,
+		Directories: make([]*Directory, 0),
+		URI:         `sqlite:///~/.config/byteflood/info.db`,
+		// Indexer:          `bleve:///~/.config/byteflood/index`,
 		GlobalExclusions: DefaultGlobalExclusions,
 	}
 }
@@ -305,21 +307,24 @@ func (self *Database) Scan(labels ...string) error {
 }
 
 func (self *Database) setupSchemata() error {
-	// setup mappers for all schemata
 	Metadata = mapper.NewModel(self.db, MetadataSchema)
 	Shares = mapper.NewModel(self.db, SharesSchema)
+	Downloads = mapper.NewModel(self.db, DownloadsSchema)
+	AuthorizedPeers = mapper.NewModel(self.db, AuthorizedPeersSchema)
 	System = mapper.NewModel(self.db, SystemSchema)
 
-	if err := Metadata.Migrate(); err != nil {
-		return err
+	models := []*mapper.Model{
+		Metadata,
+		Shares,
+		Downloads,
+		AuthorizedPeers,
+		System,
 	}
 
-	if err := Shares.Migrate(); err != nil {
-		return err
-	}
-
-	if err := System.Migrate(); err != nil {
-		return err
+	for _, model := range models {
+		if err := model.Migrate(); err != nil {
+			return err
+		}
 	}
 
 	return nil

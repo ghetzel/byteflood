@@ -80,24 +80,38 @@ func (self *API) Serve() error {
 
 	router.Get(`/api/status`, self.handleStatus)
 	router.Get(`/api/configuration`, self.handleGetConfig)
+
+	// download queue endpoints
 	router.Get(`/api/queue`, self.handleGetQueue)
 	router.Post(`/api/queue/:peer/:file`, self.handleEnqueueFile)
+
+	// metadata database endpoints
 	router.Get(`/api/db`, self.handleGetDatabase)
 	router.Get(`/api/db/:id`, self.handleGetDatabaseItem)
 	router.Get(`/api/db/query/*`, self.handleQueryDatabase)
 	router.Get(`/api/db/browse/`, self.handleBrowseDatabase)
 	router.Get(`/api/db/browse/:parent`, self.handleBrowseDatabase)
-	router.Get(`/api/db/list/*fields`, self.handleListValuesInDatabase)
+	router.Get(`/api/db/list/*`, self.handleListValuesInDatabase)
 	router.Post(`/api/db/actions/:action`, self.handleActionDatabase)
+
+	// authorized peer management endpoints
 	router.Get(`/api/peers`, self.handleGetPeers)
-	router.Post(`/api/peers`, self.handleConnectPeer)
-	router.Get(`/api/peers/:peer`, self.handleGetPeer)
-	router.Get(`/api/peers/:peer/files/:file`, self.handleDownloadFile)
+	router.Post(`/api/peers`, self.handleSaveModel)
+	router.Put(`/api/peers`, self.handleSaveModel)
+	router.Delete(`/api/peers/:id`, self.handleDeleteModel)
+	router.Get(`/api/peers/new`, self.handleGetNewModelInstance)
+	router.Get(`/api/peers/:id`, self.handleGetPeer)
+
+	// active session management endpoints
+	router.Get(`/api/sessions`, self.handleGetSessions)
+	router.Get(`/api/sessions/:session`, self.handleGetSession)
+	router.Get(`/api/sessions/:session/files/:file`, self.handleDownloadFile)
 
 	for _, method := range []string{`GET`, `POST`, `PUT`, `DELETE`, `HEAD`} {
-		router.Add(method, `/api/peers/:peer/proxy/*path`, self.handleProxyToPeer)
+		router.Add(method, `/api/sessions/:session/proxy/*`, self.handleProxyToSession)
 	}
 
+	// share management endpoints
 	router.Get(`/api/shares`, self.handleGetShares)
 	router.Post(`/api/shares`, self.handleSaveModel)
 	router.Put(`/api/shares`, self.handleSaveModel)
@@ -120,18 +134,13 @@ func (self *API) Serve() error {
 func (self *API) GetPeerRequestHandler() http.Handler {
 	router := vestigo.NewRouter()
 
-	router.Get(`/`, self.handleGetPeerStatus)
-	router.Get(`/db/:id`, self.handleGetDatabaseItem)
-	router.Get(`/db/query/*`, self.handleQueryDatabase)
-	router.Get(`/db/browse/`, self.handleBrowseDatabase)
-	router.Get(`/db/browse/:parent`, self.handleBrowseDatabase)
-	router.Get(`/db/list/*fields`, self.handleListValuesInDatabase)
+	router.Get(`/`, self.handleGetSessionStatus)
 	router.Post(`/transfers/:transfer/:file`, self.handleRequestFileFromShare)
 	router.Get(`/shares`, self.handleGetShares)
-	router.Get(`/shares/:share`, self.handleGetShare)
-	router.Get(`/shares/:share/query/*`, self.handleQueryShare)
-	router.Get(`/shares/:share/browse/`, self.handleBrowseShare)
-	router.Get(`/shares/:share/browse/:parent`, self.handleBrowseShare)
+	router.Get(`/shares/:id`, self.handleGetShare)
+	router.Get(`/shares/:id/query/*`, self.handleQueryShare)
+	router.Get(`/shares/:id/browse/`, self.handleBrowseShare)
+	router.Get(`/shares/:id/browse/:parent`, self.handleBrowseShare)
 
 	return router
 }

@@ -1,0 +1,46 @@
+---
+page:
+  title: Authorize Peer
+bindings:
+- name: peer
+  resource: :/api/peers/{{ or .request.url.query.id "new" }}
+---
+<div class="col-sm-12 col-md-6">
+    <form name="peers" method="POST">
+        <div class="form-group">
+            <label for="name">Peer ID</label>
+            <input
+                type="text"
+                class="form-control"
+                name="id"
+                aria-describedby="idHelp"
+                required
+                autofocus
+                value="{{ .bindings.peer.id }}"
+            >
+
+            <small id="idHelp" class="form-text text-muted">
+                This is the Peer ID of the remote client you want to permit connections to (<i>case sensitive</i>.)
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="name">Local Name</label>
+            <input
+                type="text"
+                class="form-control"
+                name="name"
+                aria-describedby="nameHelp"
+                required
+                value="{{ .bindings.peer.name }}"
+            >
+
+            <small id="nameHelp" class="form-text text-muted">
+                This is a friendly name you can use to describe this peer.  Multiple Peer IDs can be associated with the same
+                name.  This name is for your reference only and will never be exposed to the remote peer.
+            </small>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Save</button>
+    </form>
+</div>

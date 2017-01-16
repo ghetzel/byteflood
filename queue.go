@@ -36,12 +36,12 @@ type QueuedDownload struct {
 	FileID          string    `json:"file_id"`
 	FileName        string    `json:"name"`
 	Destination     string    `json:"destination"`
-	Progress        float64   `json:"progress"`
-	Rate            uint64    `json:"rate"`
 	Size            uint64    `json:"size"`
 	PeerName        string    `json:"peer"`
 	Error           string    `json:"error,omitempty"`
 	AddedAt         time.Time `json:"added_at"`
+	Progress        float64   `json:"progress"`
+	Rate            uint64    `json:"rate"`
 	FileCount       int       `json:"file_count"`
 	TotalSize       uint64    `json:"total_size"`
 	inherits        *QueuedDownload
@@ -62,7 +62,7 @@ func (self *QueuedDownload) Download() error {
 	self.FileName = self.FileID
 
 	// get peer
-	if remotePeer, ok := self.application.LocalPeer.GetPeer(self.SessionID); ok {
+	if remotePeer, ok := self.application.LocalPeer.GetSession(self.SessionID); ok {
 		self.PeerName = remotePeer.Name
 
 		// get file record from peer
@@ -150,7 +150,7 @@ func (self *QueuedDownload) downloadSingleFile(remotePeer *peer.RemotePeer, reco
 
 		self.Status = `waiting`
 
-		peerRoot := fmt.Sprintf("/tmp/%s", remotePeer.ID())
+		peerRoot := fmt.Sprintf("/tmp/%s", remotePeer.ID)
 
 		// create temporary destination
 		if err := os.Mkdir(peerRoot, 0755); err == nil || os.IsExist(err) {

@@ -32,6 +32,7 @@ type MessageHandler func(*Message)
 //
 type RemotePeer struct {
 	Peer                  `json:"-"`
+	ID                    string                `json:"id"`
 	Name                  string                `json:"name"`
 	Encrypter             *encryption.Encrypter `json:"-"`
 	Decrypter             *encryption.Decrypter `json:"-"`
@@ -55,6 +56,7 @@ type RemotePeer struct {
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
 	if err := request.Validate(); err == nil {
 		return &RemotePeer{
+			ID:                    base58.Encode(request.PublicKey[:]),
 			HeartbeatInterval:     DefaultHeartbeatInterval,
 			HeartbeatAckTimeout:   DefaultHeartbeatAckTimeout,
 			publicKey:             request.PublicKey,
@@ -76,10 +78,6 @@ func (self *RemotePeer) GetPublicKey() []byte {
 	return self.publicKey
 }
 
-func (self *RemotePeer) ID() string {
-	return base58.Encode(self.publicKey[:])
-}
-
 func (self *RemotePeer) SessionID() string {
 	return self.originalRequest.String()
 }
@@ -99,9 +97,9 @@ func (self *RemotePeer) String() string {
 
 func (self *RemotePeer) ToMap() map[string]interface{} {
 	return map[string]interface{}{
-		`id`:           self.ID(),
-		`session_id`:   self.SessionID(),
+		`id`:           self.ID,
 		`name`:         self.Name,
+		`session_id`:   self.SessionID(),
 		`public_key`:   fmt.Sprintf("%x", self.GetPublicKey()),
 		`address`:      self.connection.RemoteAddr().String(),
 		`last_seen_at`: self.lastSeenAt,
@@ -114,7 +112,7 @@ func (self *RemotePeer) Write(p []byte) (int, error) {
 }
 
 func (self *RemotePeer) ServiceRequest(method string, path string, body io.Reader, headers map[string]string) (*http.Response, error) {
-	if request, err := http.NewRequest(method, fmt.Sprintf("byteflood://%s%s", self.ID(), path), body); err == nil {
+	if request, err := http.NewRequest(method, fmt.Sprintf("byteflood://%s%s", self.ID, path), body); err == nil {
 		if headers != nil {
 			for k, v := range headers {
 				request.Header.Set(k, v)

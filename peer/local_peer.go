@@ -3,6 +3,7 @@ package peer
 import (
 	"bytes"
 	"fmt"
+	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/stringutil"
@@ -28,22 +29,9 @@ var PeerMonitorRetryMultiplier = 2
 var PeerMonitorRetryMultiplierMax = 512
 var PeerMonitorRetryMax = -1
 
-type KnownPeers map[string][]string
-
-func (self KnownPeers) GetPeerNameByID(peerID string) (string, error) {
-	if peerID == `` {
-		return ``, fmt.Errorf(BF_ERR_UNKNOWN_PEER)
-	}
-
-	for peerName, permittedIDs := range self {
-		for _, permittedID := range permittedIDs {
-			if peerID == permittedID {
-				return peerName, nil
-			}
-		}
-	}
-
-	return ``, fmt.Errorf("unknown peer")
+type AuthorizedPeer struct {
+	ID       string `json:"id"`
+	PeerName string `json:"name"`
 }
 
 type Peer interface {
@@ -56,7 +44,6 @@ type LocalPeer struct {
 	Peer                 `json:"-"`
 	EnableUpnp           bool          `json:"upnp,omitempty"`
 	Address              string        `json:"address,omitempty"`
-	KnownPeers           KnownPeers    `json:"peers"`
 	Autoconnect          bool          `json:"autoconnect"`
 	AutoconnectPeers     []string      `json:"autoconnect_peers,omitempty"`
 	PublicKey            []byte        `json:"-"`
@@ -78,7 +65,6 @@ type LocalPeer struct {
 func NewLocalPeer() *LocalPeer {
 	return &LocalPeer{
 		Address:              DEFAULT_PEER_SERVER_ADDRESS,
-		KnownPeers:           make(KnownPeers),
 		Autoconnect:          true,
 		EnableUpnp:           false,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
@@ -129,11 +115,16 @@ func (self *LocalPeer) SetPeerRequestHandler(handler http.Handler) {
 	self.peerRequestHandler = handler
 }
 
-func (self *LocalPeer) AddKnownPeer(name string, peerID string) {
-	if currentIds, ok := self.KnownPeers[name]; ok {
-		self.KnownPeers[name] = append(currentIds, peerID)
+func (self *LocalPeer) AddAuthorizedPeer(peerID string, name string) error {
+	peer := &AuthorizedPeer{
+		ID:       peerID,
+		PeerName: name,
+	}
+
+	if !db.AuthorizedPeers.Exists(peerID) {
+		return db.AuthorizedPeers.Create(peer)
 	} else {
-		self.KnownPeers[name] = []string{peerID}
+		return fmt.Errorf("Peer %s already exists", peerID)
 	}
 }
 
@@ -351,11 +342,9 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 		log.Debugf("Peering request exchange completed: session is %v", remotePeeringRequest)
 
 		if remotePeer, err := NewRemotePeerFromRequest(remotePeeringRequest, conn); err == nil {
-			// if this is an incoming registration, make sure we know about them
-			if peerName, err := self.KnownPeers.GetPeerNameByID(remotePeer.ID()); err == nil {
-				remotePeer.Name = peerName
-			} else {
-				log.Errorf("rejecting unknown peer %s (%s)", remotePeer.ID(), remotePeer.String())
+			// if a record exists for this peer ID, their name will be added to the remotePeer instance
+			if err := db.AuthorizedPeers.Get(remotePeer.ID, remotePeer); err != nil {
+				log.Errorf("rejecting unknown peer %s (%s)", remotePeer.ID, remotePeer.String())
 				return nil, err
 			}
 
@@ -404,7 +393,7 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 	}
 }
 
-func (self *LocalPeer) GetPeers() []*RemotePeer {
+func (self *LocalPeer) GetSessions() []*RemotePeer {
 	self.sessionLock.RLock()
 	defer self.sessionLock.RUnlock()
 
@@ -417,7 +406,7 @@ func (self *LocalPeer) GetPeers() []*RemotePeer {
 	return peers
 }
 
-func (self *LocalPeer) GetPeer(sessionOrName string) (*RemotePeer, bool) {
+func (self *LocalPeer) GetSession(sessionOrName string) (*RemotePeer, bool) {
 	self.sessionLock.RLock()
 	defer self.sessionLock.RUnlock()
 

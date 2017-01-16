@@ -62,7 +62,6 @@ func main() {
 
 		if level, err := logging.LogLevel(c.String(`log-level`)); err == nil {
 			logging.SetLevel(level, ``)
-			logging.SetLevel(logging.INFO, `diecast`)
 		} else {
 			return err
 		}
@@ -72,6 +71,8 @@ func main() {
 		} else {
 			logging.SetLevel(logging.CRITICAL, `pivot/querylog`)
 		}
+
+		logging.SetLevel(logging.ERROR, `diecast`)
 
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
 

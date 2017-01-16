@@ -26,10 +26,9 @@ fmt:
 	go vet ./shares/..
 
 test:
-	# go test -v .
-	go test -race -v ./peer
-	# go test -v ./db
 	go test -race -v ./encryption
+	go test -race -v ./peer
+	# go test -v .
 
 bench:
 	go test -race -v -bench=. ./encryption/

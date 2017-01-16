@@ -2,8 +2,8 @@
 page:
   title: Shares
 bindings:
-- name: peers
-  resource: :/api/peers
+- name: sessions
+  resource: :/api/sessions
 ---
 {{ $session := or .request.url.query.session `` }}
 {{ $view := or .request.url.query.view `files` }}
@@ -27,7 +27,7 @@ bindings:
             })
           </script>
         </li>
-        {{ range .bindings.peers }}
+        {{ range .bindings.sessions }}
         <li class="nav-item">
           <span class="bf-nav-tree-title">{{ .name }}</span>
           <script type="text/javascript" id="shares-list-{{ .name }}">

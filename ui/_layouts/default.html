@@ -68,6 +68,21 @@
             });
           },
 
+          delete: function(model, id, callback) {
+            if(confirm("Are you sure you want to remove this item?") === true){
+              $.ajax('/api/'+model+'/'+id.toString(), {
+                method: 'DELETE',
+                success: function(){
+                  if(callback){
+                    callback.bind(this)();
+                  }else{
+                    location.reload();
+                  }
+                }.bind(this),
+              });
+            }
+          },
+
           submitForm: function(event){
             var form = $(event.target);
             var url = '';
@@ -103,12 +118,13 @@
             });
 
             $.ajax(url, {
-              method: (createNew ? 'POST' : 'PUT'),
+              method: (form.attr('method') || (createNew ? 'POST' : 'PUT')),
               data: JSON.stringify({
                 'records': [record],
               }),
               success: function(){
-                location.href = '/shares';
+                var redirectTo = (form.data('redirect-to') || '/'+form.attr('name'));
+                location.href = redirectTo;
               }.bind(this),
             })
           },
