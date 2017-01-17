@@ -25,6 +25,7 @@ type Directory struct {
 	NoRecurseDirectories bool         `json:"no_recurse,omitempty"`
 	FileMinimumSize      int          `json:"file_min_size,omitempty"`
 	QuickScan            bool         `json:"quick_scan,omitempty"`
+	Checksum             bool         `json:"checksum"`
 	Directories          []*Directory `json:"-"`
 	db                   *Database
 }

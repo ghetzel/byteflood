@@ -128,3 +128,37 @@ var SystemSchema = dal.Collection{
 		},
 	},
 }
+
+var ScannerSchema = dal.Collection{
+	Name:              `scanned_directories`,
+	IdentityFieldType: dal.StringType,
+	Fields: []dal.Field{
+		{
+			Name:     `path`,
+			Type:     dal.StringType,
+			Identity: true,
+		}, {
+			Name: `parent`,
+			Type: dal.StringType,
+		}, {
+			Name:     `label`,
+			Type:     dal.StringType,
+			Required: true,
+		}, {
+			Name: `file_pattern`,
+			Type: dal.StringType,
+		}, {
+			Name:         `recursive`,
+			Type:         dal.BooleanType,
+			Required:     true,
+			DefaultValue: true,
+		}, {
+			Name:     `min_file_size`,
+			Type:     dal.IntType,
+			Required: true,
+		}, {
+			Name: `checksum`,
+			Type: dal.BooleanType,
+		},
+	},
+}
