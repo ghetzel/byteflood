@@ -20,6 +20,8 @@ var Shares *mapper.Model
 var Downloads *mapper.Model
 var AuthorizedPeers *mapper.Model
 var System *mapper.Model
+var ScannedDirectories *mapper.Model
+var Subscriptions *mapper.Model
 
 var DefaultGlobalExclusions = []string{
 	`._.DS_Store`,
@@ -33,19 +35,17 @@ var DefaultGlobalExclusions = []string{
 }
 
 type Database struct {
-	Directories      []*Directory `json:"directories,omitempty"`
-	URI              string       `json:"uri,omitempty"`
-	Indexer          string       `json:"indexer,omitempty"`
-	ScanInProgress   bool         `json:"scan_in_progress"`
-	GlobalExclusions []string     `json:"global_exclusions,omitempty"`
+	URI              string   `json:"uri,omitempty"`
+	Indexer          string   `json:"indexer,omitempty"`
+	ScanInProgress   bool     `json:"scan_in_progress"`
+	GlobalExclusions []string `json:"global_exclusions,omitempty"`
 	ForceRescan      bool
 	db               backends.Backend
 }
 
 func NewDatabase() *Database {
 	return &Database{
-		Directories: make([]*Directory, 0),
-		URI:         `sqlite:///~/.config/byteflood/info.db`,
+		URI: `sqlite:///~/.config/byteflood/info.db`,
 		// Indexer:          `bleve:///~/.config/byteflood/index`,
 		GlobalExclusions: DefaultGlobalExclusions,
 	}
@@ -82,27 +82,11 @@ func (self *Database) Initialize() error {
 		return err
 	}
 
-	for _, directory := range self.Directories {
-		if err := directory.Initialize(self); err != nil {
-			return err
-		}
-	}
-
 	if err := self.setupSchemata(); err != nil {
 		return err
 	}
 
 	return nil
-}
-
-// Add a directory to be scanned
-func (self *Database) AddDirectory(directory *Directory) error {
-	if err := directory.Initialize(self); err == nil {
-		self.Directories = append(self.Directories, directory)
-		return nil
-	} else {
-		return err
-	}
 }
 
 func (self *Database) AddGlobalExclusions(patterns ...string) {
@@ -181,45 +165,6 @@ func (self *Database) ListMetadata(fields []string, f ...filter.Filter) (map[str
 	return self.List(MetadataSchema.Name, fields, ft)
 }
 
-// Query records from the system data collection
-func (self *Database) QuerySystem(filterString string) (*dal.RecordSet, error) {
-	if f, err := ParseFilter(filterString); err == nil {
-		return self.Query(SystemSchema.Name, f)
-	} else {
-		return nil, err
-	}
-}
-
-// Removes records from the database that would not be added by the current Database instance.
-func (self *Database) CleanRecords() error {
-	// missingEntries := make([]string, 0)
-
-	// if index := self.db.WithSearch(); index != nil {
-	// 	if f, err := ParseFilter(`key=prefix:metadata.paths.`); err == nil {
-	// 		if err := index.QueryFunc(SystemSchema.Name, f, func(record *dal.Record, _ backends.IndexPage) error {
-	// 			fsPath := fmt.Sprintf("%v", record.Get(`value`))
-	// 			log.Debugf("Trying %v", fsPath)
-
-	// 			if _, err := os.Stat(fsPath); os.IsNotExist(err) {
-	// 				missingEntries = append(missingEntries, fsPath)
-	// 			}
-
-	// 			return nil
-	// 		}); err != nil {
-	// 			return err
-	// 		}
-	// 	} else {
-	// 		return err
-	// 	}
-	// }
-
-	// for _, fsPath := range missingEntries {
-	// 	log.Debugf("Missing: %s", fsPath)
-	// }
-
-	return nil
-}
-
 func (self *Database) PropertySet(key string, value interface{}, fields ...map[string]interface{}) error {
 	record := dal.NewRecord(key)
 
@@ -277,47 +222,62 @@ func (self *Database) Scan(labels ...string) error {
 	}
 
 	// get this before performing the scan so that all scanned files will necessarily
-	// be greater than it
+	// be greater than it, except for DST/leap second events that happen at *just* the right
+	// time, at which point this is still harmless, but I wanted you to know I thought of that :)
 	minLastSeen := time.Now().UnixNano()
 
-	for _, directory := range self.Directories {
-		if len(labels) > 0 {
-			skip := true
+	var scannedDirectories []Directory
 
-			for _, label := range labels {
-				if directory.Label == stringutil.Underscore(label) {
-					skip = false
-					break
+	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
+		for _, directory := range scannedDirectories {
+			if len(labels) > 0 {
+				skip := true
+
+				for _, label := range labels {
+					if directory.Label == stringutil.Underscore(label) {
+						skip = false
+						break
+					}
+				}
+
+				if skip {
+					log.Debugf("Skipping directory %s [%s]", directory.Path, directory.Label)
+					continue
 				}
 			}
 
-			if skip {
-				log.Debugf("Skipping directory %s [%s]", directory.Path, directory.Label)
-				continue
+			if err := directory.Initialize(self); err == nil {
+				log.Debugf("Scanning directory %s [%s]", directory.Path, directory.Label)
+				if err := directory.Scan(); err != nil {
+					return err
+				}
+			} else {
+				return err
 			}
 		}
-
-		log.Debugf("Scanning directory %s [%s]", directory.Path, directory.Label)
-		if err := directory.Scan(); err != nil {
-			return err
-		}
+	} else {
+		return err
 	}
 
 	return self.PropertySet(`metadata.last_scan`, minLastSeen)
 }
 
 func (self *Database) setupSchemata() error {
-	Metadata = mapper.NewModel(self.db, MetadataSchema)
-	Shares = mapper.NewModel(self.db, SharesSchema)
-	Downloads = mapper.NewModel(self.db, DownloadsSchema)
 	AuthorizedPeers = mapper.NewModel(self.db, AuthorizedPeersSchema)
+	Downloads = mapper.NewModel(self.db, DownloadsSchema)
+	Metadata = mapper.NewModel(self.db, MetadataSchema)
+	ScannedDirectories = mapper.NewModel(self.db, ScannedDirectoriesSchema)
+	Shares = mapper.NewModel(self.db, SharesSchema)
+	Subscriptions = mapper.NewModel(self.db, SubscriptionsSchema)
 	System = mapper.NewModel(self.db, SystemSchema)
 
 	models := []*mapper.Model{
-		Metadata,
-		Shares,
-		Downloads,
 		AuthorizedPeers,
+		Downloads,
+		Metadata,
+		ScannedDirectories,
+		Shares,
+		Subscriptions,
 		System,
 	}
 

@@ -110,6 +110,9 @@ var AuthorizedPeersSchema = dal.Collection{
 			Name:     `name`,
 			Type:     dal.StringType,
 			Required: true,
+		}, {
+			Name: `group`,
+			Type: dal.StringType,
 		},
 	},
 }
@@ -129,36 +132,86 @@ var SystemSchema = dal.Collection{
 	},
 }
 
-var ScannerSchema = dal.Collection{
+var ScannedDirectoriesSchema = dal.Collection{
 	Name:              `scanned_directories`,
 	IdentityFieldType: dal.StringType,
 	Fields: []dal.Field{
 		{
-			Name:     `path`,
-			Type:     dal.StringType,
-			Identity: true,
+			Name:        `path`,
+			Description: `A local filesystem path that will be scanned for files.`,
+			Type:        dal.StringType,
+			Identity:    true,
 		}, {
-			Name: `parent`,
-			Type: dal.StringType,
-		}, {
-			Name:     `label`,
-			Type:     dal.StringType,
-			Required: true,
+			Name:        `label`,
+			Description: `A short label what will be used to identify this group of files, typically for use with share filters.`,
+			Type:        dal.StringType,
+			Required:    true,
 		}, {
 			Name: `file_pattern`,
+			Description: `An optional regular expression used to whitelist filenames. ` +
+				`If set, only absolute paths matching this query will be scanned.`,
 			Type: dal.StringType,
 		}, {
 			Name:         `recursive`,
+			Description:  `Whether to recursively scan subdirectories under this root directory.`,
 			Type:         dal.BooleanType,
 			Required:     true,
 			DefaultValue: true,
 		}, {
-			Name:     `min_file_size`,
-			Type:     dal.IntType,
-			Required: true,
+			Name:        `min_file_size`,
+			Description: `If set, files smaller than this value will be skipped.`,
+			Type:        dal.IntType,
 		}, {
 			Name: `checksum`,
-			Type: dal.BooleanType,
+			Description: `If true, all scanned files will have a SHA-256 checksum calculated for them. ` +
+				`Note: this will significantly increase the time to scan large directories.`,
+			Type:         dal.BooleanType,
+			Required:     true,
+			DefaultValue: false,
+		},
+	},
+}
+
+var SubscriptionsSchema = dal.Collection{
+	Name: `subscriptions`,
+	Fields: []dal.Field{
+		{
+			Name:        `source_group`,
+			Description: `The peer name or @-prefixed peer group to source data from.`,
+			Type:        dal.StringType,
+			Required:    true,
+		}, {
+			Name:        `share_name`,
+			Description: `Name of the remote share to query for data.`,
+			Type:        dal.StringType,
+			Required:    true,
+		}, {
+			Name:         `filter`,
+			Description:  `A filter used to narrow down which files to monitor from the named share.`,
+			Type:         dal.StringType,
+			Required:     true,
+			DefaultValue: `all`,
+		}, {
+			Name:        `target_path`,
+			Description: `The local filesystem path where downloaded data will be stored.`,
+			Type:        dal.StringType,
+			Required:    true,
+		}, {
+			Name:        `bytes_downloaded`,
+			Description: `How much data has been downloaded within the current quota interval.`,
+			Type:        dal.IntType,
+		}, {
+			Name:        `quota`,
+			Description: `The maximum number of bytes to download within a given span of time.`,
+			Type:        dal.IntType,
+		}, {
+			Name:        `quota_reset_at`,
+			Description: `The last time the quota was reset.`,
+			Type:        dal.TimeType,
+		}, {
+			Name:        `quota_interval`,
+			Description: `The amount of time (in seconds) that a quota applies to.`,
+			Type:        dal.IntType,
 		},
 	},
 }

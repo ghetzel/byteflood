@@ -218,13 +218,13 @@ func main() {
 			Name:  `cleanup`,
 			Usage: `Cleanup the metadata database.`,
 			Action: func(c *cli.Context) {
-				if app, err := createApplication(c); err == nil {
-					if err := app.Database.CleanRecords(); err != nil {
-						log.Fatal(err)
-					}
-				} else {
-					log.Fatal(err)
-				}
+				log.Fatal("Not Implemented")
+				// if app, err := createApplication(c); err == nil {
+				// 	if err := app.Database.CleanRecords(); err != nil {
+				// 		log.Fatal(err)
+				// 	}
+				// } else {
+				// }
 			},
 		}, {
 			Name:  `call`,
