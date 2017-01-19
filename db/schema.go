@@ -1,7 +1,10 @@
 package db
 
 import (
+	"fmt"
+	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot/dal"
+	"os"
 )
 
 var MetadataSchema = dal.Collection{
@@ -137,11 +140,25 @@ var ScannedDirectoriesSchema = dal.Collection{
 			Description: `A local filesystem path that will be scanned for files.`,
 			Type:        dal.StringType,
 			Unique:      true,
+			Validator: func(value interface{}) error {
+				if s, err := os.Stat(fmt.Sprintf("%v", value)); err == nil {
+					if !s.IsDir() {
+						return fmt.Errorf("Given path must be a directory")
+					}
+				} else {
+					return err
+				}
+
+				return nil
+			},
 		}, {
 			Name:        `label`,
 			Description: `A short label what will be used to identify this group of files, typically for use with share filters.`,
 			Type:        dal.StringType,
 			Required:    true,
+			Formatter: func(value interface{}, _ dal.FieldOperation) (interface{}, error) {
+				return stringutil.Underscore(fmt.Sprintf("%v", value)), nil
+			},
 		}, {
 			Name: `file_pattern`,
 			Description: `An optional regular expression used to whitelist filenames. ` +

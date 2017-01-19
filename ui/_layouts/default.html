@@ -126,6 +126,17 @@
                 var redirectTo = (form.data('redirect-to') || '/'+form.attr('name'));
                 location.href = redirectTo;
               }.bind(this),
+              error: function(response){
+                console.debug(response);
+
+                this.notify(response.responseText, 'danger', {
+                  'icon': 'fa fa-warning',
+                  'title': '<b>' +
+                    response.statusText + ' (HTTP '+response.status.toString()+')' +
+                    '<br />' +
+                  '</b>',
+                });
+              }.bind(this),
             })
           },
         });

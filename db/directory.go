@@ -18,10 +18,10 @@ var stats, _ = statsd.New()
 
 type Directory struct {
 	ID                   int          `json:"id"`
-	RootPath             string       `json:"path"`
-	Path                 string       `json:"relative_path"`
+	Path                 string       `json:"path"`
 	Parent               string       `json:"parent"`
 	Label                string       `json:"label,omitempty"`
+	RootPath             string       `json:"-"`
 	FilePattern          string       `json:"file_patterns,omitempty"`
 	NoRecurseDirectories bool         `json:"no_recurse,omitempty"`
 	FileMinimumSize      int          `json:"min_file_size,omitempty"`
