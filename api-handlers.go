@@ -34,6 +34,8 @@ func (self *API) handleGetNewModelInstance(w http.ResponseWriter, req *http.Requ
 			Respond(w, shares.NewShare())
 		case `peers`:
 			Respond(w, new(peer.RemotePeer))
+		case `directories`:
+			Respond(w, new(db.Directory))
 		default:
 			http.Error(w, fmt.Sprintf("Unknown model '%s'", modelName), http.StatusNotFound)
 		}
@@ -55,6 +57,8 @@ func (self *API) handleSaveModel(w http.ResponseWriter, req *http.Request) {
 			model = db.Shares
 		case `peers`:
 			model = db.AuthorizedPeers
+		case `directories`:
+			model = db.ScannedDirectories
 		default:
 			http.Error(w, fmt.Sprintf("Unknown model '%s'", modelName), http.StatusNotFound)
 			return
@@ -98,6 +102,8 @@ func (self *API) handleDeleteModel(w http.ResponseWriter, req *http.Request) {
 			model = db.Shares
 		case `peers`:
 			model = db.AuthorizedPeers
+		case `directories`:
+			model = db.ScannedDirectories
 		default:
 			http.Error(w, fmt.Sprintf("Unknown model '%s'", modelName), http.StatusNotFound)
 			return

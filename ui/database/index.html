@@ -5,6 +5,9 @@ page:
 bindings:
 - name: db
   resource: :/api/db
+
+- name: directories
+  resource: :/api/directories
 ---
 {{ $scanning := .bindings.db.scan_in_progress }}
 {{ if $scanning }}
@@ -18,7 +21,7 @@ bindings:
     Scanned Directories
   </div>
 
-  {{ if .bindings.db.directories }}
+  {{ if .bindings.directories }}
   <table class="table table-sm table-striped table-hover">
     <thead>
       <tr>
@@ -43,7 +46,7 @@ bindings:
 
         </td>
       </tr>
-      {{ range .bindings.db.directories }}
+      {{ range .bindings.directories }}
       <tr>
         <td>{{ .label }}</td>
         <td>{{ .path }}</td>
@@ -59,11 +62,25 @@ bindings:
         </td>
       </tr>
       {{ end }}
+      <tr>
+        <td colspan="3">
+          <span class="pull-right">
+            <a class="btn btn-sm btn-success" href="/database/edit">
+              <i class="fa fa-plus"></i> Add Directory
+            </a>
+          </span>
+        </td>
+      </tr>
     </tbody>
   </table>
   {{ else }}
   <div class="card-block">
-    <p class="card-text">No directories are being monitored.</p>
+    <p class="card-text">
+      No directories are being monitored.
+      <br />
+      <br />
+      <a class="btn btn-lg btn-success" href="/database/edit"><i class="fa fa-plus"></i> Add One</a>
+    </p>
   </div>
   {{ end }}
 </div>

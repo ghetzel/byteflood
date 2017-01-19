@@ -119,13 +119,10 @@ var AuthorizedPeersSchema = dal.Collection{
 
 var SystemSchema = dal.Collection{
 	Name:              `system`,
+	IdentityField:     `key`,
 	IdentityFieldType: dal.StringType,
 	Fields: []dal.Field{
 		{
-			Name:     `key`,
-			Type:     dal.StringType,
-			Identity: true,
-		}, {
 			Name: `value`,
 			Type: dal.ObjectType,
 		},
@@ -133,14 +130,13 @@ var SystemSchema = dal.Collection{
 }
 
 var ScannedDirectoriesSchema = dal.Collection{
-	Name:              `scanned_directories`,
-	IdentityFieldType: dal.StringType,
+	Name: `scanned_directories`,
 	Fields: []dal.Field{
 		{
 			Name:        `path`,
 			Description: `A local filesystem path that will be scanned for files.`,
 			Type:        dal.StringType,
-			Identity:    true,
+			Unique:      true,
 		}, {
 			Name:        `label`,
 			Description: `A short label what will be used to identify this group of files, typically for use with share filters.`,

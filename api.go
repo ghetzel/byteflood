@@ -94,6 +94,14 @@ func (self *API) Serve() error {
 	router.Get(`/api/db/list/*`, self.handleListValuesInDatabase)
 	router.Post(`/api/db/actions/:action`, self.handleActionDatabase)
 
+	// scanned directory management endpoints
+	router.Get(`/api/directories`, self.handleGetScannedDirectories)
+	router.Get(`/api/directories/:id`, self.handleGetScannedDirectory)
+	router.Post(`/api/directories`, self.handleSaveModel)
+	router.Put(`/api/directories`, self.handleSaveModel)
+	router.Delete(`/api/directories/:id`, self.handleDeleteModel)
+	router.Get(`/api/directories/new`, self.handleGetNewModelInstance)
+
 	// authorized peer management endpoints
 	router.Get(`/api/peers`, self.handleGetPeers)
 	router.Post(`/api/peers`, self.handleSaveModel)

@@ -17,13 +17,14 @@ import (
 var stats, _ = statsd.New()
 
 type Directory struct {
-	Path                 string       `json:"path"`
+	ID                   int          `json:"id"`
+	RootPath             string       `json:"path"`
+	Path                 string       `json:"relative_path"`
 	Parent               string       `json:"parent"`
 	Label                string       `json:"label,omitempty"`
-	RootPath             string       `json:"root_path,omitempty"`
-	FilePattern          string       `json:"patterns,omitempty"`
+	FilePattern          string       `json:"file_patterns,omitempty"`
 	NoRecurseDirectories bool         `json:"no_recurse,omitempty"`
-	FileMinimumSize      int          `json:"file_min_size,omitempty"`
+	FileMinimumSize      int          `json:"min_file_size,omitempty"`
 	QuickScan            bool         `json:"quick_scan,omitempty"`
 	Checksum             bool         `json:"checksum"`
 	Directories          []*Directory `json:"-"`
