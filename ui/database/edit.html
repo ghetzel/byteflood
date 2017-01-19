@@ -6,7 +6,7 @@ bindings:
   resource: :/api/directories/{{ or .request.url.query.id "new" }}
 ---
 <div class="col-sm-12 col-md-6">
-    <form name="directories" method="POST">
+    <form name="directories" method="POST" data-redirect-to="/database">
         <input name="id" type="hidden" value="{{ .bindings.directory.id }}">
 
         <div class="form-group">

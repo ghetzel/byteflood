@@ -35,15 +35,16 @@ bindings:
         <td></td>
         <td></td>
         <td>
-          <button
-            class="btn btn-sm btn-primary"
-            onclick="byteflood.scan()"
-            {{ if $scanning }}disabled{{ end }}
-          >
-            <i class="fa fa-search"></i>
-            Scan All
-          </button>
-
+          <span class="pull-right">
+            <button
+              class="btn btn-sm btn-primary"
+              onclick="byteflood.scan()"
+              {{ if $scanning }}disabled{{ end }}
+            >
+              <i class="fa fa-search"></i>
+              Scan All
+            </button>
+          </span>
         </td>
       </tr>
       {{ range .bindings.directories }}
@@ -51,14 +52,23 @@ bindings:
         <td>{{ .label }}</td>
         <td>{{ .path }}</td>
         <td>
-          <button
-            class="btn btn-sm btn-success"
-            onclick="byteflood.scan('{{ .label }}')"
-            {{ if $scanning }}disabled{{ end }}
-          >
-            <i class="fa fa-search"></i>
-            Scan
-          </button>
+          <span class="pull-right">
+            <button
+              class="btn btn-sm btn-success"
+              onclick="byteflood.scan('{{ .label }}')"
+              {{ if $scanning }}disabled{{ end }}
+            >
+              <i class="fa fa-search"></i> Scan
+            </button>
+
+            <button
+              class="btn btn-sm btn-danger"
+              onclick="byteflood.delete('directories', '{{ .id }}')"
+              {{ if $scanning }}disabled{{ end }}
+            >
+              <i class="fa fa-remove"></i> Remove
+            </button>
+          </span>
         </td>
       </tr>
       {{ end }}
