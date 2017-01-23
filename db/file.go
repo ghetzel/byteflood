@@ -22,7 +22,7 @@ type File struct {
 	RelativePath   string                 `json:"name"`
 	Parent         string                 `json:"parent,omitempty"`
 	Label          string                 `json:"label,omitempty"`
-	IsDirectory    bool                   `json:"directory,omitempty"`
+	IsDirectory    bool                   `json:"directory"`
 	LastModifiedAt int64                  `json:"last_modified_at,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata"`
 	filename       string

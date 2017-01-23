@@ -1,22 +1,31 @@
 package byteflood
 
 import (
+	"github.com/ghetzel/byteflood/db"
 	"github.com/husobee/vestigo"
 	"net/http"
 	// "os"
 )
 
 func (self *API) handleGetQueue(w http.ResponseWriter, req *http.Request) {
-	Respond(w, self.application.Queue)
+	var downloads []QueuedDownload
+
+	if err := db.Downloads.All(&downloads); err == nil {
+		Respond(w, downloads)
+	} else {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
 }
 
 func (self *API) handleEnqueueFile(w http.ResponseWriter, req *http.Request) {
-	self.application.Queue.Add(
+	if err := self.application.Queue.Add(
 		vestigo.Param(req, `peer`),
 		vestigo.Param(req, `file`),
-	)
-
-	http.Error(w, ``, http.StatusNoContent)
+	); err == nil {
+		http.Error(w, ``, http.StatusNoContent)
+	} else {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
 }
 
 // func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {

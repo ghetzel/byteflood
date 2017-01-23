@@ -13,6 +13,7 @@ bindings:
 {{ $offset := or .request.url.query.offset `` }}
 <div class="col-md-2">
     <ul class="nav bf-nav-tree">
+        <!-- Local Shares Management -->
         <li class="nav-item">
           <span class="bf-nav-tree-title">
             Local
@@ -27,16 +28,20 @@ bindings:
             })
           </script>
         </li>
+
+        <!-- Remote Share Browser -->
         {{ range .bindings.sessions }}
         <li class="nav-item">
           <span class="bf-nav-tree-title">
             {{ .name }}
+
             <a
               class="pull-right"
               href="/api/sessions/{{ .session_id }}/proxy/"
               target="_blank"
             ><i class="fa fa-external-link-square"></i></a>
           </span>
+
           <script type="text/javascript" id="shares-list-{{ .name }}">
             $(function(){
               $.get('/shares/_peer_shares?session={{ .name }}', function(data){

@@ -31,8 +31,7 @@ var DefaultResultLimit = 25
 
 func NewAPI() *API {
 	return &API{
-		Address:     DefaultApiAddress,
-		UiDirectory: `./ui`, // TODO: this will be "embedded" after development settles
+		Address: DefaultApiAddress,
 	}
 }
 
@@ -45,9 +44,9 @@ func (self *API) Initialize() error {
 		self.Address = DefaultApiAddress
 	}
 
-	// if self.UiDirectory == `` {
-	// 	self.UiDirectory = `embedded`
-	// }
+	if self.UiDirectory == `` {
+		self.UiDirectory = `./ui` // TODO: this will be "embedded" after development settles
+	}
 
 	return nil
 }
@@ -82,8 +81,8 @@ func (self *API) Serve() error {
 	router.Get(`/api/configuration`, self.handleGetConfig)
 
 	// download queue endpoints
-	router.Get(`/api/queue`, self.handleGetQueue)
-	router.Post(`/api/queue/:peer/:file`, self.handleEnqueueFile)
+	router.Get(`/api/downloads`, self.handleGetQueue)
+	router.Post(`/api/downloads/:peer/:file`, self.handleEnqueueFile)
 
 	// metadata database endpoints
 	router.Get(`/api/db`, self.handleGetDatabase)

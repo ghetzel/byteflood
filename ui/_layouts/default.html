@@ -42,11 +42,12 @@
           },
 
           queueFileForDownload: function(session, file_id) {
-            $.ajax('/api/queue/'+session+'/'+file_id, {
+            $.ajax('/api/downloads/'+session+'/'+file_id, {
               method: 'POST',
               success: function(){
                 this.notify('File '+file_id+' has been queued for download.');
               }.bind(this),
+              error: this.showResponseError.bind(this),
             });
           },
 
@@ -65,6 +66,7 @@
               success: function(){
                 location.reload();
               }.bind(this),
+              error: this.showResponseError.bind(this),
             });
           },
 
@@ -79,6 +81,7 @@
                     location.reload();
                   }
                 }.bind(this),
+                error: this.showResponseError.bind(this),
               });
             }
           },
@@ -126,18 +129,18 @@
                 var redirectTo = (form.data('redirect-to') || '/'+form.attr('name'));
                 location.href = redirectTo;
               }.bind(this),
-              error: function(response){
-                console.debug(response);
-
-                this.notify(response.responseText, 'danger', {
-                  'icon': 'fa fa-warning',
-                  'title': '<b>' +
-                    response.statusText + ' (HTTP '+response.status.toString()+')' +
-                    '<br />' +
-                  '</b>',
-                });
-              }.bind(this),
+              error: this.showResponseError.bind(this),
             })
+          },
+
+          showResponseError: function(response){
+            this.notify(response.responseText, 'danger', {
+              'icon': 'fa fa-warning',
+              'title': '<b>' +
+                response.statusText + ' (HTTP '+response.status.toString()+')' +
+                '<br />' +
+              '</b>',
+            });
           },
         });
 

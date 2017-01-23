@@ -3,15 +3,15 @@ page:
     title: Download Queue
     refresh: 3
 bindings:
-- name: queue
-  resource: :/api/queue
+- name: downloads
+  resource: :/api/downloads
 ---
 <div class="card">
   <div class="card-header">
     Active Downloads
   </div>
 
-  {{ if .bindings.queue.active }}
+  {{ if .bindings.downloads }}
   <table class="table">
     <thead>
       <tr>
@@ -23,7 +23,7 @@ bindings:
       </tr>
     </thead>
     <tbody>
-      {{ range .bindings.queue.active }}
+      {{ range .bindings.downloads.records }}
       <tr>
         <td><i class="fa fa-fw bf-queue-status-{{ .status }}"></i></td>
         <td>{{ or .metadata.name .file_id }}</td>
@@ -44,45 +44,3 @@ bindings:
   </div>
   {{ end }}
 </div>
-
-<div class="card">
-  <div class="card-header">
-    Download History
-  </div>
-
-  {{ if .bindings.queue.completed }}
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Status</th>
-        <th>File</th>
-        <th>Message</th>
-        <th>Peer</th>
-        <th>Size</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{ range .bindings.queue.completed }}
-      <tr>
-        <td><i class="fa fa-fw bf-queue-status-{{ .status }}"></i></td>
-        <td>{{ or .file_id }}</td>
-        <td>{{ if .error }}{{ .error }}{{ end }}</td>
-        <td>{{ or .peer .session_id }}</td>
-        <td>
-          {{ if .size }}
-          {{ autobyte .size "%.2f" }}
-          {{ else }}
-          &ndash;
-          {{ end }}
-        </td>
-      </tr>
-      {{ end }}
-    </tbody>
-  </table>
-  {{ else }}
-  <div class="card-block text-xs-center">
-    <p class="card-text">There are no completed downloads.</p>
-  </div>
-  {{ end }}
-</div>
-

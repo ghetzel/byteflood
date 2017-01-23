@@ -1,7 +1,7 @@
 ---
 bindings:
 - name: results
-  resource: :/api{{ if .request.url.query.session }}/peers/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}/browse/{{ .request.url.query.parent }}
+  resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}/browse/{{ .request.url.query.parent }}
   params:
     limit: '{{ or .request.url.query.limit 15 }}'
     offset: '{{ or .request.url.query.offset 0 }}'
