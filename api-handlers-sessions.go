@@ -6,6 +6,7 @@ import (
 	"github.com/satori/go.uuid"
 	"io"
 	"net/http"
+	"strings"
 )
 
 func (self *API) handleGetSessions(w http.ResponseWriter, req *http.Request) {
@@ -39,9 +40,15 @@ func (self *API) handleGetSession(w http.ResponseWriter, req *http.Request) {
 
 func (self *API) handleProxyToSession(w http.ResponseWriter, req *http.Request) {
 	if remotePeer, ok := self.application.LocalPeer.GetSession(vestigo.Param(req, `session`)); ok {
+		proxyPath := vestigo.Param(req, `_name`)
+		proxyPath = strings.TrimPrefix(proxyPath, `/proxy`)
+		proxyPath = `/` + strings.TrimPrefix(proxyPath, `/`)
+
+		log.Debugf("Proxying %s %s to peer %s (session: %s)", req.Method, proxyPath, remotePeer.Name, remotePeer.SessionID())
+
 		if response, err := remotePeer.ServiceRequest(
 			req.Method,
-			`/`+vestigo.Param(req, `_name`),
+			proxyPath,
 			req.Body,
 			nil,
 		); err == nil {

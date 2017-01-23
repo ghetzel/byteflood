@@ -45,9 +45,9 @@ func (self *API) Initialize() error {
 		self.Address = DefaultApiAddress
 	}
 
-	if self.UiDirectory == `` {
-		self.UiDirectory = `embedded`
-	}
+	// if self.UiDirectory == `` {
+	// 	self.UiDirectory = `embedded`
+	// }
 
 	return nil
 }
@@ -113,7 +113,7 @@ func (self *API) Serve() error {
 	// active session management endpoints
 	router.Get(`/api/sessions`, self.handleGetSessions)
 	router.Get(`/api/sessions/:session`, self.handleGetSession)
-	router.Get(`/api/sessions/:session/files/:file`, self.handleDownloadFile)
+	// router.Get(`/api/sessions/:session/files/:file`, self.handleDownloadFile)
 
 	for _, method := range []string{`GET`, `POST`, `PUT`, `DELETE`, `HEAD`} {
 		router.Add(method, `/api/sessions/:session/proxy/*`, self.handleProxyToSession)

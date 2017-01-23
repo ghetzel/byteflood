@@ -326,6 +326,18 @@ func main() {
 					log.Fatal(err)
 				}
 			},
+		}, {
+			Name:  `peers`,
+			Usage: `Manage peer authorizations and access.`,
+			Action: func(c *cli.Context) {
+				log.Fatal("Not Implemented")
+			},
+		}, {
+			Name:  `shares`,
+			Usage: `Manage shared files`,
+			Action: func(c *cli.Context) {
+				log.Fatal("Not Implemented")
+			},
 		},
 	}
 
