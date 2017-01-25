@@ -73,7 +73,7 @@ bindings:
         </td>
         <td>
           {{ if $session }}
-          <a onclick="byteflood.queueFileForDownload('{{ $session }}', '{{ .id }}');">
+          <a onclick="byteflood.queueFileForDownload('{{ $session }}', '{{ $share }}', '{{ .id }}');">
             <i class="fa fa-fw fa-plus"></i>
           </a>
           {{ end }}

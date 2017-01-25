@@ -70,7 +70,15 @@ var DownloadsSchema = dal.Collection{
 			Name: `priority`,
 			Type: dal.IntType,
 		}, {
+			Name:     `peer_name`,
+			Type:     dal.StringType,
+			Required: true,
+		}, {
 			Name:     `session_id`,
+			Type:     dal.StringType,
+			Required: true,
+		}, {
+			Name:     `share_id`,
 			Type:     dal.StringType,
 			Required: true,
 		}, {
@@ -78,7 +86,7 @@ var DownloadsSchema = dal.Collection{
 			Type:     dal.StringType,
 			Required: true,
 		}, {
-			Name:     `filename`,
+			Name:     `name`,
 			Type:     dal.StringType,
 			Required: true,
 		}, {
@@ -90,16 +98,12 @@ var DownloadsSchema = dal.Collection{
 			Type:     dal.IntType,
 			Required: true,
 		}, {
-			Name:     `peer_name`,
-			Type:     dal.StringType,
+			Name:     `added_at`,
+			Type:     dal.TimeType,
 			Required: true,
 		}, {
 			Name: `error`,
 			Type: dal.StringType,
-		}, {
-			Name:     `added_at`,
-			Type:     dal.TimeType,
-			Required: true,
 		},
 	},
 }

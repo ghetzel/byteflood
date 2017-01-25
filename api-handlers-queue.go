@@ -20,6 +20,7 @@ func (self *API) handleGetQueue(w http.ResponseWriter, req *http.Request) {
 func (self *API) handleEnqueueFile(w http.ResponseWriter, req *http.Request) {
 	if err := self.application.Queue.Add(
 		vestigo.Param(req, `peer`),
+		vestigo.Param(req, `share`),
 		vestigo.Param(req, `file`),
 	); err == nil {
 		http.Error(w, ``, http.StatusNoContent)

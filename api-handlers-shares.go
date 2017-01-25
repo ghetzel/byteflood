@@ -29,6 +29,20 @@ func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (self *API) handleGetShareFile(w http.ResponseWriter, req *http.Request) {
+	share := shares.NewShare()
+
+	if err := db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
+		if file, err := share.Get(vestigo.Param(req, `file`)); err == nil {
+			Respond(w, file)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	} else {
+		http.Error(w, err.Error(), http.StatusNotFound)
+	}
+}
+
 func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request) {
 	share := shares.NewShare()
 

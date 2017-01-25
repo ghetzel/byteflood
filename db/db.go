@@ -43,6 +43,11 @@ type Database struct {
 	db               backends.Backend
 }
 
+type KV struct {
+	Key   string      `json:"key,identity"`
+	Value interface{} `json:"value"`
+}
+
 func NewDatabase() *Database {
 	return &Database{
 		URI: `sqlite:///~/.config/byteflood/info.db`,
@@ -175,12 +180,14 @@ func (self *Database) PropertySet(key string, value interface{}, fields ...map[s
 	record.Set(`key`, key)
 	record.Set(`value`, value)
 
-	return self.db.Insert(SystemSchema.Name, dal.NewRecordSet(record))
+	return System.Create(record)
 }
 
 func (self *Database) PropertyGet(key string, fallback ...interface{}) interface{} {
-	if record, err := self.db.Retrieve(SystemSchema.Name, key); err == nil {
-		return record.Get(`value`, fallback...)
+	var kv KV
+
+	if err := System.Get(key, &kv); err == nil && kv.Value != nil {
+		return kv.Value
 	} else {
 		if len(fallback) > 0 {
 			return fallback[0]
@@ -191,8 +198,8 @@ func (self *Database) PropertyGet(key string, fallback ...interface{}) interface
 }
 
 func (self *Database) GetFileAbsolutePath(id string) (string, error) {
-	if record, err := self.RetrieveRecord(id); err == nil {
-		if v := self.PropertyGet(fmt.Sprintf("metadata.paths.%s", record.ID)); v != nil {
+	if Metadata.Exists(id) {
+		if v := self.PropertyGet(fmt.Sprintf("metadata.paths.%s", id)); v != nil {
 			if absPath, ok := v.(string); ok {
 				if _, err := os.Stat(absPath); err == nil {
 					return absPath, nil
@@ -202,7 +209,7 @@ func (self *Database) GetFileAbsolutePath(id string) (string, error) {
 
 		return ``, fmt.Errorf("invalid entry")
 	} else {
-		return ``, err
+		return ``, fmt.Errorf("file %s does not exist", id)
 	}
 }
 

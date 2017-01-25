@@ -82,7 +82,7 @@ func (self *API) Serve() error {
 
 	// download queue endpoints
 	router.Get(`/api/downloads`, self.handleGetQueue)
-	router.Post(`/api/downloads/:peer/:file`, self.handleEnqueueFile)
+	router.Post(`/api/downloads/:peer/:share/:file`, self.handleEnqueueFile)
 
 	// metadata database endpoints
 	router.Get(`/api/db`, self.handleGetDatabase)
@@ -145,6 +145,7 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 	router.Post(`/transfers/:transfer/:file`, self.handleRequestFileFromShare)
 	router.Get(`/shares`, self.handleGetShares)
 	router.Get(`/shares/:id`, self.handleGetShare)
+	router.Get(`/shares/:id/view/:file`, self.handleGetShareFile)
 	router.Get(`/shares/:id/query/*`, self.handleQueryShare)
 	router.Get(`/shares/:id/browse/`, self.handleBrowseShare)
 	router.Get(`/shares/:id/browse/:parent`, self.handleBrowseShare)

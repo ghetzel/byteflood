@@ -16,24 +16,33 @@ bindings:
     <thead>
       <tr>
         <th>Status</th>
-        <th>File</th>
         <th>Peer</th>
+        <th>File</th>
         <th>Progress</th>
         <th></th>
       </tr>
     </thead>
     <tbody>
-      {{ range .bindings.downloads.records }}
+      {{ range .bindings.downloads }}
       <tr>
-        <td><i class="fa fa-fw bf-queue-status-{{ .status }}"></i></td>
-        <td>{{ or .metadata.name .file_id }}</td>
-        <td>{{ or .peer .session_id }}</td>
+        <td>
+          <i class="fa fa-fw bf-queue-status-{{ .status }}"></i>
+          <span class="badge badge-default">{{ titleize .status }}</span>
+        </td>
+        <td>{{ or .peer_name .session_id }}</td>
+        <td>{{ or .filename .file_id }}</td>
+        {{ if .error }}
+        <td colspan="2" class="text-danger">
+          {{ .error }}
+        </td>
+        {{ else }}
         <td>
           <progress class="progress" value="{{ percent .progress 1.0 }}" max="100"></progress>
         </td>
         <td>
           {{ percent .progress 1.0 }}% ({{ autobyte .rate "%.1f" }}/s)
         </td>
+        {{ end }}
       </tr>
       {{ end }}
     </tbody>

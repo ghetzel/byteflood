@@ -6,7 +6,6 @@ import (
 	"github.com/ghetzel/byteflood/db/metadata"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/stringutil"
-	"github.com/ghetzel/pivot/dal"
 	"github.com/jbenet/go-base58"
 	"github.com/spaolacci/murmur3"
 	"math/big"
@@ -17,7 +16,6 @@ import (
 const FileFingerprintSize = 16777216
 
 type File struct {
-	dal.Model      `json:"metadata"`
 	ID             string                 `json:"id"`
 	RelativePath   string                 `json:"name"`
 	Parent         string                 `json:"parent,omitempty"`

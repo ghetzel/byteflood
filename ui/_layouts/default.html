@@ -41,8 +41,8 @@
             }));
           },
 
-          queueFileForDownload: function(session, file_id) {
-            $.ajax('/api/downloads/'+session+'/'+file_id, {
+          queueFileForDownload: function(session, share_id, file_id) {
+            $.ajax('/api/downloads/'+session+'/'+share_id+'/'+file_id, {
               method: 'POST',
               success: function(){
                 this.notify('File '+file_id+' has been queued for download.');
