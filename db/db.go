@@ -186,10 +186,7 @@ func (self *Database) PropertySet(key string, value interface{}, fields ...map[s
 func (self *Database) PropertyGet(key string, fallback ...interface{}) interface{} {
 	var kv KV
 
-	err := System.Get(key, &kv)
-	log.Debugf("Property %s=%v", kv.Key, kv.Value)
-
-	if err == nil && kv.Value != nil {
+	if err := System.Get(key, &kv); err == nil && kv.Value != nil {
 		return kv.Value
 	} else {
 		if len(fallback) > 0 {
@@ -203,10 +200,10 @@ func (self *Database) PropertyGet(key string, fallback ...interface{}) interface
 func (self *Database) GetFileAbsolutePath(id string) (string, error) {
 	if Metadata.Exists(id) {
 		if v := self.PropertyGet(fmt.Sprintf("metadata.paths.%s", id)); v != nil {
-			if absPath, ok := v.(string); ok {
-				if _, err := os.Stat(absPath); err == nil {
-					return absPath, nil
-				}
+			absPath := fmt.Sprintf("%v", v)
+
+			if _, err := os.Stat(absPath); err == nil {
+				return absPath, nil
 			}
 		}
 

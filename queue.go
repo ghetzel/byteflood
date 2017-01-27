@@ -95,7 +95,7 @@ func (self *QueuedDownload) Download() error {
 
 		// create temporary destination
 		if err := os.Mkdir(self.Destination, 0755); err == nil || os.IsExist(err) {
-			tmpfile := path.Join(self.Destination, fmt.Sprintf(".byteflood-%v.part", self.ID))
+			tmpfile := path.Join(self.Destination, fmt.Sprintf("_byteflood-%v.partial", self.ID))
 
 			// open the destination file
 
@@ -150,6 +150,11 @@ func (self *QueuedDownload) Download() error {
 							self.Size = transfer.BytesReceived
 
 							destFile := path.Join(self.Destination, self.Name)
+
+							// make sure the destination directory exists
+							if err := os.MkdirAll(path.Dir(destFile), 0755); err != nil {
+								return err
+							}
 
 							if err := os.Rename(tmpfile, destFile); err == nil {
 								// reopen the downloaded file as readable
