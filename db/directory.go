@@ -10,7 +10,6 @@ import (
 	"os"
 	"path"
 	"regexp"
-	"strings"
 	"time"
 )
 
@@ -120,14 +119,6 @@ func (self *Directory) Scan() error {
 	return nil
 }
 
-func (self *Directory) normalizeFileName(name string) string {
-	prefix := strings.TrimSuffix(self.RootPath, `/`)
-	name = strings.TrimPrefix(name, prefix)
-	name = `/` + strings.TrimPrefix(name, `/`)
-
-	return name
-}
-
 func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	defer stats.NewTiming().Send(`byteflood.db.entry_scan_time`)
 	stats.Increment(`byteflood.db.entry`)
@@ -139,7 +130,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	}
 
 	// get file implementation
-	file := NewFile(name)
+	file := NewFile(self.Label, self.RootPath, name)
 
 	// skip the file if it's in the global exclusions list (case sensitive exact match)
 	if sliceutil.ContainsString(self.db.GlobalExclusions, path.Base(name)) {
@@ -178,7 +169,6 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 		}
 	}
 
-	file.RelativePath = self.normalizeFileName(file.filename)
 	file.Parent = self.Parent
 	file.Label = self.Label
 	file.IsDirectory = isDir

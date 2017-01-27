@@ -9,7 +9,6 @@ import (
 	"github.com/jbenet/go-base58"
 	"github.com/spaolacci/murmur3"
 	"math/big"
-	"path"
 	"strings"
 )
 
@@ -26,11 +25,14 @@ type File struct {
 	filename       string
 }
 
-func NewFile(name string) *File {
+func NewFile(label string, root string, name string) *File {
+	normFileName := NormalizeFileName(root, name)
+
 	return &File{
-		ID:       FileIdFromName(name),
-		Metadata: make(map[string]interface{}),
-		filename: name,
+		ID:           FileIdFromName(label, normFileName),
+		RelativePath: normFileName,
+		Metadata:     make(map[string]interface{}),
+		filename:     name,
 	}
 }
 
@@ -86,8 +88,16 @@ func (self *File) normalizeLoaderName(loader metadata.Loader) string {
 	return stringutil.Underscore(name)
 }
 
-func FileIdFromName(name string) string {
-	uid := path.Clean(name)
+func FileIdFromName(label string, name string) string {
+	uid := fmt.Sprintf("%s:%s", label, name)
 	hash64 := murmur3.Sum64([]byte(uid[:]))
 	return base58.Encode(big.NewInt(int64(hash64)).Bytes())
+}
+
+func NormalizeFileName(root string, name string) string {
+	prefix := strings.TrimSuffix(root, `/`)
+	name = strings.TrimPrefix(name, prefix)
+	name = `/` + strings.TrimPrefix(name, `/`)
+
+	return name
 }

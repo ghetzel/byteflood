@@ -186,7 +186,10 @@ func (self *Database) PropertySet(key string, value interface{}, fields ...map[s
 func (self *Database) PropertyGet(key string, fallback ...interface{}) interface{} {
 	var kv KV
 
-	if err := System.Get(key, &kv); err == nil && kv.Value != nil {
+	err := System.Get(key, &kv)
+	log.Debugf("Property %s=%v", kv.Key, kv.Value)
+
+	if err == nil && kv.Value != nil {
 		return kv.Value
 	} else {
 		if len(fallback) > 0 {
