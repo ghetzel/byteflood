@@ -82,6 +82,7 @@ func (self *API) Serve() error {
 
 	// download queue endpoints
 	router.Get(`/api/downloads`, self.handleGetQueue)
+	router.Get(`/api/downloads/history`, self.handleGetQueuedDownloads)
 	router.Post(`/api/downloads/:peer/:share/:file`, self.handleEnqueueFile)
 
 	// metadata database endpoints

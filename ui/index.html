@@ -1,55 +1,14 @@
 ---
 page:
     title: Download Queue
-    refresh: 3
-bindings:
-- name: downloads
-  resource: :/api/downloads
 ---
-<div class="card">
-  <div class="card-header">
-    Active Downloads
-  </div>
+<div
+  bf-load="/queue/_current.html"
+  bf-interval="1000"
+></div>
 
-  {{ if .bindings.downloads }}
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Status</th>
-        <th>Peer</th>
-        <th>File</th>
-        <th>Progress</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {{ range .bindings.downloads }}
-      <tr>
-        <td>
-          <i class="fa fa-fw bf-queue-status-{{ .status }}"></i>
-          <span class="badge badge-default">{{ titleize .status }}</span>
-        </td>
-        <td>{{ or .peer_name .session_id }}</td>
-        <td>{{ or .filename .file_id }}</td>
-        {{ if .error }}
-        <td colspan="2" class="text-danger">
-          {{ .error }}
-        </td>
-        {{ else }}
-        <td>
-          <progress class="progress" value="{{ percent .progress 1.0 }}" max="100"></progress>
-        </td>
-        <td>
-          {{ percent .progress 1.0 }}% ({{ autobyte .rate "%.1f" }}/s)
-        </td>
-        {{ end }}
-      </tr>
-      {{ end }}
-    </tbody>
-  </table>
-  {{ else }}
-  <div class="card-block text-xs-center">
-    <p class="card-text">There are no active downloads.</p>
-  </div>
-  {{ end }}
-</div>
+<div
+  bf-load="/queue/_history.html"
+  bf-interval="5000"
+  bf-reload-on="someEvent"
+></div>

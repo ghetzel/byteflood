@@ -190,7 +190,8 @@ func (self *QueuedDownload) Download() error {
 }
 
 type DownloadQueue struct {
-	application *Application
+	CurrentDownload *QueuedDownload `json:"current_download"`
+	application     *Application
 }
 
 func NewDownloadQueue(app *Application) *DownloadQueue {
@@ -309,19 +310,18 @@ func (self *DownloadQueue) Download(sessionID string, fileID string) (*QueuedDow
 func (self *DownloadQueue) DownloadAll() {
 	for {
 		if item := self.CurrentItem(); item != nil {
+			self.CurrentDownload = item
+
 			if err := item.Download(); err != nil {
 				item.Error = err.Error()
 				item.Status = `failed`
+			}
 
-				if err := db.Downloads.Update(item); err != nil {
-					log.Warningf("Failed to update queue item %s: %v", item.ID, err)
-				}
-			} else {
-				if err := db.Downloads.Delete(item.ID); err != nil {
-					log.Warningf("Failed to remove queue item %s: %v", item.ID, err)
-				}
+			if err := db.Downloads.Update(item); err != nil {
+				log.Warningf("Failed to update queue item %s: %v", item.ID, err)
 			}
 		} else {
+			self.CurrentDownload = nil
 			time.Sleep(EmptyPollInterval)
 		}
 	}

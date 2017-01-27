@@ -31,6 +31,30 @@
               this.submitForm(e);
               e.preventDefault();
             }.bind(this));
+
+            this.setupPartials();
+            this._partials = {};
+          },
+
+          setupPartials: function(){
+            $('[bf-load]').each(function(i, element){
+              element = $(element);
+
+              if(!element.attr('bf-id')){
+                element.attr('bf-id', i);
+              }
+
+              console.debug(element);
+
+              // setup partial from element
+              this._partials[i] = new Partial(
+                element,
+                element.attr('bf-load'), {
+                  'interval': element.attr('bf-interval'),
+                });
+
+              // get it going
+            }.bind(this));
           },
 
           notify: function(message, type, details, config){
@@ -141,6 +165,14 @@
                 '<br />' +
               '</b>',
             });
+          },
+        });
+
+        var Partial = Stapes.subclass({
+          constructor: function(element, url, options){
+            this.element = element;
+            this.url = url;
+            this.options = (options || {});
           },
         });
 

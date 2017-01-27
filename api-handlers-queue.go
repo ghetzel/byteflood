@@ -8,6 +8,10 @@ import (
 )
 
 func (self *API) handleGetQueue(w http.ResponseWriter, req *http.Request) {
+	Respond(w, self.application.Queue)
+}
+
+func (self *API) handleGetQueuedDownloads(w http.ResponseWriter, req *http.Request) {
 	var downloads []QueuedDownload
 
 	if err := db.Downloads.All(&downloads); err == nil {
