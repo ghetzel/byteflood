@@ -6,8 +6,16 @@ import (
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/husobee/vestigo"
 	"net/http"
+	"path"
 	"strings"
 )
+
+type EntryParent struct {
+	ID     string `json:"id"`
+	Parent string `json:"parent"`
+	Name   string `json:"name"`
+	Last   bool   `json:"last,omitempty"`
+}
 
 func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request) {
 	var shares []shares.Share
@@ -38,6 +46,43 @@ func (self *API) handleGetShareFile(w http.ResponseWriter, req *http.Request) {
 		} else {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
+	} else {
+		http.Error(w, err.Error(), http.StatusNotFound)
+	}
+}
+
+func (self *API) handleGetShareFileIdsToRoot(w http.ResponseWriter, req *http.Request) {
+	share := shares.NewShare()
+
+	if err := db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
+		parents := make([]EntryParent, 0)
+		current := vestigo.Param(req, `file`)
+		last := true
+
+		for {
+			if current == `` || current == `root` {
+				break
+			}
+
+			if file, err := share.Get(current); err == nil {
+				parents = append([]EntryParent{
+					{
+						ID:     current,
+						Parent: file.Parent,
+						Name:   fmt.Sprintf("%v", file.Get(`file.name`, path.Base(file.RelativePath))),
+						Last:   last,
+					},
+				}, parents...)
+
+				current = file.Parent
+				last = false
+			} else {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+
+		Respond(w, parents)
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
 	}

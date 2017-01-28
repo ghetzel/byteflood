@@ -5,85 +5,35 @@ bindings:
 ---
 <div class="card">
   <div class="card-header">
-    Current Download
-  </div>
-
-  {{ if .bindings.queue.current_download }}
-    {{ with .bindings.queue.current_download }}
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Status</th>
-        <th>Peer</th>
-        <th>File</th>
-        <th>Progress</th>
-        <th></th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>
-          <i class="fa fa-fw bf-queue-status-{{ .status }}"></i>
-          <span class="badge badge-default">{{ titleize .status }}</span>
-        </td>
-        <td>{{ or .peer_name .session_id }}</td>
-        <td>{{ or .name .file_id }}</td>
-        {{ if .error }}
-        <td colspan="2" class="text-danger">
-          {{ .error }}
-        </td>
-        {{ else }}
-        <td>
-          <progress class="progress" value="{{ percent .progress 1.0 }}" max="100"></progress>
-        </td>
-        <td>
-          {{ percent .progress 1.0 }}% ({{ autobyte .rate "%.1f" }}/s)
-        </td>
-        {{ end }}
-        <td></td>
-      </tr>
-    </tbody>
-  </table>
-    {{ end }}
-  {{ else }}
-  <div class="card-block text-xs-center">
-    <p class="card-text">There are no active downloads.</p>
-  </div>
-  {{ end }}
-</div>
-
-<div class="card">
-  <div class="card-header">
     Download History
   </div>
 
   {{ if .bindings.history }}
-  <table class="table">
+  <table class="bf-log-table">
     <thead>
       <tr>
-        <th>Status</th>
-        <th>Peer</th>
-        <th>File</th>
-        <th></th>
+        <th class="col-md-2">Status</th>
+        <th class="col-md-1">Peer</th>
+        <th class="col-md-4">File</th>
+        <th class="col-md-5">Status</th>
       </tr>
     </thead>
     <tbody>
       {{ range .bindings.history }}
       <tr>
-        <td>
-          <i class="fa fa-fw bf-queue-status-{{ .status }}"></i>
+        <td class="col-md-2">
+          <i class="fa fa-fw bf-queue-status-{{ .status }} bf-text-status-{{ .status }}"></i>
           <span class="badge badge-default">{{ titleize .status }}</span>
         </td>
-        <td>{{ or .peer_name .session_id }}</td>
-        <td>{{ or .name .file_id }}</td>
+        <td class="col-md-1">{{ or .peer_name .session_id }}</td>
+        <td class="col-md-4">{{ or .name .file_id }}</td>
         {{ if .error }}
-        <td colspan="2" class="text-danger">
+        <td class="text-danger col-md-5">
           {{ .error }}
         </td>
         {{ else }}
-        <td>
-          {{ autobyte .size "%.1f" }}
+        <td class="col-md-5">
+          Downloaded {{ autobyte .size "%.1f" }}
         </td>
         {{ end }}
       </tr>
@@ -92,7 +42,7 @@ bindings:
   </table>
   {{ else }}
   <div class="card-block text-xs-center">
-    <p class="card-text">There are no completed downloads.</p>
+    <p class="card-text">There is no download history.</p>
   </div>
   {{ end }}
 </div>

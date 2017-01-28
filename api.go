@@ -127,6 +127,8 @@ func (self *API) Serve() error {
 	router.Get(`/api/shares/new`, self.handleGetNewModelInstance)
 
 	router.Get(`/api/shares/:id`, self.handleGetShare)
+	router.Get(`/api/shares/:id/view/:file`, self.handleGetShareFile)
+	router.Get(`/api/shares/:id/parents/:file`, self.handleGetShareFileIdsToRoot)
 	router.Get(`/api/shares/:id/query/*`, self.handleQueryShare)
 	router.Get(`/api/shares/:id/browse/`, self.handleBrowseShare)
 	router.Get(`/api/shares/:id/browse/:parent`, self.handleBrowseShare)
@@ -147,6 +149,7 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 	router.Get(`/shares`, self.handleGetShares)
 	router.Get(`/shares/:id`, self.handleGetShare)
 	router.Get(`/shares/:id/view/:file`, self.handleGetShareFile)
+	router.Get(`/shares/:id/parents/:file`, self.handleGetShareFileIdsToRoot)
 	router.Get(`/shares/:id/query/*`, self.handleQueryShare)
 	router.Get(`/shares/:id/browse/`, self.handleBrowseShare)
 	router.Get(`/shares/:id/browse/:parent`, self.handleBrowseShare)

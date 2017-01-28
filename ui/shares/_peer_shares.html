@@ -26,6 +26,10 @@ bindings:
         <a
           href="/shares/edit?id={{ .id }}"
         ><i class="fa fa-pencil"></i></a>
+
+        <a onclick="byteflood.delete('shares', '{{ .id }}')" href="#">
+          <i class="fa fa-remove text-danger"></i>
+        </a>
         {{ end }}
         <a
           href="/api{{ if $session }}/sessions/{{ $session }}/proxy{{ end }}/shares/{{ .id }}/browse/"

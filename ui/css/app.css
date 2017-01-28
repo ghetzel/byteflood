@@ -14,13 +14,13 @@
         height: 100%;
     }
 
-    .navbar .navbar-brand,
-    .navbar .nav-item {
+    .navbar.site-main .navbar-brand,
+    .navbar.site-main .nav-item {
         width: 100%;
         margin-left: 0 !important;
     }
 
-    .navbar .navbar-brand {
+    .navbar.site-main .navbar-brand {
         text-align: center;
     }
 
@@ -40,6 +40,9 @@
     padding-bottom: 0.5em;
 }
 
+.cursor-pointer {
+    cursor: pointer;
+}
 
 .navbar.site-main {
     border-radius: 0;
@@ -107,4 +110,24 @@
 
 .bf-queue-status-failed:before {
     content: '\f071'; /* fa-exclamation-triangle */
+}
+
+/*
+.bf-text-status-downloading {
+    color: #0275d8 !important;
+}
+
+.bf-text-status-completed {
+    color: #5cb85c !important;
+}
+*/
+
+.bf-text-status-failed {
+    color: #d9534f !important;
+}
+
+.bf-log-table {
+    background-color: rgba(0,0,0,0.0625);
+    font-size: 10pt;
+    font-family: monospace;
 }

@@ -1,0 +1,57 @@
+---
+bindings:
+- name: peers
+  resource: :/api/peers
+---
+<div class="card">
+  <div class="card-header">
+    Authorized Peers
+  </div>
+  {{ if .bindings.peers }}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Peer Name</th>
+        <th>ID</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .bindings.peers }}
+      <tr>
+        <td>{{ .name }}</td>
+        <td>{{ .id }}</td>
+        <td>
+          <span class="pull-right">
+            <a class="btn btn-sm btn-primary" href="/peers/edit?id={{ .id }}">
+              <i class="fa fa-pencil"></i> Edit
+            </a>
+            <a class="btn btn-sm btn-danger" onclick="byteflood.delete('peers', '{{ .id }}')" href="#">
+              <i class="fa fa-remove"></i> Revoke
+            </a>
+          </span>
+        </td>
+      </tr>
+      {{ end }}
+      <tr>
+        <td colspan="3">
+          <span class="pull-right">
+            <a class="btn btn-sm btn-success" href="/peers/edit">
+              <i class="fa fa-plus"></i> Add Peer
+            </a>
+          </span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  {{ else }}
+  <div class="card-block">
+    <p class="card-text">
+      No peers are authorized to connect.
+      <br />
+      <br />
+      <a class="btn btn-lg btn-success" href="/peers/edit"><i class="fa fa-plus"></i> Add One</a>
+    </p>
+  </div>
+  {{ end }}
+</div>

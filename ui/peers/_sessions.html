@@ -1,0 +1,36 @@
+---
+bindings:
+- name: sessions
+  resource: :/api/sessions
+---
+<div class="card">
+  <div class="card-header">
+    Active Sessions
+  </div>
+  {{ if .bindings.sessions }}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Peer Name</th>
+        <th>Session ID</th>
+        <th>Address</th>
+        <th>Last Seen</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .bindings.sessions }}
+      <tr>
+        <td>{{ .name }}</td>
+        <td>{{ .session_id }}</td>
+        <td>{{ .address }}</td>
+        <td>{{ time .last_seen_at `15:04:05` }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+  {{ else }}
+  <div class="card-block">
+    <p class="card-text">No peers have connected.</p>
+  </div>
+  {{ end }}
+</div>

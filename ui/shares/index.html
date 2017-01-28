@@ -1,6 +1,8 @@
 ---
 page:
   title: Shares
+  local_interval: 5000
+  peer_interval: 30000
 bindings:
 - name: sessions
   resource: :/api/sessions
@@ -20,13 +22,11 @@ bindings:
 
             <a class="pull-right" href="/shares/edit"><i class="fa fa-plus"></i></a>
           </span>
-          <script type="text/javascript" id="shares-list-local">
-            $(function(){
-              $.get('/shares/_peer_shares', function(data){
-                $('#shares-list-local').replaceWith(data);
-              });
-            })
-          </script>
+
+          <div
+            bf-load="/shares/_peer_shares"
+            bf-interval="{{ $.page.local_interval }}"
+          ></div>
         </li>
 
         <!-- Remote Share Browser -->
@@ -42,13 +42,10 @@ bindings:
             ><i class="fa fa-external-link-square"></i></a>
           </span>
 
-          <script type="text/javascript" id="shares-list-{{ .name }}">
-            $(function(){
-              $.get('/shares/_peer_shares?session={{ .name }}', function(data){
-                $('#shares-list-{{ .name }}').replaceWith(data);
-              });
-            })
-          </script>
+          <div
+            bf-load="/shares/_peer_shares?session={{ .name }}"
+            bf-interval="{{ $.page.peer_interval }}"
+          ></div>
         </li>
         {{ end }}
     </ul>

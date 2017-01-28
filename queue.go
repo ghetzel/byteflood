@@ -11,6 +11,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -93,13 +95,21 @@ func (self *QueuedDownload) Download() error {
 	if ok {
 		self.Status = `waiting`
 
-		// create temporary destination
-		if err := os.Mkdir(self.Destination, 0755); err == nil || os.IsExist(err) {
-			tmpfile := path.Join(self.Destination, fmt.Sprintf("_byteflood-%v.partial", self.ID))
+		destFile := path.Join(self.Destination, self.Name)
 
+		// expand the destination path to an absolute one and verify that it's valid/safe
+		if d, err := self.VerifyPath(destFile); err == nil {
+			destFile = d
+		} else {
+			return err
+		}
+
+		destDir := path.Dir(destFile)
+
+		// create destination parent directory
+		if err := os.MkdirAll(destDir, 0755); err == nil || os.IsExist(err) {
 			// open the destination file
-
-			if file, err := os.Create(tmpfile); err == nil {
+			if file, err := ioutil.TempFile(destDir, fmt.Sprintf("byteflood-%v_", self.ID)); err == nil {
 				// make our side of the connection aware of the file transfer
 				transfer := remotePeer.CreateInboundTransfer(self.Size)
 				transfer.SetWriter(file)
@@ -134,7 +144,7 @@ func (self *QueuedDownload) Download() error {
 					}
 				}(self, transfer)
 
-				// tell the remote side to start sending data
+				// ask the remote side to start sending data
 				if response, err := remotePeer.ServiceRequest(
 					`POST`,
 					fmt.Sprintf("/transfers/%s/%s", transfer.ID, self.FileID),
@@ -149,14 +159,8 @@ func (self *QueuedDownload) Download() error {
 							self.Status = `completed`
 							self.Size = transfer.BytesReceived
 
-							destFile := path.Join(self.Destination, self.Name)
-
-							// make sure the destination directory exists
-							if err := os.MkdirAll(path.Dir(destFile), 0755); err != nil {
-								return err
-							}
-
-							if err := os.Rename(tmpfile, destFile); err == nil {
+							// move the temporary download file to the final filename
+							if err := os.Rename(file.Name(), destFile); err == nil {
 								// reopen the downloaded file as readable
 								if readFile, err := os.Open(destFile); err == nil {
 									self.destinationFile = readFile
@@ -186,6 +190,20 @@ func (self *QueuedDownload) Download() error {
 		}
 	} else {
 		return fmt.Errorf("Could not locate session %s or peer %s", self.SessionID, self.PeerName)
+	}
+}
+
+func (self *QueuedDownload) VerifyPath(name string) (string, error) {
+	// fully resolve the given path into an absolute path
+	if absPath, err := filepath.Abs(name); err == nil {
+		// the absolute path must fall under the destination directory
+		if strings.HasPrefix(name, strings.TrimSuffix(self.Destination, `/`)+`/`) {
+			return absPath, nil
+		} else {
+			return ``, fmt.Errorf("absolute path resolves to path outside of the destination directory")
+		}
+	} else {
+		return ``, err
 	}
 }
 

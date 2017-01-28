@@ -1,96 +1,13 @@
 ---
 page:
   title: Peer Management
-  refresh: 10
-bindings:
-- name: peers
-  resource: :/api/peers
-
-- name: sessions
-  resource: :/api/sessions
 ---
-<div class="card">
-  <div class="card-header">
-    Active Sessions
-  </div>
-  {{ if .bindings.sessions }}
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Peer Name</th>
-        <th>Session ID</th>
-        <th>Address</th>
-        <th>Last Seen</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{ range .bindings.sessions }}
-      <tr>
-        <td>{{ .name }}</td>
-        <td>{{ .session_id }}</td>
-        <td>{{ .address }}</td>
-        <td>{{ time .last_seen_at `15:04:05` }}</td>
-      </tr>
-      {{ end }}
-    </tbody>
-  </table>
-  {{ else }}
-  <div class="card-block">
-    <p class="card-text">No peers have connected.</p>
-  </div>
-  {{ end }}
-</div>
+<div
+  bf-load="/peers/_sessions"
+  bf-interval="5000"
+></div>
 
-
-<div class="card">
-  <div class="card-header">
-    Authorized Peers
-  </div>
-  {{ if .bindings.peers }}
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Peer Name</th>
-        <th>ID</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {{ range .bindings.peers }}
-      <tr>
-        <td>{{ .name }}</td>
-        <td>{{ .id }}</td>
-        <td>
-          <span class="pull-right">
-            <a class="btn btn-sm btn-primary" href="/peers/edit?id={{ .id }}">
-              <i class="fa fa-pencil"></i> Edit
-            </a>
-            <a class="btn btn-sm btn-danger" onclick="byteflood.delete('peers', '{{ .id }}')" href="#">
-              <i class="fa fa-remove"></i> Revoke
-            </a>
-          </span>
-        </td>
-      </tr>
-      {{ end }}
-      <tr>
-        <td colspan="3">
-          <span class="pull-right">
-            <a class="btn btn-sm btn-success" href="/peers/edit">
-              <i class="fa fa-plus"></i> Add Peer
-            </a>
-          </span>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-  {{ else }}
-  <div class="card-block">
-    <p class="card-text">
-      No peers are authorized to connect.
-      <br />
-      <br />
-      <a class="btn btn-lg btn-success" href="/peers/edit"><i class="fa fa-plus"></i> Add One</a>
-    </p>
-  </div>
-  {{ end }}
-</div>
+<div
+  bf-load="/peers/_authorized_peers"
+  bf-interval="5000"
+></div>

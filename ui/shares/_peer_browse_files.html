@@ -1,5 +1,16 @@
 ---
 bindings:
+- name: share
+  resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}
+
+- name: current
+  resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}/view/{{ .request.url.query.parent }}
+  optional: true
+
+- name: ancestors
+  resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}/parents/{{ or .request.url.query.parent `root` }}
+  optional: true
+
 - name: results
   resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}/browse/{{ .request.url.query.parent }}
   params:
@@ -10,12 +21,25 @@ bindings:
 ---
 {{ $session := or .request.url.query.session `` }}
 {{ $share := or .request.url.query.share `` }}
+{{ $grandparent := or .request.url.query.grandparent `` }}
 {{ $parent := or .request.url.query.parent `` }}
 {{ $offset := or .request.url.query.offset 0 }}
 {{ if .bindings.results }}
 <div class="card">
   <div class="card-header">
-    <b>File List</b>
+    <b>
+      Browsing: <a href="/shares/?share={{ $share }}&amp;session={{ $session }}&amp;parent=">{{ .bindings.share.name }}</a>
+      {{ if $parent }}
+        {{ range .bindings.ancestors }}
+          /
+          {{ if .last }}
+            {{ .name }}
+          {{ else }}
+            <a href="/shares/?share={{ $share }}&amp;session={{ $session }}&amp;parent={{ .id }}">{{ .name }}</a>
+          {{end }}
+        {{ end }}
+      {{ end }}
+    </b>
 
     <form class="form-inline pull-right">
       <div class="form-group">
@@ -32,10 +56,40 @@ bindings:
 
   <nav class="navbar navbar-full navbar-light bg-faded">
     <ul class="nav navbar-nav">
+      {{ if $parent }}
       <li class="nav-item">
-        <a class="nav-link" href="/shares/?share={{ $share }}&amp;parent={{ $parent }}&amp;session={{ $session }}">
+        <a
+          class="nav-link"
+          href="/shares/?share={{ $share }}&amp;parent={{ $grandparent }}&amp;session={{ $session }}"
+          title="Navigate to the directory above this one."
+        >
           <i class="fa fa-fw fa-level-up"></i>
           Up
+        </a>
+      </li>
+      {{ end }}
+    </ul>
+
+    <ul class="nav navbar-nav pull-right">
+      <li class="nav-item">
+        <a
+          class="nav-link disabled"
+          href="#"
+          title="Perform a one-time download of this directory."
+        >
+          <i class="fa fa-fw fa-cloud-download"></i>
+          Fetch
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a
+          class="nav-link disabled"
+          href="#"
+          title="Download this directory and monitor it for changes on an ongoing basis."
+        >
+          <i class="fa fa-fw fa-plus-square"></i>
+          Subscribe
         </a>
       </li>
     </ul>
@@ -56,14 +110,34 @@ bindings:
     <tbody>
       {{ range .bindings.results.records }}
       <tr>
-        <td>
+        <td {{ if .fields.directory }}class="cursor-pointer" onclick="window.location='/shares/?share={{ $share }}&amp;parent={{ .id }}&amp;session={{ $session }}&amp;grandparent={{ $parent }}'"{{ end }}>
           {{ if .fields.directory }}
-          <a href="/shares/?share={{ $share }}&amp;parent={{ .id }}&amp;session={{ $session }}">{{ .fields.metadata.file.name }}</a>
+          <i class="fa fa-fw fa-folder"></i>
+          <a href="/shares/?share={{ $share }}&amp;parent={{ .id }}&amp;session={{ $session }}&amp;grandparent={{ $parent }}">{{ .fields.metadata.file.name }}</a>
           {{ else }}
+          {{ if .fields.metadata.file.mime.type }}
+            {{ if hasPrefix .fields.metadata.file.mime.type `audio` }}
+              <i class="fa fa-fw fa-file-audio-o"></i>
+            {{ else if hasPrefix .fields.metadata.file.mime.type `video` }}
+              <i class="fa fa-fw fa-file-video-o"></i>
+            {{ else if hasPrefix .fields.metadata.file.mime.type `image` }}
+              <i class="fa fa-fw fa-file-image-o"></i>
+            {{ else }}
+              <i class="fa fa-fw fa-file-o"></i>
+            {{ end }}
+          {{ else }}
+            <i class="fa fa-fw fa-file-o"></i>
+          {{ end }}
+
           {{ .fields.metadata.file.name }}
           {{ end }}
         </td>
-        <td>{{ .fields.metadata.file.extension }}</td>
+        <td>
+          {{ if .fields.directory }}directory
+          {{ else }}
+          {{ .fields.metadata.file.extension }}
+          {{ end }}
+        </td>
         <td>
           {{ if .fields.metadata.file.size }}
           {{   autobyte .fields.metadata.file.size "%.f" }}
