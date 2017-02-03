@@ -10,6 +10,7 @@ import (
 	"github.com/ghetzel/pivot/mapper"
 	"github.com/op/go-logging"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -58,14 +59,16 @@ func NewDatabase() *Database {
 
 func ParseFilter(spec interface{}, fmtvalues ...interface{}) (filter.Filter, error) {
 	switch spec.(type) {
+	case []string:
+		return filter.Parse(strings.Join(spec.([]string), filter.CriteriaSeparator))
+	case map[string]interface{}:
+		return filter.FromMap(spec.(map[string]interface{}))
 	case string, interface{}:
 		if len(fmtvalues) > 0 {
 			return filter.Parse(fmt.Sprintf(fmt.Sprintf("%v", spec), fmtvalues...))
 		} else {
 			return filter.Parse(fmt.Sprintf("%v", spec))
 		}
-	case map[string]interface{}:
-		return filter.FromMap(spec.(map[string]interface{}))
 	default:
 		return filter.Filter{}, fmt.Errorf("Invalid argument type %T", spec)
 	}

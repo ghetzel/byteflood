@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db/metadata"
 	"github.com/ghetzel/go-stockutil/maputil"
+	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/jbenet/go-base58"
 	"github.com/spaolacci/murmur3"
@@ -13,6 +14,8 @@ import (
 )
 
 const FileFingerprintSize = 16777216
+
+var MaxChildEntries = 10000
 
 type File struct {
 	ID             string                 `json:"id"`
@@ -24,6 +27,8 @@ type File struct {
 	Metadata       map[string]interface{} `json:"metadata"`
 	filename       string
 }
+
+type WalkFunc func(path string, file *File, err error) error // {}
 
 func NewFile(label string, root string, name string) *File {
 	normFileName := NormalizeFileName(root, name)
@@ -53,6 +58,32 @@ func (self *File) String() string {
 		return string(data[:])
 	} else {
 		return err.Error()
+	}
+}
+
+func (self *File) Children(filterString ...string) ([]*File, error) {
+	filterString = append(filterString, fmt.Sprintf("parent=%s", self.ID))
+
+	if f, err := ParseFilter(sliceutil.CompactString(filterString)); err == nil {
+		f.Limit = MaxChildEntries
+		f.Sort = []string{`-directory`, `name`}
+
+		files := make([]*File, 0)
+
+		if err := Metadata.Find(f, &files); err == nil {
+			// enforce a strict path hierarchy for parent-child relationships
+			for _, file := range files {
+				if !strings.HasPrefix(file.RelativePath, self.RelativePath+`/`) {
+					return nil, fmt.Errorf("child entry falls outside of parent path")
+				}
+			}
+
+			return files, nil
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
 	}
 }
 
@@ -86,6 +117,28 @@ func (self *File) normalizeLoaderName(loader metadata.Loader) string {
 	name = strings.TrimSuffix(name, `Loader`)
 
 	return stringutil.Underscore(name)
+}
+
+func (self *File) Walk(walkFn WalkFunc, filterStrings ...string) error {
+	if self.IsDirectory {
+		if err := walkFn(self.RelativePath, self, nil); err == nil {
+			if children, err := self.Children(filterStrings...); err == nil {
+				for _, child := range children {
+					if err := child.Walk(walkFn, filterStrings...); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			} else {
+				return err
+			}
+		} else {
+			return err
+		}
+	} else {
+		return walkFn(self.RelativePath, self, nil)
+	}
 }
 
 func FileIdFromName(label string, name string) string {

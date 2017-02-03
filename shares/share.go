@@ -88,6 +88,23 @@ func (self *Share) Get(id string) (*db.File, error) {
 	}
 }
 
+func (self *Share) Children(filterString ...string) ([]*db.File, error) {
+	if f, err := db.ParseFilter(self.GetQuery(append(filterString, `parent=root`)...)); err == nil {
+		f.Limit = db.MaxChildEntries
+		f.Sort = []string{`-directory`, `name`}
+
+		files := make([]*db.File, 0)
+
+		if err := db.Metadata.Find(f, &files); err == nil {
+			return files, nil
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
+}
+
 func (self *Share) prepareFilter(f string) string {
 	f = strings.TrimSpace(f)
 	f = strings.TrimPrefix(f, filter.CriteriaSeparator)
