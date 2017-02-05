@@ -8,6 +8,7 @@ bindings:
 
 - name: directories
   resource: :/api/directories
+  on_error: print
 ---
 {{ $scanning := .bindings.db.scan_in_progress }}
 {{ if $scanning }}
@@ -60,6 +61,13 @@ bindings:
             >
               <i class="fa fa-search"></i> Scan
             </button>
+
+            <a
+              class="btn btn-sm btn-primary{{ if $scanning }} disabled{{ end }}"
+              href="/database/edit?id={{ .id }}"
+            >
+              <i class="fa fa-pencil"></i> Edit
+            </a>
 
             <button
               class="btn btn-sm btn-danger"

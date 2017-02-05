@@ -21,6 +21,7 @@ type File struct {
 	ID             string                 `json:"id"`
 	RelativePath   string                 `json:"name"`
 	Parent         string                 `json:"parent,omitempty"`
+	Checksum       string                 `json:"checksum,omitempty"`
 	Label          string                 `json:"label,omitempty"`
 	IsDirectory    bool                   `json:"directory"`
 	LastModifiedAt int64                  `json:"last_modified_at,omitempty"`
@@ -139,6 +140,54 @@ func (self *File) Walk(walkFn WalkFunc, filterStrings ...string) error {
 	} else {
 		return walkFn(self.RelativePath, self, nil)
 	}
+}
+
+func (self *File) GetManifest(fields []string, filterString string) (Manifest, error) {
+	items := make(Manifest, 0)
+
+	if err := self.Walk(func(path string, file *File, err error) error {
+		if err == nil {
+			var itemType ManifestItemType
+
+			if file.IsDirectory {
+				itemType = DirectoryItem
+			} else {
+				itemType = FileItem
+			}
+
+			fieldValues := make([]ManifestField, len(fields))
+
+			for i, field := range fields {
+				switch field {
+				case `name`:
+					fieldValues[i] = file.RelativePath
+				case `label`:
+					fieldValues[i] = file.Label
+				case `parent`:
+					fieldValues[i] = file.Parent
+				case `checksum`:
+					fieldValues[i] = file.Checksum
+				default:
+					fieldValues[i] = file.Get(field)
+				}
+			}
+
+			items = append(items, ManifestItem{
+				ID:           file.ID,
+				Type:         itemType,
+				RelativePath: path,
+				Fields:       fieldValues,
+			})
+
+			return nil
+		} else {
+			return err
+		}
+	}, filterString); err != nil {
+		return nil, err
+	}
+
+	return items, nil
 }
 
 func FileIdFromName(label string, name string) string {

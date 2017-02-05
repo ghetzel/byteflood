@@ -1,16 +1,19 @@
 package db
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"github.com/alexcesaro/statsd"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"regexp"
-	"time"
+	// "time"
 )
 
 var stats, _ = statsd.New()
@@ -37,6 +40,7 @@ func NewDirectory(db *Database, path string) *Directory {
 		Path:        path,
 		Parent:      RootDirectoryName,
 		Directories: make([]*Directory, 0),
+		Checksum:    true,
 		db:          db,
 	}
 }
@@ -151,23 +155,23 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	}
 
 	// unless we're forcing the scan, see if we can skip this file
-	if !self.db.ForceRescan {
-		if stat, err := os.Stat(name); err == nil {
-			if record, err := self.db.RetrieveRecord(file.ID); err == nil {
-				lastModifiedAt := record.Get(`last_modified_at`, int64(0))
+	// if !self.db.ForceRescan {
+	// 	if stat, err := os.Stat(name); err == nil {
+	// 		if record, err := self.db.RetrieveRecord(file.ID); err == nil {
+	// 			lastModifiedAt := record.Get(`last_modified_at`, int64(0))
 
-				if epochNs, ok := lastModifiedAt.(int64); ok {
-					if !stat.ModTime().After(time.Unix(0, epochNs)) {
-						return file, nil
-					}
-				}
-			}
+	// 			if epochNs, ok := lastModifiedAt.(int64); ok {
+	// 				if !stat.ModTime().After(time.Unix(0, epochNs)) {
+	// 					return file, nil
+	// 				}
+	// 			}
+	// 		}
 
-			file.LastModifiedAt = stat.ModTime().UnixNano()
-		} else {
-			return nil, err
-		}
-	}
+	// 		file.LastModifiedAt = stat.ModTime().UnixNano()
+	// 	} else {
+	// 		return nil, err
+	// 	}
+	// }
 
 	file.Parent = self.Parent
 	file.Label = self.Label
@@ -178,6 +182,22 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	// load file metadata
 	if err := file.LoadMetadata(); err != nil {
 		return nil, err
+	}
+
+	// calculate checksum for file
+	if self.Checksum && !file.IsDirectory {
+		if fsFile, err := os.Open(name); err == nil {
+			hash := sha256.New()
+
+			if _, err := io.Copy(hash, fsFile); err != nil {
+				return nil, err
+			}
+
+			result := hash.Sum(nil)
+			file.Checksum = hex.EncodeToString([]byte(result[:]))
+		} else {
+			return nil, err
+		}
 	}
 
 	tm.Send(`byteflood.db.entry_metadata_load_time`)

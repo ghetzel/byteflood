@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/shares"
-	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/husobee/vestigo"
 	"io"
 	"net/http"
@@ -19,30 +18,21 @@ type EntryParent struct {
 	Last   bool   `json:"last,omitempty"`
 }
 
-func writeTsvFileLine(w io.Writer, share *shares.Share, file *db.File, fields []string) {
-	var fType string
+func writeTsvFileLine(w io.Writer, share *shares.Share, item db.ManifestItem) {
+	values := make([]string, len(item.Fields))
 	var fieldset string
-	values := make([]string, len(fields))
 
-	if file.IsDirectory {
-		fType = `directory`
-	} else {
-		fType = `file`
-	}
-
-	for i, fieldName := range fields {
-		if v := file.Get(fieldName); v != nil {
-			if vS, err := stringutil.ToString(v); err == nil {
-				values[i] = vS
-			}
+	for i, value := range item.Fields {
+		if value != nil {
+			values[i] = fmt.Sprintf("%v", value)
 		}
 	}
 
-	if len(fields) > 0 {
+	if len(values) > 0 {
 		fieldset = "\t" + strings.Join(values, "\t")
 	}
 
-	fmt.Fprintf(w, "%d\t%s\t%s\t%s%v\n", share.ID, file.ID, fType, file.RelativePath, fieldset)
+	fmt.Fprintf(w, "%s\t%s\t%s%v\n", item.ID, item.RelativePath, item.Type, fieldset)
 }
 
 func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request) {
@@ -79,7 +69,7 @@ func (self *API) handleGetShareFile(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (self *API) handleShareSynclist(w http.ResponseWriter, req *http.Request) {
+func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request) {
 	share := shares.NewShare()
 
 	if err := db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
@@ -106,23 +96,20 @@ func (self *API) handleShareSynclist(w http.ResponseWriter, req *http.Request) {
 		fields := strings.Split(fieldset, `,`)
 		filterString := req.URL.Query().Get(`q`)
 
-		w.Header().Set(`Content-Type`, `text/plain`)
+		w.Header().Set(`Content-Type`, `text/plain; charset=utf-8`)
 
 		if len(fieldset) > 0 {
 			fieldset = "\t" + strings.Join(fields, "\t")
 		}
 
-		fmt.Fprintf(w, "share_id\tid\ttype\tpath%s\n", fieldset)
+		fmt.Fprintf(w, "id\trelative_path\ttype%s\n", fieldset)
 
 		for _, file := range files {
-			if err := file.Walk(func(path string, file *db.File, err error) error {
-				if err == nil {
-					writeTsvFileLine(w, share, file, fields)
-					return nil
-				} else {
-					return err
+			if manifest, err := file.GetManifest(fields, filterString); err == nil {
+				for _, item := range manifest {
+					writeTsvFileLine(w, share, item)
 				}
-			}, filterString); err != nil {
+			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
