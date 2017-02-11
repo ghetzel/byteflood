@@ -1,6 +1,8 @@
 package db
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/byteflood/db/metadata"
@@ -9,7 +11,9 @@ import (
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/jbenet/go-base58"
 	"github.com/spaolacci/murmur3"
+	"io"
 	"math/big"
+	"os"
 	"strings"
 )
 
@@ -26,7 +30,9 @@ type File struct {
 	IsDirectory    bool                   `json:"directory"`
 	LastModifiedAt int64                  `json:"last_modified_at,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata"`
+	info           os.FileInfo            `json:"-"`
 	filename       string
+	metadataLoaded bool
 }
 
 type WalkFunc func(path string, file *File, err error) error // {}
@@ -42,7 +48,17 @@ func NewFile(label string, root string, name string) *File {
 	}
 }
 
+func (self *File) Info() os.FileInfo {
+	return self.info
+}
+
 func (self *File) LoadMetadata() error {
+	if stat, err := os.Stat(self.filename); err == nil {
+		self.info = stat
+	} else {
+		return err
+	}
+
 	for _, loader := range metadata.GetLoadersForFile(self.filename) {
 		if data, err := loader.LoadMetadata(self.filename); err == nil {
 			self.Metadata[self.normalizeLoaderName(loader)] = data
@@ -50,6 +66,8 @@ func (self *File) LoadMetadata() error {
 			log.Warningf("Problem loading %T for file %q: %v", loader, self.filename, err)
 		}
 	}
+
+	self.metadataLoaded = true
 
 	return nil
 }
@@ -85,6 +103,25 @@ func (self *File) Children(filterString ...string) ([]*File, error) {
 		}
 	} else {
 		return nil, err
+	}
+}
+
+func (self *File) GenerateChecksum() (string, error) {
+	if self.IsDirectory {
+		return ``, fmt.Errorf("Cannot generate checksum on directory")
+	}
+
+	if fsFile, err := os.Open(self.filename); err == nil {
+		hash := sha256.New()
+
+		if _, err := io.Copy(hash, fsFile); err != nil {
+			return ``, err
+		}
+
+		result := hash.Sum(nil)
+		return hex.EncodeToString([]byte(result[:])), nil
+	} else {
+		return ``, err
 	}
 }
 
@@ -142,8 +179,8 @@ func (self *File) Walk(walkFn WalkFunc, filterStrings ...string) error {
 	}
 }
 
-func (self *File) GetManifest(fields []string, filterString string) (Manifest, error) {
-	items := make(Manifest, 0)
+func (self *File) GetManifest(fields []string, filterString string) (*Manifest, error) {
+	manifest := NewManifest(self.RelativePath)
 
 	if err := self.Walk(func(path string, file *File, err error) error {
 		if err == nil {
@@ -155,7 +192,7 @@ func (self *File) GetManifest(fields []string, filterString string) (Manifest, e
 				itemType = FileItem
 			}
 
-			fieldValues := make([]ManifestField, len(fields))
+			fieldValues := make([]ManifestValue, len(fields))
 
 			for i, field := range fields {
 				switch field {
@@ -170,13 +207,15 @@ func (self *File) GetManifest(fields []string, filterString string) (Manifest, e
 				default:
 					fieldValues[i] = file.Get(field)
 				}
+
+				manifest.Fields = append(manifest.Fields, field)
 			}
 
-			items = append(items, ManifestItem{
+			manifest.Add(ManifestItem{
 				ID:           file.ID,
 				Type:         itemType,
 				RelativePath: path,
-				Fields:       fieldValues,
+				Values:       fieldValues,
 			})
 
 			return nil
@@ -187,7 +226,7 @@ func (self *File) GetManifest(fields []string, filterString string) (Manifest, e
 		return nil, err
 	}
 
-	return items, nil
+	return manifest, nil
 }
 
 func FileIdFromName(label string, name string) string {

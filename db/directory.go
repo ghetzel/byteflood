@@ -1,19 +1,14 @@
 package db
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"github.com/alexcesaro/statsd"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
-	"io"
 	"io/ioutil"
-	"os"
 	"path"
 	"regexp"
-	// "time"
 )
 
 var stats, _ = statsd.New()
@@ -186,15 +181,8 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 
 	// calculate checksum for file
 	if self.Checksum && !file.IsDirectory {
-		if fsFile, err := os.Open(name); err == nil {
-			hash := sha256.New()
-
-			if _, err := io.Copy(hash, fsFile); err != nil {
-				return nil, err
-			}
-
-			result := hash.Sum(nil)
-			file.Checksum = hex.EncodeToString([]byte(result[:]))
+		if sum, err := file.GenerateChecksum(); err == nil {
+			file.Checksum = sum
 		} else {
 			return nil, err
 		}

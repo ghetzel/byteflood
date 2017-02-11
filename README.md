@@ -25,32 +25,10 @@ cd ~/.config/byteflood/keys
 byteflood genkeypair peer
 
 # Sample config.yml
-cat <<EOF > ~/.config/byteflood/config2.yml
+cat <<EOF > ~/.config/byteflood/config.yml
 ---
 database:
-    directories:
-    - path: /path/to/files/to/share
-      label: share # If unspecified, this will default to the
-                   # underscored-lowercase basename of the shared directory
-
-shares:
-- name: Share
-  filter: label=share # If unspecified, this will default to the
-                      # underscored-lowercase version of the share name.
-                      #
-                      # This can be modified to restrict which files appear under the share
-                      # based on any metadata scanned from them.
-                      #
-local:
-    # Only connections to known peers are permitted.  You specify peers you know
-    # by associating one or more of their public keys with a name you will recognize.
-    known_peers:
-        name_you_know_this_person_by:
-        - ABCDEFPUBKEY12345...XYZ
-        - ZYXWPUBKEY4567890...CBA
-
-        another_person:
-        - DEF345ABC123789JK...XYZ
+  uri: 'mysql://byteflood:byteflood@db/byteflood'
 EOF
 
 # Go!

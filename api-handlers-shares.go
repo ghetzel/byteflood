@@ -19,10 +19,10 @@ type EntryParent struct {
 }
 
 func writeTsvFileLine(w io.Writer, share *shares.Share, item db.ManifestItem) {
-	values := make([]string, len(item.Fields))
+	values := make([]string, len(item.Values))
 	var fieldset string
 
-	for i, value := range item.Fields {
+	for i, value := range item.Values {
 		if value != nil {
 			values[i] = fmt.Sprintf("%v", value)
 		}
@@ -106,7 +106,7 @@ func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request) {
 
 		for _, file := range files {
 			if manifest, err := file.GetManifest(fields, filterString); err == nil {
-				for _, item := range manifest {
+				for _, item := range manifest.Items {
 					writeTsvFileLine(w, share, item)
 				}
 			} else {
