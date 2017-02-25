@@ -196,6 +196,10 @@ var SubscriptionsSchema = dal.Collection{
 	Name: `subscriptions`,
 	Fields: []dal.Field{
 		{
+			Name:     `name`,
+			Type:     dal.StringType,
+			Required: true,
+		}, {
 			Name:        `source_group`,
 			Description: `The peer name or @-prefixed peer group to source data from.`,
 			Type:        dal.StringType,
@@ -206,16 +210,14 @@ var SubscriptionsSchema = dal.Collection{
 			Type:        dal.StringType,
 			Required:    true,
 		}, {
-			Name:         `filter`,
-			Description:  `A filter used to narrow down which files to monitor from the named share.`,
-			Type:         dal.StringType,
-			Required:     true,
-			DefaultValue: `all`,
-		}, {
 			Name:        `target_path`,
 			Description: `The local filesystem path where downloaded data will be stored.`,
 			Type:        dal.StringType,
 			Required:    true,
+		}, {
+			Name:        `filter`,
+			Description: `A filter used to narrow down which files to monitor from the named share.`,
+			Type:        dal.StringType,
 		}, {
 			Name:        `bytes_downloaded`,
 			Description: `How much data has been downloaded within the current quota interval.`,
