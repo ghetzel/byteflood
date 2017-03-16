@@ -10,8 +10,19 @@ import (
 	"github.com/ghetzel/pivot/mapper"
 	"github.com/husobee/vestigo"
 	"net/http"
+	"reflect"
 	"strings"
 )
+
+// populated in API.Initialize()
+var endpointModelMap = map[string]mapper.Mapper{}
+
+var endpointInstanceMap = map[string]reflect.Type{
+	`shares`:      reflect.TypeOf(db.Shares{}),
+	`peers`:       reflect.TypeOf(db.AuthorizedPeers{}),
+	`directories`: reflect.TypeOf(db.ScannedDirectories{}),
+	`downloads`:   reflect.TypeOf(db.Downloads{}),
+}
 
 func (self *API) handleStatus(w http.ResponseWriter, req *http.Request) {
 	Respond(w, map[string]interface{}{
@@ -29,16 +40,9 @@ func (self *API) handleGetNewModelInstance(w http.ResponseWriter, req *http.Requ
 	if len(parts) >= 3 {
 		modelName := parts[2]
 
-		switch modelName {
-		case `shares`:
-			Respond(w, shares.NewShare())
-		case `peers`:
-			Respond(w, new(peer.RemotePeer))
-		case `directories`:
-			Respond(w, new(db.Directory))
-		case `downloads`:
-			Respond(w, new(QueuedDownload))
-		default:
+		if typeOf, ok := endpointInstanceMap[modelName]; ok {
+			Respond(w, reflect.New(typeOf).Interface())
+		} else {
 			http.Error(w, fmt.Sprintf("Unknown model '%s'", modelName), http.StatusNotFound)
 		}
 	} else {
@@ -54,16 +58,9 @@ func (self *API) handleSaveModel(w http.ResponseWriter, req *http.Request) {
 		var model mapper.Mapper
 		modelName := parts[2]
 
-		switch modelName {
-		case `shares`:
-			model = db.Shares
-		case `peers`:
-			model = db.AuthorizedPeers
-		case `directories`:
-			model = db.ScannedDirectories
-		case `downloads`:
-			model = db.Downloads
-		default:
+		if m, ok := endpointModelMap[modelName]; ok && m != nil {
+			model = m
+		} else {
 			http.Error(w, fmt.Sprintf("Unknown model '%s'", modelName), http.StatusNotFound)
 			return
 		}
@@ -101,16 +98,9 @@ func (self *API) handleDeleteModel(w http.ResponseWriter, req *http.Request) {
 
 		modelName := parts[2]
 
-		switch modelName {
-		case `shares`:
-			model = db.Shares
-		case `peers`:
-			model = db.AuthorizedPeers
-		case `directories`:
-			model = db.ScannedDirectories
-		case `downloads`:
-			model = db.Downloads
-		default:
+		if m, ok := endpointModelMap[modelName]; ok && m != nil {
+			model = m
+		} else {
 			http.Error(w, fmt.Sprintf("Unknown model '%s'", modelName), http.StatusNotFound)
 			return
 		}

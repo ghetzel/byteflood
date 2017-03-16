@@ -34,6 +34,7 @@ func NewApplicationFromConfig(configFile string) (*Application, error) {
 	}
 
 	app.Queue = NewDownloadQueue(app)
+	app.API = NewAPI(app)
 
 	if configFilePath, err := pathutil.ExpandUser(configFile); err == nil {
 		if file, err := os.Open(configFilePath); err == nil {
@@ -100,12 +101,6 @@ func (self *Application) Initialize() error {
 
 	// initialize local API server
 	// --------------------------------------------------------------------------------------------
-	if self.API == nil {
-		self.API = NewAPI()
-	}
-
-	self.API.application = self
-
 	if err := self.API.Initialize(); err == nil {
 		self.LocalPeer.SetPeerRequestHandler(self.API.GetPeerRequestHandler())
 	} else {

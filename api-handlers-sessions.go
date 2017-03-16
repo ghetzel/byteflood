@@ -9,6 +9,10 @@ import (
 	"strings"
 )
 
+type PeerConnectRequest struct {
+	Address string `json:"address"`
+}
+
 func (self *API) handleGetSessions(w http.ResponseWriter, req *http.Request) {
 	rv := make([]map[string]interface{}, 0)
 

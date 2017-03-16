@@ -17,36 +17,23 @@ type API struct {
 	application *Application
 }
 
-type PeerConnectRequest struct {
-	Address string `json:"address"`
-}
-
-type DatabaseScanRequest struct {
-	Labels []string `json:"labels"`
-	Force  bool     `json:"force"`
-}
-
 var DefaultApiAddress = `:11984`
 var DefaultResultLimit = 25
+var DefaultUiDirectory = `embedded`
 
-func NewAPI() *API {
+func NewAPI(application *Application) *API {
 	return &API{
-		Address: DefaultApiAddress,
+		Address:     DefaultApiAddress,
+		UiDirectory: DefaultUiDirectory,
+		application: application,
 	}
 }
 
 func (self *API) Initialize() error {
-	if self.application == nil {
-		return fmt.Errorf("Cannot use API without an associated application instance")
-	}
-
-	if self.Address == `` {
-		self.Address = DefaultApiAddress
-	}
-
-	if self.UiDirectory == `` {
-		self.UiDirectory = `./ui` // TODO: this will be "embedded" after development settles
-	}
+	endpointModelMap[`shares`] = db.Shares
+	endpointModelMap[`peers`] = db.AuthorizedPeers
+	endpointModelMap[`directories`] = db.ScannedDirectories
+	endpointModelMap[`downloads`] = db.Downloads
 
 	return nil
 }
@@ -60,22 +47,16 @@ func (self *API) Serve() error {
 
 	server := negroni.New()
 	router := vestigo.NewRouter()
+	mux := http.NewServeMux()
 	ui := diecast.NewServer(uiDir, `*.html`)
 
-	// ui.AdditionalFunctions = template.FuncMap{}
-
-	// if self.UiDirectory == `embedded` {
-	// 	ui.SetFileSystem(assetFS())
-	// }
+	if self.UiDirectory == `embedded` {
+		ui.SetFileSystem(FS(false))
+	}
 
 	if err := ui.Initialize(); err != nil {
 		return err
 	}
-
-	// routes not registered below will fallback to the UI server
-	vestigo.CustomNotFoundHandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		ui.ServeHTTP(w, req)
-	})
 
 	router.Get(`/api/status`, self.handleStatus)
 	router.Get(`/api/configuration`, self.handleGetConfig)
@@ -135,7 +116,11 @@ func (self *API) Serve() error {
 	router.Get(`/api/shares/:id/browse/`, self.handleBrowseShare)
 	router.Get(`/api/shares/:id/browse/:parent`, self.handleBrowseShare)
 
-	server.UseHandler(router)
+	mux.Handle(`/api/`, router)
+	mux.Handle(`/`, ui)
+
+	server.UseHandler(mux)
+	server.Use(NewRequestLogger())
 
 	log.Debugf("Running API server at %s", self.Address)
 	server.Run(self.Address)

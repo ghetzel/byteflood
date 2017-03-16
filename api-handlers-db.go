@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+type DatabaseScanRequest struct {
+	Labels []string `json:"labels"`
+	Force  bool     `json:"force"`
+}
+
 func (self *API) handleGetDatabase(w http.ResponseWriter, req *http.Request) {
 	Respond(w, self.application.Database)
 }
