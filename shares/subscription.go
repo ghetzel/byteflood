@@ -25,16 +25,16 @@ type Subscription struct {
 func (self *Subscription) GetWantedItems() []*WantedItem {
 	items := make([]*WantedItem, 0)
 
-    // get manifests from everyone in the source group
+	// get manifests from everyone in the source group
 
-    // for each manifest:
-    //     set BaseDirectory to TargetPath
-    //     for every file in manifest.GetUpdateManifest()
-                // items = append(items, &WantedItem{
-                //     SessionID: session_id_of_peer,
-                //     ShareName: share_name_of_peer,
-                //     EntityID:  item.ID,
-                // })
+	// for each manifest:
+	//     set BaseDirectory to TargetPath
+	//     for every file in manifest.GetUpdateManifest()
+	// items = append(items, &WantedItem{
+	//     SessionID: session_id_of_peer,
+	//     ShareName: share_name_of_peer,
+	//     EntityID:  item.ID,
+	// })
 
 	return items
 }
