@@ -18,12 +18,13 @@ type Directory struct {
 	Path                 string       `json:"path"`
 	Parent               string       `json:"parent"`
 	RootPath             string       `json:"-"`
-	FilePattern          string       `json:"file_patterns,omitempty"`
+	FilePattern          string       `json:"file_pattern,omitempty"`
 	NoRecurseDirectories bool         `json:"no_recurse,omitempty"`
 	FileMinimumSize      int          `json:"min_file_size,omitempty"`
 	DeepScan             bool         `json:"deep_scan,omitempty"`
 	Checksum             bool         `json:"checksum"`
 	Directories          []*Directory `json:"-"`
+	FileCount            int          `json:"file_count"`
 	db                   *Database
 }
 
@@ -71,33 +72,57 @@ func (self *Directory) Scan() error {
 			// recursive directory handling
 			if entry.IsDir() {
 				if !self.NoRecurseDirectories {
-					if dirEntry, err := self.indexFile(absPath, true); err == nil {
-						subdirectory := NewDirectory(self.db, absPath)
+					dirEntry := NewFile(self.ID, self.RootPath, absPath)
 
-						subdirectory.ID = self.ID
-						subdirectory.Parent = dirEntry.ID
-						subdirectory.RootPath = self.RootPath
-						subdirectory.FilePattern = self.FilePattern
-						subdirectory.NoRecurseDirectories = self.NoRecurseDirectories
-						subdirectory.FileMinimumSize = self.FileMinimumSize
-						subdirectory.DeepScan = self.DeepScan
+					subdirectory := NewDirectory(self.db, absPath)
 
-						log.Infof("[%s] %s: Scanning subdirectory %s", self.ID, subdirectory.Parent, subdirectory.Path)
+					subdirectory.ID = self.ID
+					subdirectory.Parent = dirEntry.ID
+					subdirectory.RootPath = self.RootPath
+					subdirectory.FilePattern = self.FilePattern
+					subdirectory.NoRecurseDirectories = self.NoRecurseDirectories
+					subdirectory.FileMinimumSize = self.FileMinimumSize
+					subdirectory.DeepScan = self.DeepScan
 
-						if err := subdirectory.Scan(); err == nil {
-							self.Directories = append(self.Directories, subdirectory)
+					log.Infof("[%s] %s: Scanning subdirectory %s", self.ID, subdirectory.Parent, subdirectory.Path)
+
+					if err := subdirectory.Scan(); err == nil {
+						self.FileCount = subdirectory.FileCount
+						self.Directories = append(self.Directories, subdirectory)
+					} else {
+						return err
+					}
+
+					if self.FileCount == 0 {
+						// cleanup files for whom we are the parent
+						if f, err := ParseFilter(map[string]interface{}{
+							`parent`: subdirectory.Parent,
+						}); err == nil {
+							if values, err := Metadata.ListWithFilter([]string{`id`}, f); err == nil {
+								if ids, ok := values[`id`]; ok {
+									Metadata.Delete(ids...)
+								}
+							} else {
+								log.Errorf("[%s] Failed to cleanup files under %s: %v", self.ID, subdirectory.Parent, err)
+							}
+						} else {
+							log.Errorf("[%s] Failed to cleanup files under %s: %v", self.ID, subdirectory.Parent, err)
+						}
+
+						if Metadata.Exists(dirEntry.ID) {
+							Metadata.Delete(dirEntry.ID)
+						}
+					} else {
+						if _, err := self.indexFile(absPath, true); err == nil {
+							// cleanup files for whom we are the parent
+							if err := self.cleanupMissingFiles(map[string]interface{}{
+								`parent`: subdirectory.Parent,
+							}); err != nil {
+								log.Errorf("[%s] Failed to cleanup files under %s: %v", self.ID, subdirectory.Parent, err)
+							}
 						} else {
 							return err
 						}
-
-						// cleanup files for whom we are the parent
-						if err := self.cleanupMissingFiles(map[string]interface{}{
-							`parent`: subdirectory.Parent,
-						}); err != nil {
-							log.Errorf("[%s] Failed to cleanup files under %s: %v", self.ID, subdirectory.Parent, err)
-						}
-					} else {
-						return err
 					}
 				}
 			} else {
@@ -107,8 +132,21 @@ func (self *Directory) Scan() error {
 					continue
 				}
 
+				// file pattern matching
+				if self.FilePattern != `` {
+					if rx, err := regexp.Compile(self.FilePattern); err == nil {
+						if !rx.MatchString(absPath) {
+							continue
+						}
+					} else {
+						return err
+					}
+				}
+
 				// scan the file as a sharable asset
-				if _, err := self.indexFile(absPath, false); err != nil {
+				if _, err := self.indexFile(absPath, false); err == nil {
+					self.FileCount += 1
+				} else {
 					return err
 				}
 			}
@@ -138,19 +176,6 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 		return file, nil
 	}
 
-	if !isDir {
-		// file pattern matching
-		if self.FilePattern != `` {
-			if rx, err := regexp.Compile(self.FilePattern); err == nil {
-				if !rx.MatchString(name) {
-					return file, nil
-				}
-			} else {
-				return nil, err
-			}
-		}
-	}
-
 	if stat, err := os.Stat(name); err == nil {
 		file.LastModifiedAt = stat.ModTime().UnixNano()
 
@@ -176,6 +201,10 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	file.Parent = self.Parent
 	file.Label = self.ID
 	file.IsDirectory = isDir
+
+	if isDir {
+		file.ChildCount = self.FileCount
+	}
 
 	tm := stats.NewTiming()
 

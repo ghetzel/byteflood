@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/pivot/dal"
 	"os"
+	"regexp"
 )
 
 var MetadataSchema = dal.Collection{
@@ -29,6 +30,12 @@ var MetadataSchema = dal.Collection{
 			Name:     `directory`,
 			Type:     dal.BooleanType,
 			Required: true,
+		}, {
+			Name: `children`,
+			Type: dal.IntType,
+		}, {
+			Name: `descendants`,
+			Type: dal.IntType,
 		}, {
 			Name:     `last_modified_at`,
 			Type:     dal.IntType,
@@ -149,7 +156,6 @@ var ScannedDirectoriesSchema = dal.Collection{
 			Name:        `path`,
 			Description: `A local filesystem path that will be scanned for files.`,
 			Type:        dal.StringType,
-			Unique:      true,
 			Validator: func(value interface{}) error {
 				if s, err := os.Stat(fmt.Sprintf("%v", value)); err == nil {
 					if !s.IsDir() {
@@ -166,6 +172,13 @@ var ScannedDirectoriesSchema = dal.Collection{
 			Description: `An optional regular expression used to whitelist filenames. ` +
 				`If set, only absolute paths matching this query will be scanned.`,
 			Type: dal.StringType,
+			Validator: func(value interface{}) error {
+				if _, err := regexp.Compile(fmt.Sprintf("%v", value)); err != nil {
+					return err
+				}
+
+				return nil
+			},
 		}, {
 			Name:         `recursive`,
 			Description:  `Whether to recursively scan subdirectories under this root directory.`,

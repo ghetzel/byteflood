@@ -24,17 +24,19 @@ var MetadataEncoding = base32.NewEncoding(`abcdefghijklmnopqrstuvwxyz234567`)
 var MaxChildEntries = 10000
 
 type File struct {
-	ID             string                 `json:"id"`
-	RelativePath   string                 `json:"name"`
-	Parent         string                 `json:"parent,omitempty"`
-	Checksum       string                 `json:"checksum,omitempty"`
-	Label          string                 `json:"label"`
-	IsDirectory    bool                   `json:"directory"`
-	LastModifiedAt int64                  `json:"last_modified_at,omitempty"`
-	Metadata       map[string]interface{} `json:"metadata"`
-	info           os.FileInfo            `json:"-"`
-	filename       string
-	metadataLoaded bool
+	ID              string                 `json:"id"`
+	RelativePath    string                 `json:"name"`
+	Parent          string                 `json:"parent,omitempty"`
+	Checksum        string                 `json:"checksum,omitempty"`
+	Label           string                 `json:"label"`
+	IsDirectory     bool                   `json:"directory"`
+	ChildCount      int                    `json:"children"`
+	DescendantCount int                    `json:"descendants"`
+	LastModifiedAt  int64                  `json:"last_modified_at,omitempty"`
+	Metadata        map[string]interface{} `json:"metadata"`
+	info            os.FileInfo            `json:"-"`
+	filename        string
+	metadataLoaded  bool
 }
 
 type WalkFunc func(path string, file *File, err error) error // {}
