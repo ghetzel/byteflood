@@ -25,6 +25,6 @@ func (self *RequestLogger) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 	if status < 400 {
 		log.Debugf("[HTTP %d] %s to %v took %v", status, req.Method, req.URL, duration)
 	} else {
-		log.Warningf("[HTTP %d] %s to %v took %v", status, req.Method, req.URL, duration)
+		log.Debugf("[HTTP %d] %s to %v took %v", status, req.Method, req.URL, duration)
 	}
 }

@@ -40,13 +40,14 @@ type QueuedDownload struct {
 	ShareID         string    `json:"share_id"`
 	FileID          string    `json:"file_id"`
 	Name            string    `json:"name"`
-	Destination     string    `json:"destination"`
+	DestinationPath string    `json:"destination"`
 	Size            uint64    `json:"size"`
 	AddedAt         time.Time `json:"added_at,omitempty"`
 	Error           string    `json:"error,omitempty"`
 	Progress        float64   `json:"progress"`
 	Rate            uint64    `json:"rate"`
 	application     *Application
+	tempFile        *os.File
 	destinationFile io.Reader
 	lastByteSize    uint64
 }
@@ -59,32 +60,7 @@ func (self *QueuedDownload) Read(p []byte) (int, error) {
 	return 0, fmt.Errorf("file not downloaded")
 }
 
-func (self *QueuedDownload) Download() error {
-	// validate download details
-	if self.ID <= 0 {
-		return fmt.Errorf("Download ID must be a positive integer")
-	}
-
-	if self.Name == `` {
-		return fmt.Errorf("Download name required")
-	}
-
-	if self.Size == 0 {
-		return fmt.Errorf("Download size required")
-	}
-
-	if stat, err := os.Stat(self.Destination); err == nil {
-		if !stat.IsDir() {
-			return fmt.Errorf("Download destination must be a directory")
-		}
-	} else if os.IsNotExist(err) {
-		if err := os.MkdirAll(self.Destination, 0700); err != nil {
-			return err
-		}
-	} else {
-		return err
-	}
-
+func (self *QueuedDownload) Download(writers ...io.Writer) error {
 	// get peer by session id, fallback to peer name
 	remotePeer, ok := self.application.LocalPeer.GetSession(self.SessionID)
 
@@ -93,100 +69,149 @@ func (self *QueuedDownload) Download() error {
 	}
 
 	if ok {
+		var destWriter io.Writer
+		var destFile string
+
 		self.Status = `waiting`
 
-		destFile := path.Join(self.Destination, self.Name)
-
-		// expand the destination path to an absolute one and verify that it's valid/safe
-		if d, err := self.VerifyPath(destFile); err == nil {
-			destFile = d
+		// a given writer supercedes the destination path
+		if len(writers) > 0 {
+			destWriter = writers[0]
 		} else {
-			return err
-		}
+			// validate download details
+			if self.ID <= 0 {
+				return fmt.Errorf("Download ID must be a positive integer")
+			}
 
-		destDir := path.Dir(destFile)
+			if self.Name == `` {
+				return fmt.Errorf("Download name required")
+			}
 
-		// create destination parent directory
-		if err := os.MkdirAll(destDir, 0755); err == nil || os.IsExist(err) {
-			// open the destination file
-			if file, err := ioutil.TempFile(destDir, fmt.Sprintf("byteflood-%v_", self.ID)); err == nil {
-				// make our side of the connection aware of the file transfer
-				transfer := remotePeer.CreateInboundTransfer(self.Size)
-				transfer.SetWriter(file)
+			if self.Size == 0 {
+				return fmt.Errorf("Download size required")
+			}
 
-				// no matter what, we're done with this transfer when this function returns
-				defer func() {
-					remotePeer.RemoveInboundTransfer(transfer.ID)
-				}()
+			if stat, err := os.Stat(self.DestinationPath); err == nil {
+				if !stat.IsDir() {
+					return fmt.Errorf("Download destination must be a directory")
+				}
+			} else if os.IsNotExist(err) {
+				if err := os.MkdirAll(self.DestinationPath, 0700); err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
 
-				go func(item *QueuedDownload, t *peer.Transfer) {
-					for {
-						if t.IsFinished() {
-							return
-						}
+			destFile = path.Join(self.DestinationPath, self.Name)
 
-						if t.BytesReceived >= t.ExpectedSize {
-							item.Progress = 1.0
-						} else {
-							item.Progress = float64(t.BytesReceived) / float64(t.ExpectedSize)
-						}
+			// expand the destination path to an absolute one and verify that it's valid/safe
+			if d, err := self.VerifyPath(destFile); err == nil {
+				destFile = d
+			} else {
+				return err
+			}
 
-						item.Status = `downloading`
-						item.Size = t.BytesReceived
+			destDir := path.Dir(destFile)
 
-						time.Sleep(time.Second)
-
-						if item.lastByteSize > 0 {
-							item.Rate = (t.BytesReceived - item.lastByteSize)
-						}
-
-						item.lastByteSize = t.BytesReceived
-					}
-				}(self, transfer)
-
-				// ask the remote side to start sending data
-				if response, err := remotePeer.ServiceRequest(
-					`POST`,
-					fmt.Sprintf("/transfers/%s/%s", transfer.ID, self.FileID),
-					nil,
-					nil,
-				); err == nil {
-					// if all goes well, block until the download succeeds or fails
-					if response.StatusCode < 400 {
-						// wait for the transfer to complete
-						if err := transfer.Wait(); err == nil {
-							self.Progress = 1.0
-							self.Status = `completed`
-							self.Size = transfer.BytesReceived
-
-							// move the temporary download file to the final filename
-							if err := os.Rename(file.Name(), destFile); err == nil {
-								// reopen the downloaded file as readable
-								if readFile, err := os.Open(destFile); err == nil {
-									self.destinationFile = readFile
-								} else {
-									return err
-								}
-							} else {
-								return err
-							}
-
-							return nil
-						} else {
-							return err
-						}
-					} else {
-						body, _ := ioutil.ReadAll(response.Body)
-						return fmt.Errorf("%s: %v", response.Status, string(body[:]))
-					}
+			// create destination parent directory
+			if err := os.MkdirAll(destDir, 0755); err == nil || os.IsExist(err) {
+				// open the destination file
+				if file, err := ioutil.TempFile(destDir, fmt.Sprintf("byteflood-%v_", self.ID)); err == nil {
+					self.tempFile = file
+					destWriter = file
 				} else {
 					return err
 				}
 			} else {
 				return err
 			}
+		}
+
+		if destWriter != nil {
+			// make our side of the connection aware of the file transfer
+			transfer := remotePeer.CreateInboundTransfer(self.Size)
+			transfer.SetWriter(destWriter)
+
+			// no matter what, we're done with this transfer when this function returns
+			defer func() {
+				remotePeer.RemoveInboundTransfer(transfer.ID)
+			}()
+
+			// poll transfer and update stats and status
+			go func(item *QueuedDownload, t *peer.Transfer) {
+				for {
+					if t.IsFinished() {
+						log.Debugf("Transfer %v finished", t.ID)
+						return
+					}
+
+					if t.ExpectedSize > 0 {
+						if t.BytesReceived >= t.ExpectedSize {
+							item.Progress = 1.0
+						} else {
+							item.Progress = float64(t.BytesReceived) / float64(t.ExpectedSize)
+						}
+					}
+
+					item.Status = `downloading`
+					item.Size = t.BytesReceived
+
+					time.Sleep(time.Second)
+
+					if item.lastByteSize > 0 {
+						item.Rate = (t.BytesReceived - item.lastByteSize)
+					}
+
+					item.lastByteSize = t.BytesReceived
+
+					log.Debugf("Progress: %g, %d bytes", item.Progress, item.lastByteSize)
+				}
+			}(self, transfer)
+
+			// ask the remote side to start sending data
+			if response, err := remotePeer.ServiceRequest(
+				`POST`,
+				fmt.Sprintf("/transfers/%s/%s", transfer.ID, self.FileID),
+				nil,
+				nil,
+			); err == nil {
+				// if all goes well, block until the download succeeds or fails
+				if response.StatusCode < 400 {
+					// wait for the transfer to complete
+					if err := transfer.Wait(); err == nil {
+						self.Progress = 1.0
+						self.Status = `completed`
+						self.Size = transfer.BytesReceived
+					} else {
+						return err
+					}
+				} else {
+					body, _ := ioutil.ReadAll(response.Body)
+					return fmt.Errorf("%s: %v", response.Status, string(body[:]))
+				}
+			} else {
+				return err
+			}
+
+			// post-download step for files being saved to the filesystem
+			if self.tempFile != nil {
+				// move the temporary download file to the final filename
+				if err := os.Rename(self.tempFile.Name(), destFile); err == nil {
+					// reopen the downloaded file as readable
+					if readFile, err := os.Open(destFile); err == nil {
+						self.destinationFile = readFile
+					} else {
+						return err
+					}
+				} else {
+					return err
+				}
+			}
+
+			return nil
 		} else {
-			return err
+			return fmt.Errorf("No valid destination provided")
 		}
 	} else {
 		return fmt.Errorf("Could not locate session %s or peer %s", self.SessionID, self.PeerName)
@@ -197,7 +222,7 @@ func (self *QueuedDownload) VerifyPath(name string) (string, error) {
 	// fully resolve the given path into an absolute path
 	if absPath, err := filepath.Abs(name); err == nil {
 		// the absolute path must fall under the destination directory
-		if strings.HasPrefix(name, strings.TrimSuffix(self.Destination, `/`)+`/`) {
+		if strings.HasPrefix(name, strings.TrimSuffix(self.DestinationPath, `/`)+`/`) {
 			return absPath, nil
 		} else {
 			return ``, fmt.Errorf("absolute path resolves to path outside of the destination directory")
@@ -287,16 +312,16 @@ func (self *DownloadQueue) enqueueFile(remotePeer *peer.RemotePeer, shareID stri
 	}
 
 	if err := db.Downloads.Create(&QueuedDownload{
-		Status:      `idle`,
-		SessionID:   remotePeer.SessionID(),
-		PeerName:    remotePeer.Name,
-		ShareID:     shareID,
-		FileID:      file.ID,
-		Priority:    now.UnixNano(),
-		Name:        file.RelativePath,
-		Destination: fmt.Sprintf("/tmp/%s", remotePeer.ID),
-		Size:        size,
-		AddedAt:     now,
+		Status:          `idle`,
+		SessionID:       remotePeer.SessionID(),
+		PeerName:        remotePeer.Name,
+		ShareID:         shareID,
+		FileID:          file.ID,
+		Priority:        now.UnixNano(),
+		Name:            file.RelativePath,
+		DestinationPath: fmt.Sprintf("/tmp/%s", remotePeer.ID),
+		Size:            size,
+		AddedAt:         now,
 	}); err == nil {
 		return err
 	}
@@ -308,7 +333,7 @@ func (self *DownloadQueue) enqueueFile(remotePeer *peer.RemotePeer, shareID stri
 // for the download to finish.  The QueuedDownload that is returned is an io.Reader referencing the
 // downloaded data.
 //
-func (self *DownloadQueue) Download(sessionID string, fileID string) (*QueuedDownload, error) {
+func (self *DownloadQueue) Download(w io.Writer, sessionID string, fileID string) (*QueuedDownload, error) {
 	download := &QueuedDownload{
 		Status:      `idle`,
 		SessionID:   sessionID,
@@ -317,7 +342,7 @@ func (self *DownloadQueue) Download(sessionID string, fileID string) (*QueuedDow
 		application: self.application,
 	}
 
-	return download, download.Download()
+	return download, download.Download(w)
 }
 
 // Downloads all files in the queue.  If no files are currently in the queue,

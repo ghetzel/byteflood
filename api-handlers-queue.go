@@ -3,8 +3,9 @@ package byteflood
 import (
 	"github.com/ghetzel/byteflood/db"
 	"github.com/husobee/vestigo"
+	"io"
 	"net/http"
-	// "os"
+	"os"
 )
 
 func (self *API) handleGetQueue(w http.ResponseWriter, req *http.Request) {
@@ -33,15 +34,37 @@ func (self *API) handleEnqueueFile(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
-// 	if download, err := self.application.Queue.Download(
-// 		vestigo.Param(req, `peer`),
-// 		vestigo.Param(req, `file`),
-// 	); err == nil {
-// 		Respond(w, download)
-// 	} else if os.IsExist(err) {
-// 		http.Error(w, err.Error(), http.StatusConflict)
-// 	} else {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 	}
-// }
+func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
+	session := vestigo.Param(req, `session`)
+	fileId := vestigo.Param(req, `file`)
+
+	if mimeType := req.URL.Query().Get(`mimetype`); mimeType != `` {
+		w.Header().Set(`Content-Type`, mimeType)
+	}
+
+	if session != `` {
+		if _, err := self.application.Queue.Download(
+			w,
+			session,
+			fileId,
+		); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	} else {
+		var file db.File
+
+		if err := db.Metadata.Get(fileId, &file); err == nil {
+			if absPath, err := file.GetAbsolutePath(); err == nil {
+				if osFile, err := os.Open(absPath); err == nil {
+					io.Copy(w, osFile)
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		} else {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		}
+	}
+}

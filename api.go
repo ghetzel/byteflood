@@ -84,6 +84,7 @@ func (self *API) Serve() error {
 	router.Put(`/api/directories`, self.handleSaveModel)
 	router.Delete(`/api/directories/:id`, self.handleDeleteModel)
 	router.Get(`/api/directories/new`, self.handleGetNewModelInstance)
+	router.Get(`/api/files/:file`, self.handleDownloadFile)
 
 	// authorized peer management endpoints
 	router.Get(`/api/peers`, self.handleGetPeers)
@@ -96,7 +97,7 @@ func (self *API) Serve() error {
 	// active session management endpoints
 	router.Get(`/api/sessions`, self.handleGetSessions)
 	router.Get(`/api/sessions/:session`, self.handleGetSession)
-	// router.Get(`/api/sessions/:session/files/:file`, self.handleDownloadFile)
+	router.Get(`/api/sessions/:session/files/:file`, self.handleDownloadFile)
 
 	for _, method := range []string{`GET`, `POST`, `PUT`, `DELETE`, `HEAD`} {
 		router.Add(method, `/api/sessions/:session/proxy/*`, self.handleProxyToSession)

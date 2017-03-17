@@ -450,7 +450,7 @@ func (self *LocalPeer) RemovePeer(sessionId string) {
 	self.sessionLock.RUnlock()
 
 	if ok {
-		log.Errorf("Removing peer %s", remotePeer.String())
+		log.Errorf("Disconnected from %s", remotePeer.String())
 
 		if err := remotePeer.Disconnect(); err != nil {
 			log.Errorf("Error disconnecting from peer: %v", err)

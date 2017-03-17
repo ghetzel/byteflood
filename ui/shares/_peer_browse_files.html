@@ -146,6 +146,13 @@ bindings:
           {{ end }}
         </td>
         <td>
+          <a
+            target="_blank"
+            href="/api{{ if $session }}/sessions/{{ $session }}{{ end }}/files/{{ .id }}?mimetype={{ .fields.metadata.file.mime.type }}"
+          >
+            <i class="fa fa-fw fa-download"></i>
+          </a>
+
           {{ if $session }}
           <a onclick="byteflood.queueFileForDownload('{{ $session }}', '{{ $share }}', '{{ .id }}');">
             <i class="fa fa-fw fa-plus"></i>

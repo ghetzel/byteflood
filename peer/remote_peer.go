@@ -173,7 +173,18 @@ func (self *RemotePeer) Heartbeat() error {
 // Disconnect from this peer and close the connection.
 //
 func (self *RemotePeer) Disconnect() error {
-	log.Infof("Disconnecting from %s", self.String())
+	self.inboundTransferLock.RLock()
+	ids := make([]uuid.UUID, 0)
+	for id, _ := range self.inboundTransfers {
+		ids = append(ids, id)
+	}
+	self.inboundTransferLock.RUnlock()
+
+	for _, id := range ids {
+		log.Infof("Stopping transfer %v", id)
+		self.RemoveInboundTransfer(id)
+	}
+
 	return self.connection.Close()
 }
 
@@ -295,6 +306,12 @@ func (self *RemotePeer) GetInboundTransfer(id uuid.UUID) (*Transfer, bool) {
 
 // Removes an inbound transfer by ID in a thread safe manner.
 func (self *RemotePeer) RemoveInboundTransfer(id uuid.UUID) {
+	self.inboundTransferLock.RLock()
+	if transfer, ok := self.inboundTransfers[id]; ok {
+		transfer.Complete(fmt.Errorf("terminated"))
+	}
+	self.inboundTransferLock.RUnlock()
+
 	self.inboundTransferLock.Lock()
 	delete(self.inboundTransfers, id)
 	self.inboundTransferLock.Unlock()
@@ -379,7 +396,7 @@ func (self *RemotePeer) TransferFile(id uuid.UUID, path string) error {
 // nil and is intended to be long-running on a per-peer basis.
 //
 func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
-	log.Debugf("Receiving messages from %s (%s)", self.SessionID(), self.String())
+	log.Noticef("Connected to %s (Session ID: %s)", self.String(), self.SessionID())
 
 	// any condition that causes this function to return should also cause a disconnect
 	defer self.Disconnect()
