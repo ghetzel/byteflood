@@ -59,6 +59,21 @@ bindings:
             </small>
         </div>
 
+        <div class="form-group">
+            <label for="name">Addresses</label>
+            <input
+                type="text"
+                class="form-control"
+                name="addresses"
+                aria-describedby="addressesHelp"
+                value="{{ .bindings.peer.addresses }}"
+            >
+
+            <small id="addressesHelp" class="form-text text-muted">
+                This is a comma-separated list of addresses that should be attempted when connecting to peers on startup.
+            </small>
+        </div>
+
         <button class="btn btn-primary" type="submit">Save</button>
     </form>
 </div>

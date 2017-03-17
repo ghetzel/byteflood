@@ -36,6 +36,7 @@ type RemotePeer struct {
 	Name                  string                `json:"name"`
 	Encrypter             *encryption.Encrypter `json:"-"`
 	Decrypter             *encryption.Decrypter `json:"-"`
+	Addresses             string                `json:"addresses,omitempty"`
 	HeartbeatInterval     time.Duration
 	HeartbeatAckTimeout   time.Duration
 	messageFn             MessageHandler

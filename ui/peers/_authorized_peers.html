@@ -13,6 +13,7 @@ bindings:
       <tr>
         <th>Peer Name</th>
         <th>ID</th>
+        <th>Addresses</th>
         <th></th>
       </tr>
     </thead>
@@ -21,6 +22,7 @@ bindings:
       <tr>
         <td>{{ .name }}</td>
         <td>{{ .id }}</td>
+        <td>{{ .addresses }}</td>
         <td>
           <span class="pull-right">
             <a class="btn btn-sm btn-primary" href="/peers/edit?id={{ .id }}">
@@ -34,7 +36,7 @@ bindings:
       </tr>
       {{ end }}
       <tr>
-        <td colspan="3">
+        <td colspan="4">
           <span class="pull-right">
             <a class="btn btn-sm btn-success" href="/peers/edit">
               <i class="fa fa-plus"></i> Add Peer

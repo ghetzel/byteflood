@@ -11,6 +11,7 @@ import (
 	"github.com/op/go-logging"
 	"net"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 )
@@ -28,10 +29,12 @@ var logproxy = util.NewLogProxy(`byteflood/peer`, `info`)
 var PeerMonitorRetryMultiplier = 2
 var PeerMonitorRetryMultiplierMax = 512
 var PeerMonitorRetryMax = -1
+var rxAddrSplit = regexp.MustCompile(`[\s,;]+`)
 
 type AuthorizedPeer struct {
-	ID       string `json:"id"`
-	PeerName string `json:"name"`
+	ID        string `json:"id"`
+	PeerName  string `json:"name"`
+	Addresses string `json:"addresses,omitempty"`
 }
 
 type Peer interface {
@@ -91,6 +94,18 @@ func (self *LocalPeer) Initialize() error {
 
 	// create peer server instance
 	self.peerServer = NewPeerServer(self)
+
+	// load all authorized peers and populate AutoconnectPeers with their known addresses
+	if err := db.AuthorizedPeers.Each(AuthorizedPeer{}, func(v interface{}) {
+		if peer, ok := v.(*AuthorizedPeer); ok {
+			if peer.Addresses != `` {
+				addrs := rxAddrSplit.Split(peer.Addresses, -1)
+				self.AutoconnectPeers = append(self.AutoconnectPeers, addrs...)
+			}
+		}
+	}); err != nil {
+		return err
+	}
 
 	return nil
 }

@@ -122,6 +122,9 @@ var AuthorizedPeersSchema = dal.Collection{
 		}, {
 			Name: `group`,
 			Type: dal.StringType,
+		}, {
+			Name: `addresses`,
+			Type: dal.StringType,
 		},
 	},
 }
