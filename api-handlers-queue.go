@@ -56,15 +56,23 @@ func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
 		if err := db.Metadata.Get(fileId, &file); err == nil {
 			if absPath, err := file.GetAbsolutePath(); err == nil {
 				if osFile, err := os.Open(absPath); err == nil {
-					io.Copy(w, osFile)
+					if n, err := io.Copy(w, osFile); err == nil {
+						log.Debugf("Transferred %d bytes", n)
+					} else {
+						log.Error(err)
+						w.WriteHeader(http.StatusInternalServerError)
+					}
 				} else {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+					log.Error(err)
+					w.WriteHeader(http.StatusInternalServerError)
 				}
 			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				log.Error(err)
+				w.WriteHeader(http.StatusInternalServerError)
 			}
 		} else {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			log.Error(err)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	}
 }

@@ -9,10 +9,11 @@ import (
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/jbenet/go-base58"
 	"github.com/op/go-logging"
+	"github.com/orcaman/concurrent-map"
 	"net"
 	"net/http"
 	"regexp"
-	"sync"
+	"strings"
 	"time"
 )
 
@@ -58,8 +59,7 @@ type LocalPeer struct {
 	autoReceiveMessages  bool
 	port                 int
 	upnpPortMapping      *PortMapping
-	sessions             map[string]*RemotePeer
-	sessionLock          sync.RWMutex
+	sessions             cmap.ConcurrentMap
 	listening            chan bool
 	peerServer           *PeerServer
 	peerRequestHandler   http.Handler
@@ -73,7 +73,7 @@ func NewLocalPeer() *LocalPeer {
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
 		autoReceiveMessages:  true,
-		sessions:             make(map[string]*RemotePeer),
+		sessions:             cmap.New(),
 		listening:            make(chan bool),
 	}
 }
@@ -300,14 +300,13 @@ func (self *LocalPeer) RunPeerServer() error {
 func (self *LocalPeer) GetPeersByKey(publicKey []byte) []*RemotePeer {
 	peers := make([]*RemotePeer, 0)
 
-	self.sessionLock.RLock()
-	defer self.sessionLock.RUnlock()
-
-	for _, remotePeer := range self.sessions {
-		if bytes.Compare(publicKey, remotePeer.GetPublicKey()) == 0 {
-			peers = append(peers, remotePeer)
+	self.sessions.IterCb(func(id string, v interface{}) {
+		if remotePeer, ok := v.(*RemotePeer); ok {
+			if bytes.Compare(publicKey, remotePeer.GetPublicKey()) == 0 {
+				peers = append(peers, remotePeer)
+			}
 		}
-	}
+	})
 
 	return peers
 }
@@ -378,9 +377,7 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 				nil,
 			)
 
-			self.sessionLock.Lock()
-			self.sessions[remotePeer.SessionID()] = remotePeer
-			self.sessionLock.Unlock()
+			self.sessions.Set(remotePeer.SessionID(), remotePeer)
 
 			// setup download rate limiting
 			if self.DownloadCap > 0 {
@@ -409,33 +406,33 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 }
 
 func (self *LocalPeer) GetSessions() []*RemotePeer {
-	self.sessionLock.RLock()
-	defer self.sessionLock.RUnlock()
-
 	peers := make([]*RemotePeer, 0)
 
-	for _, peer := range self.sessions {
-		peers = append(peers, peer)
-	}
+	self.sessions.IterCb(func(id string, v interface{}) {
+		if peer, ok := v.(*RemotePeer); ok {
+			peers = append(peers, peer)
+		}
+	})
 
 	return peers
 }
 
 func (self *LocalPeer) GetSession(sessionOrName string) (*RemotePeer, bool) {
-	self.sessionLock.RLock()
-	defer self.sessionLock.RUnlock()
-
-	if p, ok := self.sessions[sessionOrName]; ok {
-		return p, true
+	if v, ok := self.sessions.Get(sessionOrName); ok {
+		if peer, ok := v.(*RemotePeer); ok {
+			return peer, true
+		}
 	}
 
 	remotePeers := make([]*RemotePeer, 0)
 
-	for _, peer := range self.sessions {
-		if peer.Name == sessionOrName {
-			remotePeers = append(remotePeers, peer)
+	self.sessions.IterCb(func(id string, v interface{}) {
+		if peer, ok := v.(*RemotePeer); ok {
+			if peer.Name == sessionOrName {
+				remotePeers = append(remotePeers, peer)
+			}
 		}
-	}
+	})
 
 	if len(remotePeers) == 1 {
 		return remotePeers[0], true
@@ -445,9 +442,8 @@ func (self *LocalPeer) GetSession(sessionOrName string) (*RemotePeer, bool) {
 }
 
 func (self *LocalPeer) RemovePeer(sessionId string) {
-	self.sessionLock.RLock()
-	remotePeer, ok := self.sessions[sessionId]
-	self.sessionLock.RUnlock()
+	v, ok := self.sessions.Get(sessionId)
+	remotePeer, ok := v.(*RemotePeer)
 
 	if ok {
 		log.Errorf("Disconnected from %s", remotePeer.String())
@@ -456,11 +452,9 @@ func (self *LocalPeer) RemovePeer(sessionId string) {
 			log.Errorf("Error disconnecting from peer: %v", err)
 		}
 
-		self.sessionLock.Lock()
-		delete(self.sessions, sessionId)
-		self.sessionLock.Unlock()
+		self.sessions.Remove(sessionId)
 
-		log.Debugf("%d peers registered", len(self.sessions))
+		log.Debugf("%d peers registered", self.sessions.Count())
 	}
 }
 
@@ -494,6 +488,10 @@ func (self *LocalPeer) ConnectTo(address string) (*RemotePeer, error) {
 }
 
 func (self *LocalPeer) ConnectToAndMonitor(address string) {
+	if strings.TrimSpace(address) == `` {
+		return
+	}
+
 	retryWaitSec := 1
 	retries := 0
 

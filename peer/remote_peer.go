@@ -7,6 +7,7 @@ import (
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/jbenet/go-base58"
+	"github.com/orcaman/concurrent-map"
 	"github.com/satori/go.uuid"
 	"io"
 	"net"
@@ -40,8 +41,7 @@ type RemotePeer struct {
 	HeartbeatInterval     time.Duration
 	HeartbeatAckTimeout   time.Duration
 	messageFn             MessageHandler
-	inboundTransfers      map[uuid.UUID]*Transfer
-	inboundTransferLock   sync.RWMutex
+	inboundTransfers      cmap.ConcurrentMap
 	connection            *net.TCPConn
 	publicKey             []byte
 	readLimiter           *util.RateLimitingReadWriter
@@ -51,7 +51,7 @@ type RemotePeer struct {
 	badMessageCount       int
 	originalRequest       *PeeringRequest
 	messagesAwaitingReply map[uuid.UUID]chan *Message
-	messageReplyLock      sync.RWMutex
+	messageReplyLock      sync.Mutex
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
@@ -63,7 +63,7 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 			publicKey:             request.PublicKey,
 			connection:            connection,
 			originalRequest:       request,
-			inboundTransfers:      make(map[uuid.UUID]*Transfer),
+			inboundTransfers:      cmap.New(),
 			messagesAwaitingReply: make(map[uuid.UUID]chan *Message),
 		}, nil
 	} else {
@@ -173,17 +173,14 @@ func (self *RemotePeer) Heartbeat() error {
 // Disconnect from this peer and close the connection.
 //
 func (self *RemotePeer) Disconnect() error {
-	self.inboundTransferLock.RLock()
-	ids := make([]uuid.UUID, 0)
-	for id, _ := range self.inboundTransfers {
-		ids = append(ids, id)
-	}
-	self.inboundTransferLock.RUnlock()
+	self.inboundTransfers.IterCb(func(id string, v interface{}) {
+		if transfer, ok := v.(*Transfer); ok {
+			log.Infof("Stopping transfer %v", id)
+			transfer.Complete(fmt.Errorf("terminated due to disconnect"))
+		}
 
-	for _, id := range ids {
-		log.Infof("Stopping transfer %v", id)
-		self.RemoveInboundTransfer(id)
-	}
+		self.inboundTransfers.Remove(id)
+	})
 
 	return self.connection.Close()
 }
@@ -288,33 +285,25 @@ func (self *RemotePeer) RemoveMessageReply(id uuid.UUID) {
 // accepted.
 func (self *RemotePeer) CreateInboundTransfer(size uint64) *Transfer {
 	transfer := NewTransfer(self, size)
-
-	self.inboundTransferLock.Lock()
-	self.inboundTransfers[transfer.ID] = transfer
-	self.inboundTransferLock.Unlock()
+	self.inboundTransfers.Set(transfer.ID.String(), transfer)
 
 	return transfer
 }
 
 // Retrieves an in-progress inbound transfer in a thread safe manner.
 func (self *RemotePeer) GetInboundTransfer(id uuid.UUID) (*Transfer, bool) {
-	self.inboundTransferLock.RLock()
-	transfer, ok := self.inboundTransfers[id]
-	self.inboundTransferLock.RUnlock()
-	return transfer, ok
+	if v, ok := self.inboundTransfers.Get(id.String()); ok {
+		if transfer, ok := v.(*Transfer); ok {
+			return transfer, true
+		}
+	}
+
+	return nil, false
 }
 
 // Removes an inbound transfer by ID in a thread safe manner.
 func (self *RemotePeer) RemoveInboundTransfer(id uuid.UUID) {
-	self.inboundTransferLock.RLock()
-	if transfer, ok := self.inboundTransfers[id]; ok {
-		transfer.Complete(fmt.Errorf("terminated"))
-	}
-	self.inboundTransferLock.RUnlock()
-
-	self.inboundTransferLock.Lock()
-	delete(self.inboundTransfers, id)
-	self.inboundTransferLock.Unlock()
+	self.inboundTransfers.Remove(id.String())
 }
 
 // Starts an outbound transfer. If a non-zero size is specified, the receiving peer will
@@ -404,8 +393,10 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 	log.Noticef("Connected to %s (Session ID: %s)", self.String(), self.SessionID())
 
 	// any condition that causes this function to return should also cause a disconnect
-	defer self.Disconnect()
-	defer localPeer.RemovePeer(self.SessionID())
+	defer func() {
+		self.Disconnect()
+		localPeer.RemovePeer(self.SessionID())
+	}()
 
 	for {
 		if message, err := self.receiveMessagesIterate(localPeer); err == nil {
@@ -413,11 +404,14 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 				self.messageFn(message)
 			}
 		} else {
+			log.Errorf("protocol error: %v", err)
 			return err
 		}
 	}
 
-	return fmt.Errorf("Protocol Error")
+	err := fmt.Errorf("protocol error: unknown")
+	log.Error(err)
+	return err
 }
 
 func (self *RemotePeer) receiveMessagesIterate(localPeer *LocalPeer) (*Message, error) {
@@ -438,14 +432,17 @@ func (self *RemotePeer) receiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 					v = 0
 				}
 
-				// check that the data size we're receiving is what we were expecting
-				if v == transfer.ExpectedSize {
+				// only perform size check if we're expecting a specific amount of data
+				if transfer.ExpectedSize == 0 || v == transfer.ExpectedSize {
 					// TODO: local can reject by sending DataTerminate w/ an optional string reason
 					//       based on a to-be-determined file receive policy
 
 					// give peer the go-ahead to start writing data
 					_, replyErr = self.SendMessage(NewGroupedMessage(message.GroupID, DataProceed, nil))
 				} else {
+					// terminate our transfer with the error
+					transfer.Complete(fmt.Errorf("invalid transfer size (%d != %d)", v, transfer.ExpectedSize))
+
 					if m, err := NewMessageEncoded(DataTerminate, "invalid transfer size", StringEncoding); err == nil {
 						m.GroupID = message.GroupID
 						_, replyErr = self.SendMessage(m)
@@ -476,7 +473,7 @@ func (self *RemotePeer) receiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 			}
 
 			if replyErr != nil {
-				if m, err := NewMessageEncoded(DataTerminate, err.Error(), StringEncoding); err == nil {
+				if m, err := NewMessageEncoded(DataTerminate, replyErr.Error(), StringEncoding); err == nil {
 					_, replyErr = self.SendMessage(m)
 				} else {
 					replyErr = err
@@ -534,9 +531,9 @@ func (self *RemotePeer) receiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 		}
 
 		// if this message ID is being waited on, dispatch it
-		self.messageReplyLock.RLock()
+		self.messageReplyLock.Lock()
 		replyChan, ok := self.messagesAwaitingReply[message.GroupID]
-		self.messageReplyLock.RUnlock()
+		self.messageReplyLock.Unlock()
 
 		if ok {
 			select {

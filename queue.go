@@ -7,6 +7,7 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot/dal"
+	"github.com/satori/go.uuid"
 	"io"
 	"io/ioutil"
 	"os"
@@ -135,39 +136,9 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 
 			// no matter what, we're done with this transfer when this function returns
 			defer func() {
+				log.Debugf("[%s] Removing transfer", transfer.ID)
 				remotePeer.RemoveInboundTransfer(transfer.ID)
 			}()
-
-			// poll transfer and update stats and status
-			go func(item *QueuedDownload, t *peer.Transfer) {
-				for {
-					if t.IsFinished() {
-						log.Debugf("[%v] Transfer finished", t.ID)
-						return
-					}
-
-					if t.ExpectedSize > 0 {
-						if t.BytesReceived >= t.ExpectedSize {
-							item.Progress = 1.0
-						} else {
-							item.Progress = float64(t.BytesReceived) / float64(t.ExpectedSize)
-						}
-					}
-
-					item.Status = `downloading`
-					item.Size = t.BytesReceived
-
-					time.Sleep(time.Second)
-
-					if item.lastByteSize > 0 {
-						item.Rate = (t.BytesReceived - item.lastByteSize)
-					}
-
-					item.lastByteSize = t.BytesReceived
-
-					log.Debugf("[%v] Progress: %g, %d bytes", t.ID, item.Progress, item.lastByteSize)
-				}
-			}(self, transfer)
 
 			// ask the remote side to start sending data
 			if response, err := remotePeer.ServiceRequest(
@@ -179,7 +150,24 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 				// if all goes well, block until the download succeeds or fails
 				if response.StatusCode < 400 {
 					// wait for the transfer to complete
-					if err := transfer.Wait(); err == nil {
+					if err := transfer.Wait(func(id uuid.UUID, bytesReceived uint64, expectedSize uint64) {
+						if expectedSize > 0 {
+							if bytesReceived >= expectedSize {
+								self.Progress = 1.0
+							} else {
+								self.Progress = float64(bytesReceived) / float64(expectedSize)
+							}
+						}
+
+						self.Status = `downloading`
+						self.Size = bytesReceived
+
+						if self.lastByteSize > 0 {
+							self.Rate = (bytesReceived - self.lastByteSize)
+						}
+
+						self.lastByteSize = bytesReceived
+					}); err == nil {
 						self.Progress = 1.0
 						self.Status = `completed`
 						self.Size = transfer.BytesReceived

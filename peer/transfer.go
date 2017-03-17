@@ -12,6 +12,8 @@ import (
 
 var TransferWriteTimeout = 10 * time.Second
 
+type TransferStatusFunc func(id uuid.UUID, bytesReceived uint64, expectedSize uint64) // {}
+
 // A Transfer represents the transfer of data from a remote peer to the local peer instance. Transfers can
 // have an expected size, or be unbounded.  For bounded transfers, checks are performed to ensure that the
 // transfer will terminate if the data written exceeds the expected amount, as well as calculating a
@@ -31,6 +33,7 @@ type Transfer struct {
 	completed        chan error
 	lastDataReceived time.Time
 	dataTimer        *time.Timer
+	statusFuncs      []TransferStatusFunc
 }
 
 func NewTransfer(peer *RemotePeer, size uint64) *Transfer {
@@ -40,6 +43,7 @@ func NewTransfer(peer *RemotePeer, size uint64) *Transfer {
 		ExpectedSize: size,
 		hasher:       sha256.New(),
 		completed:    make(chan error),
+		statusFuncs:  make([]TransferStatusFunc, 0),
 	}
 }
 
@@ -49,7 +53,8 @@ func (self *Transfer) SetWriter(w io.Writer) {
 }
 
 // Block until the transfer is completed (successfully or otherwise).
-func (self *Transfer) Wait() error {
+func (self *Transfer) Wait(statusFuncs ...TransferStatusFunc) error {
+	self.statusFuncs = append(self.statusFuncs, statusFuncs...)
 	err := <-self.completed
 	return err
 }
@@ -95,6 +100,11 @@ func (self *Transfer) Write(p []byte) (int, error) {
 
 	// write the block to the rolling checksum
 	hashN, err := self.hasher.Write(p)
+
+	// call all registered status functions to tell them a write just occurred
+	for _, statusFunc := range self.statusFuncs {
+		statusFunc(self.ID, self.BytesReceived, self.ExpectedSize)
+	}
 
 	// if a destination writer is set, write the data there
 	if self.destination != nil {
