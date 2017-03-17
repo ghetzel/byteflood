@@ -2,6 +2,8 @@ package db
 
 import (
 	"fmt"
+	"github.com/ghetzel/byteflood/db/metadata"
+	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot"
 	"github.com/ghetzel/pivot/backends"
@@ -10,19 +12,19 @@ import (
 	"github.com/ghetzel/pivot/mapper"
 	"github.com/op/go-logging"
 	"os"
+	"regexp"
 	"strings"
-	"time"
 )
 
-var log = logging.MustGetLogger(`byteflood/scanner`)
+var log = logging.MustGetLogger(`byteflood/db`)
 
-var Metadata *mapper.Model
-var Shares *mapper.Model
-var Downloads *mapper.Model
-var AuthorizedPeers *mapper.Model
-var System *mapper.Model
-var ScannedDirectories *mapper.Model
-var Subscriptions *mapper.Model
+var Metadata mapper.Mapper
+var Shares mapper.Mapper
+var Downloads mapper.Mapper
+var AuthorizedPeers mapper.Mapper
+var System mapper.Mapper
+var ScannedDirectories mapper.Mapper
+var Subscriptions mapper.Mapper
 
 var DefaultGlobalExclusions = []string{
 	`._.DS_Store`,
@@ -35,26 +37,33 @@ var DefaultGlobalExclusions = []string{
 	`Thumbs.db`,
 }
 
+var DefaultBaseDirectory = `~/.config/byteflood`
+var AdminUserName = `admin`
+
 type Database struct {
-	URI              string   `json:"uri,omitempty"`
-	Indexer          string   `json:"indexer,omitempty"`
-	ScanInProgress   bool     `json:"scan_in_progress"`
-	GlobalExclusions []string `json:"global_exclusions,omitempty"`
-	ForceRescan      bool
-	db               backends.Backend
+	BaseDirectory      string            `json:"base_dir"`
+	URI                string            `json:"uri,omitempty"`
+	Indexer            string            `json:"indexer,omitempty"`
+	AdditionalIndexers map[string]string `json:"additional_indexers,omitempty"`
+	GlobalExclusions   []string          `json:"global_exclusions,omitempty"`
+	ScanInProgress     bool              `json:"scan_in_progress"`
+	ExtractFields      []string          `json:"extract_fields,omitempty"`
+	db                 backends.Backend
 }
 
-type KV struct {
+type Property struct {
 	Key   string      `json:"key,identity"`
 	Value interface{} `json:"value"`
 }
 
 func NewDatabase() *Database {
-	return &Database{
-		URI: `sqlite:///~/.config/byteflood/info.db`,
-		// Indexer:          `bleve:///~/.config/byteflood/index`,
-		GlobalExclusions: DefaultGlobalExclusions,
+	db := &Database{
+		BaseDirectory:      DefaultBaseDirectory,
+		GlobalExclusions:   DefaultGlobalExclusions,
+		AdditionalIndexers: make(map[string]string),
 	}
+
+	return db
 }
 
 func ParseFilter(spec interface{}, fmtvalues ...interface{}) (filter.Filter, error) {
@@ -78,12 +87,22 @@ func ParseFilter(spec interface{}, fmtvalues ...interface{}) (filter.Filter, err
 func (self *Database) Initialize() error {
 	filter.CriteriaSeparator = `;`
 	filter.FieldTermSeparator = `=`
+	filter.QueryUnescapeValues = true
 
 	// reuse the "json:" struct tag for loading dal.Record into/out of structs
 	dal.RecordStructTag = `json`
 
+	if self.URI == `` {
+		self.URI = fmt.Sprintf("sqlite:///%s/info.db", self.BaseDirectory)
+	}
+
+	if _, ok := self.AdditionalIndexers[`metadata`]; !ok {
+		self.AdditionalIndexers[`metadata`] = fmt.Sprintf("bleve:///%s/index", self.BaseDirectory)
+	}
+
 	if db, err := pivot.NewDatabaseWithOptions(self.URI, backends.ConnectOptions{
-		Indexer: self.Indexer,
+		Indexer:            self.Indexer,
+		AdditionalIndexers: self.AdditionalIndexers,
 	}); err == nil {
 		self.db = db
 	} else {
@@ -94,6 +113,14 @@ func (self *Database) Initialize() error {
 		return err
 	}
 
+	for _, pattern := range self.ExtractFields {
+		if rx, err := regexp.Compile(pattern); err == nil {
+			metadata.RegexpPatterns = append(metadata.RegexpPatterns, rx)
+		} else {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -101,126 +128,7 @@ func (self *Database) AddGlobalExclusions(patterns ...string) {
 	self.GlobalExclusions = append(self.GlobalExclusions, patterns...)
 }
 
-// Query records in the given collection
-func (self *Database) Query(collectionName string, f filter.Filter) (*dal.RecordSet, error) {
-	if index := self.db.WithSearch(); index != nil {
-		return index.Query(collectionName, f)
-	} else {
-		return nil, fmt.Errorf("Backend type %T does not support searching", self.db)
-	}
-}
-
-// List distinct values from the given collection
-func (self *Database) List(collectionName string, fields []string, f filter.Filter) (map[string][]interface{}, error) {
-	if index := self.db.WithSearch(); index != nil {
-		return index.ListValues(collectionName, fields, f)
-	} else {
-		return nil, fmt.Errorf("Backend type %T does not support searching", self.db)
-	}
-}
-
-// Return whethere a metadata record with the given ID exists
-func (self *Database) RecordExists(id string) bool {
-	return self.db.Exists(MetadataSchema.Name, id)
-}
-
-// Retrieve a metadata record by ID
-func (self *Database) RetrieveRecord(id string) (*dal.Record, error) {
-	if record, err := self.db.Retrieve(MetadataSchema.Name, id); err == nil {
-		return record, nil
-	} else {
-		return nil, err
-	}
-}
-
-// Save a given metadata record
-func (self *Database) PersistRecord(id string, data map[string]interface{}) error {
-	if self.RecordExists(id) {
-		return self.db.Update(MetadataSchema.Name, dal.NewRecordSet(
-			dal.NewRecord(id).SetFields(data),
-		))
-	} else {
-		return self.db.Insert(MetadataSchema.Name, dal.NewRecordSet(
-			dal.NewRecord(id).SetFields(data),
-		))
-	}
-}
-
-// Delete metadata records that match the given set of IDs
-func (self *Database) DeleteRecords(ids ...string) error {
-	return self.db.Delete(MetadataSchema.Name, ids)
-}
-
-// Query records from the metadata collection
-func (self *Database) QueryMetadata(filterString string) (*dal.RecordSet, error) {
-	if f, err := ParseFilter(filterString); err == nil {
-		return self.Query(MetadataSchema.Name, f)
-	} else {
-		return nil, err
-	}
-}
-
-// Lists distinct values of the given field from the metadata collection.
-func (self *Database) ListMetadata(fields []string, f ...filter.Filter) (map[string][]interface{}, error) {
-	var ft filter.Filter
-
-	if len(f) > 0 {
-		ft = f[0]
-	} else {
-		ft = filter.All
-	}
-
-	return self.List(MetadataSchema.Name, fields, ft)
-}
-
-func (self *Database) PropertySet(key string, value interface{}, fields ...map[string]interface{}) error {
-	record := dal.NewRecord(key)
-
-	if len(fields) > 0 {
-		record.SetFields(fields[0])
-	}
-
-	record.Set(`key`, key)
-	record.Set(`value`, value)
-
-	return System.Create(record)
-}
-
-func (self *Database) PropertyGet(key string, fallback ...interface{}) interface{} {
-	var kv KV
-
-	if err := System.Get(key, &kv); err == nil && kv.Value != nil {
-		return kv.Value
-	} else {
-		if len(fallback) > 0 {
-			return fallback[0]
-		} else {
-			return nil
-		}
-	}
-}
-
-func (self *Database) GetFileAbsolutePath(id string) (string, error) {
-	if Metadata.Exists(id) {
-		if v := self.PropertyGet(fmt.Sprintf("metadata.paths.%s", id)); v != nil {
-			absPath := fmt.Sprintf("%v", v)
-
-			if _, err := os.Stat(absPath); err == nil {
-				return absPath, nil
-			}
-		}
-
-		return ``, fmt.Errorf("invalid entry")
-	} else {
-		return ``, fmt.Errorf("file %s does not exist", id)
-	}
-}
-
-func (self *Database) Scan(labels ...string) error {
-	defer func() {
-		self.ForceRescan = false
-	}()
-
+func (self *Database) Scan(deep bool, labels ...string) error {
 	if self.ScanInProgress {
 		log.Warningf("Another scan is already running")
 		return fmt.Errorf("Scan already running")
@@ -231,33 +139,31 @@ func (self *Database) Scan(labels ...string) error {
 		}()
 	}
 
-	// get this before performing the scan so that all scanned files will necessarily
-	// be greater than it, except for DST/leap second events that happen at *just* the right
-	// time, at which point this is still harmless, but I wanted you to know I thought of that :)
-	minLastSeen := time.Now().UnixNano()
-
 	var scannedDirectories []Directory
 
 	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
 		for _, directory := range scannedDirectories {
+			directory.DeepScan = deep
+
 			if len(labels) > 0 {
 				skip := true
 
 				for _, label := range labels {
-					if directory.Label == stringutil.Underscore(label) {
+					if directory.ID == stringutil.Underscore(label) {
 						skip = false
 						break
 					}
 				}
 
 				if skip {
-					log.Debugf("Skipping directory %s [%s]", directory.Path, directory.Label)
+					log.Debugf("Skipping directory %s [%s]", directory.Path, directory.ID)
 					continue
 				}
 			}
 
 			if err := directory.Initialize(self); err == nil {
-				log.Debugf("Scanning directory %s [%s]", directory.Path, directory.Label)
+				log.Debugf("Scanning directory %s [%s]", directory.Path, directory.ID)
+
 				if err := directory.Scan(); err != nil {
 					return err
 				}
@@ -265,11 +171,58 @@ func (self *Database) Scan(labels ...string) error {
 				return err
 			}
 		}
+
+		if err := self.cleanupMissingFiles(); err != nil {
+			return err
+		}
 	} else {
 		return err
 	}
 
-	return self.PropertySet(`metadata.last_scan`, minLastSeen)
+	return nil
+}
+
+func (self *Database) cleanupMissingFiles() error {
+	var scannedDirectories []Directory
+	var ids []string
+
+	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
+		for _, dir := range scannedDirectories {
+			ids = append(ids, dir.ID)
+		}
+	} else {
+		return err
+	}
+
+	filesToDelete := make([]interface{}, 0)
+
+	log.Debugf("Cleaning up...")
+
+	if err := Metadata.Each(File{}, func(fileI interface{}) {
+		if file, ok := fileI.(*File); ok {
+			if !sliceutil.ContainsString(ids, file.Label) {
+				filesToDelete = append(filesToDelete, file.ID)
+			} else if absPath, err := file.GetAbsolutePath(); err == nil {
+				if _, err := os.Stat(absPath); os.IsNotExist(err) {
+					filesToDelete = append(filesToDelete, file.ID)
+				}
+			}
+		}
+	}); err == nil {
+		if l := len(filesToDelete); l > 0 {
+			if err := Metadata.Delete(filesToDelete...); err == nil {
+				log.Infof("Removed %d file entries", l)
+			} else {
+				log.Warningf("Failed to cleanup missing files: %v", err)
+			}
+		}
+
+		log.Infof("Database cleanup finished, processed %d files.", len(filesToDelete))
+
+		return nil
+	} else {
+		return err
+	}
 }
 
 func (self *Database) setupSchemata() error {
@@ -281,7 +234,7 @@ func (self *Database) setupSchemata() error {
 	Subscriptions = mapper.NewModel(self.db, SubscriptionsSchema)
 	System = mapper.NewModel(self.db, SystemSchema)
 
-	models := []*mapper.Model{
+	models := []mapper.Mapper{
 		AuthorizedPeers,
 		Downloads,
 		Metadata,

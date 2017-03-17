@@ -2,6 +2,7 @@ package byteflood
 
 import (
 	"encoding/json"
+	"github.com/ghetzel/byteflood/db"
 	"github.com/husobee/vestigo"
 	"github.com/satori/go.uuid"
 	"io"
@@ -94,17 +95,23 @@ func (self *API) handleGetSessionStatus(w http.ResponseWriter, req *http.Request
 func (self *API) handleRequestFileFromShare(w http.ResponseWriter, req *http.Request) {
 	// get remote peer from proxied request
 	if remotePeer, ok := self.application.LocalPeer.GetSession(req.Header.Get(`X-Byteflood-Session`)); ok {
-		// get the absolute filesystem path to the file at :id
-		if absPath, err := self.application.Database.GetFileAbsolutePath(vestigo.Param(req, `file`)); err == nil {
-			// parse the given :transfer UUID
-			if transferId, err := uuid.FromString(vestigo.Param(req, `transfer`)); err == nil {
-				// kick off the transfer on our end
-				// TODO: this should be entered into an upload queue
-				// self.application.QueueUpload(remotePeer, transferId, absPath)
-				go remotePeer.TransferFile(transferId, absPath)
-				http.Error(w, ``, http.StatusNoContent)
+		var file db.File
+
+		if err := db.Metadata.Get(vestigo.Param(req, `file`), &file); err == nil {
+			// get the absolute filesystem path to the file at :id
+			if absPath, err := file.GetAbsolutePath(); err == nil {
+				// parse the given :transfer UUID
+				if transferId, err := uuid.FromString(vestigo.Param(req, `transfer`)); err == nil {
+					// kick off the transfer on our end
+					// TODO: this should be entered into an upload queue
+					// self.application.QueueUpload(remotePeer, transferId, absPath)
+					go remotePeer.TransferFile(transferId, absPath)
+					http.Error(w, ``, http.StatusNoContent)
+				} else {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+				}
 			} else {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, err.Error(), http.StatusNotFound)
 			}
 		} else {
 			http.Error(w, err.Error(), http.StatusNotFound)

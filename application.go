@@ -39,20 +39,20 @@ func NewApplicationFromConfig(configFile string) (*Application, error) {
 	if configFilePath, err := pathutil.ExpandUser(configFile); err == nil {
 		if file, err := os.Open(configFilePath); err == nil {
 			if data, err := ioutil.ReadAll(file); err == nil {
-				if err := yaml.Unmarshal(data, app); err == nil {
-					return app, nil
-				} else {
+				if err := yaml.Unmarshal(data, app); err != nil {
 					return nil, err
 				}
 			} else {
 				return nil, err
 			}
-		} else {
+		} else if !os.IsNotExist(err) {
 			return nil, err
 		}
 	} else {
 		return nil, err
 	}
+
+	return app, nil
 }
 
 func (self *Application) Initialize() error {
@@ -138,8 +138,8 @@ func (self *Application) Stop() {
 	<-self.LocalPeer.Stop()
 }
 
-func (self *Application) Scan(labels ...string) error {
-	return self.Database.Scan(labels...)
+func (self *Application) Scan(deep bool, labels ...string) error {
+	return self.Database.Scan(deep, labels...)
 }
 
 func (self *Application) GetShareByName(name string) (*shares.Share, bool) {

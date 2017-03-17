@@ -3,6 +3,8 @@
 all: fmt deps build bundle
 
 deps:
+	@go list github.com/mjibson/esc || go get github.com/mjibson/esc/...
+	go generate -x
 	go get .
 
 clean-bundle:

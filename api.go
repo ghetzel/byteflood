@@ -1,12 +1,14 @@
 package byteflood
 
+//go:generate esc -o static.go -pkg byteflood -prefix ui ui
+
 import (
 	"fmt"
+	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/diecast"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/husobee/vestigo"
 	"github.com/urfave/negroni"
-	// "html/template"
 	"net/http"
 	"strings"
 )

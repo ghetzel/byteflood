@@ -2,6 +2,7 @@ package db
 
 import (
 	"crypto/sha256"
+	"encoding/base32"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -9,16 +10,17 @@ import (
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
-	"github.com/jbenet/go-base58"
 	"github.com/spaolacci/murmur3"
 	"io"
 	"math/big"
 	"os"
+	"path"
 	"strings"
 )
 
 const FileFingerprintSize = 16777216
 
+var MetadataEncoding = base32.NewEncoding(`abcdefghijklmnopqrstuvwxyz234567`)
 var MaxChildEntries = 10000
 
 type File struct {
@@ -26,7 +28,7 @@ type File struct {
 	RelativePath   string                 `json:"name"`
 	Parent         string                 `json:"parent,omitempty"`
 	Checksum       string                 `json:"checksum,omitempty"`
-	Label          string                 `json:"label,omitempty"`
+	Label          string                 `json:"label"`
 	IsDirectory    bool                   `json:"directory"`
 	LastModifiedAt int64                  `json:"last_modified_at,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata"`
@@ -61,7 +63,13 @@ func (self *File) LoadMetadata() error {
 
 	for _, loader := range metadata.GetLoadersForFile(self.filename) {
 		if data, err := loader.LoadMetadata(self.filename); err == nil {
-			self.Metadata[self.normalizeLoaderName(loader)] = data
+			for k, v := range data {
+				if strings.Contains(k, `.`) {
+					maputil.DeepSet(self.Metadata, strings.Split(k, `.`), v)
+				} else {
+					self.Metadata[k] = v
+				}
+			}
 		} else {
 			log.Warningf("Problem loading %T for file %q: %v", loader, self.filename, err)
 		}
@@ -125,21 +133,15 @@ func (self *File) GenerateChecksum() (string, error) {
 	}
 }
 
-// func (self *File) getFingerprintData() ([]byte, error) {
-//  rv := bytes.NewBuffer()
+func (self *File) GetAbsolutePath() (string, error) {
+	var rootDirectory Directory
 
-//  if file, err := os.Open(self.filename); err == nil {
-//      fmt.Fprintf(rv, "%s:%d:", self.filename, self.Get(`file.size`, -1))
-
-//      if _, err := io.CopyN(rv, file, FileFingerprintSize); err == nil {
-//          return rv.Bytes(), nil
-//      }else{
-//          return nil, err
-//      }
-//  }else{
-//      return nil, err
-//  }
-// }
+	if err := ScannedDirectories.Get(self.Label, &rootDirectory); err == nil {
+		return path.Join(rootDirectory.Path, self.RelativePath), nil
+	} else {
+		return ``, err
+	}
+}
 
 func (self *File) Get(key string, fallback ...interface{}) interface{} {
 	if len(fallback) == 0 {
@@ -147,36 +149,6 @@ func (self *File) Get(key string, fallback ...interface{}) interface{} {
 	}
 
 	return maputil.DeepGet(self.Metadata, strings.Split(key, `.`), fallback[0])
-}
-
-func (self *File) normalizeLoaderName(loader metadata.Loader) string {
-	name := fmt.Sprintf("%T", loader)
-	name = strings.TrimPrefix(name, `metadata.`)
-	name = strings.TrimSuffix(name, `Loader`)
-
-	return stringutil.Underscore(name)
-}
-
-func (self *File) Walk(walkFn WalkFunc, filterStrings ...string) error {
-	if self.IsDirectory {
-		if err := walkFn(self.RelativePath, self, nil); err == nil {
-			if children, err := self.Children(filterStrings...); err == nil {
-				for _, child := range children {
-					if err := child.Walk(walkFn, filterStrings...); err != nil {
-						return err
-					}
-				}
-
-				return nil
-			} else {
-				return err
-			}
-		} else {
-			return err
-		}
-	} else {
-		return walkFn(self.RelativePath, self, nil)
-	}
 }
 
 func (self *File) GetManifest(fields []string, filterString string) (*Manifest, error) {
@@ -229,10 +201,43 @@ func (self *File) GetManifest(fields []string, filterString string) (*Manifest, 
 	return manifest, nil
 }
 
+func (self *File) normalizeLoaderName(loader metadata.Loader) string {
+	name := fmt.Sprintf("%T", loader)
+	name = strings.TrimPrefix(name, `metadata.`)
+	name = strings.TrimSuffix(name, `Loader`)
+
+	return stringutil.Underscore(name)
+}
+
+func (self *File) Walk(walkFn WalkFunc, filterStrings ...string) error {
+	if self.IsDirectory {
+		if err := walkFn(self.RelativePath, self, nil); err == nil {
+			if children, err := self.Children(filterStrings...); err == nil {
+				for _, child := range children {
+					if err := child.Walk(walkFn, filterStrings...); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			} else {
+				return err
+			}
+		} else {
+			return err
+		}
+	} else {
+		return walkFn(self.RelativePath, self, nil)
+	}
+}
+
 func FileIdFromName(label string, name string) string {
 	uid := fmt.Sprintf("%s:%s", label, name)
 	hash64 := murmur3.Sum64([]byte(uid[:]))
-	return base58.Encode(big.NewInt(int64(hash64)).Bytes())
+	return strings.TrimRight(
+		MetadataEncoding.EncodeToString(big.NewInt(int64(hash64)).Bytes()),
+		`=`,
+	)
 }
 
 func NormalizeFileName(root string, name string) string {

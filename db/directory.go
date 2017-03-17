@@ -5,8 +5,8 @@ import (
 	"github.com/alexcesaro/statsd"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
-	"github.com/ghetzel/go-stockutil/stringutil"
 	"io/ioutil"
+	"os"
 	"path"
 	"regexp"
 )
@@ -14,15 +14,14 @@ import (
 var stats, _ = statsd.New()
 
 type Directory struct {
-	ID                   int          `json:"id"`
+	ID                   string       `json:"id"`
 	Path                 string       `json:"path"`
 	Parent               string       `json:"parent"`
-	Label                string       `json:"label,omitempty"`
 	RootPath             string       `json:"-"`
 	FilePattern          string       `json:"file_patterns,omitempty"`
 	NoRecurseDirectories bool         `json:"no_recurse,omitempty"`
 	FileMinimumSize      int          `json:"min_file_size,omitempty"`
-	QuickScan            bool         `json:"quick_scan,omitempty"`
+	DeepScan             bool         `json:"deep_scan,omitempty"`
 	Checksum             bool         `json:"checksum"`
 	Directories          []*Directory `json:"-"`
 	db                   *Database
@@ -51,10 +50,6 @@ func (self *Directory) Initialize(db *Database) error {
 		}
 	}
 
-	if self.Label == `` {
-		self.Label = stringutil.Underscore(path.Base(self.Path))
-	}
-
 	if self.RootPath == `` {
 		self.RootPath = self.Path
 	}
@@ -79,20 +74,27 @@ func (self *Directory) Scan() error {
 					if dirEntry, err := self.indexFile(absPath, true); err == nil {
 						subdirectory := NewDirectory(self.db, absPath)
 
+						subdirectory.ID = self.ID
 						subdirectory.Parent = dirEntry.ID
-						subdirectory.Label = self.Label
 						subdirectory.RootPath = self.RootPath
 						subdirectory.FilePattern = self.FilePattern
 						subdirectory.NoRecurseDirectories = self.NoRecurseDirectories
 						subdirectory.FileMinimumSize = self.FileMinimumSize
-						subdirectory.QuickScan = self.QuickScan
+						subdirectory.DeepScan = self.DeepScan
 
-						log.Debugf("[%s] %s: Scanning subdirectory %s", self.Label, subdirectory.Parent, subdirectory.Path)
+						log.Infof("[%s] %s: Scanning subdirectory %s", self.ID, subdirectory.Parent, subdirectory.Path)
 
 						if err := subdirectory.Scan(); err == nil {
 							self.Directories = append(self.Directories, subdirectory)
 						} else {
 							return err
+						}
+
+						// cleanup files for whom we are the parent
+						if err := self.cleanupMissingFiles(map[string]interface{}{
+							`parent`: subdirectory.Parent,
+						}); err != nil {
+							log.Errorf("[%s] Failed to cleanup files under %s: %v", self.ID, subdirectory.Parent, err)
 						}
 					} else {
 						return err
@@ -129,7 +131,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	}
 
 	// get file implementation
-	file := NewFile(self.Label, self.RootPath, name)
+	file := NewFile(self.ID, self.RootPath, name)
 
 	// skip the file if it's in the global exclusions list (case sensitive exact match)
 	if sliceutil.ContainsString(self.db.GlobalExclusions, path.Base(name)) {
@@ -149,27 +151,30 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 		}
 	}
 
-	// unless we're forcing the scan, see if we can skip this file
-	// if !self.db.ForceRescan {
-	// 	if stat, err := os.Stat(name); err == nil {
-	// 		if record, err := self.db.RetrieveRecord(file.ID); err == nil {
-	// 			lastModifiedAt := record.Get(`last_modified_at`, int64(0))
+	if stat, err := os.Stat(name); err == nil {
+		file.LastModifiedAt = stat.ModTime().UnixNano()
 
-	// 			if epochNs, ok := lastModifiedAt.(int64); ok {
-	// 				if !stat.ModTime().After(time.Unix(0, epochNs)) {
-	// 					return file, nil
-	// 				}
-	// 			}
-	// 		}
+		// Deep scan: only proceed with loading metadata and updating the record if
+		//   - The file is new, or...
+		//   - The file exists but has been modified since we last saw it
+		//
+		if !self.DeepScan {
+			var existingFile File
 
-	// 		file.LastModifiedAt = stat.ModTime().UnixNano()
-	// 	} else {
-	// 		return nil, err
-	// 	}
-	// }
+			if err := Metadata.Get(file.ID, &existingFile); err == nil {
+				if file.LastModifiedAt == existingFile.LastModifiedAt {
+					return &existingFile, nil
+				}
+			}
+		}
+	}
+
+	// Deep Scan only from here on...
+	// --------------------------------------------------------------------------------------------
+	log.Infof("[%s] %s: Scanning file %s", self.ID, self.Parent, name)
 
 	file.Parent = self.Parent
-	file.Label = self.Label
+	file.Label = self.ID
 	file.IsDirectory = isDir
 
 	tm := stats.NewTiming()
@@ -197,12 +202,40 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	}
 
 	tm.Send(`byteflood.db.entry_persist_time`)
-	tm = stats.NewTiming()
-
-	// store the absolute filesystem path separately
-	self.db.PropertySet(fmt.Sprintf("metadata.paths.%s", file.ID), name)
-
-	tm.Send(`byteflood.db.entry_sysprop_time`)
 
 	return file, nil
+}
+
+func (self *Directory) cleanupMissingFiles(query interface{}) error {
+	var files []File
+
+	if f, err := ParseFilter(query); err == nil {
+		if err := Metadata.Find(f, &files); err == nil {
+			filesToDelete := make([]interface{}, 0)
+
+			for _, file := range files {
+				if absPath, err := file.GetAbsolutePath(); err == nil {
+					if _, err := os.Stat(absPath); os.IsNotExist(err) {
+						filesToDelete = append(filesToDelete, file.ID)
+					}
+				} else {
+					log.Warningf("[%s] Failed to cleanup missing file %s (%s)", self.ID, file.ID, file.RelativePath)
+				}
+			}
+
+			if l := len(filesToDelete); l > 0 {
+				if err := Metadata.Delete(filesToDelete...); err == nil {
+					log.Infof("[%s] Cleaned up %d missing files", self.ID, l)
+				} else {
+					log.Warningf("[%s] Failed to cleanup missing files: %v", self.ID, err)
+				}
+			}
+
+			return nil
+		} else {
+			return err
+		}
+	} else {
+		return err
+	}
 }

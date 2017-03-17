@@ -19,11 +19,11 @@ type FileLoader struct {
 	Loader
 }
 
-func (self FileLoader) CanHandle(_ string) bool {
-	return true
+func (self *FileLoader) CanHandle(_ string) Loader {
+	return self
 }
 
-func (self FileLoader) LoadMetadata(name string) (map[string]interface{}, error) {
+func (self *FileLoader) LoadMetadata(name string) (map[string]interface{}, error) {
 	if stat, err := os.Stat(name); err == nil {
 		mode := stat.Mode()
 		perms := map[string]interface{}{
@@ -66,7 +66,9 @@ func (self FileLoader) LoadMetadata(name string) (map[string]interface{}, error)
 			}
 		}
 
-		return metadata, nil
+		return map[string]interface{}{
+			`file`: metadata,
+		}, nil
 	} else {
 		return nil, err
 	}

@@ -2,7 +2,6 @@ package db
 
 import (
 	"fmt"
-	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot/dal"
 	"os"
 )
@@ -140,7 +139,8 @@ var SystemSchema = dal.Collection{
 }
 
 var ScannedDirectoriesSchema = dal.Collection{
-	Name: `scanned_directories`,
+	Name:              `scanned_directories`,
+	IdentityFieldType: dal.StringType,
 	Fields: []dal.Field{
 		{
 			Name:        `path`,
@@ -157,14 +157,6 @@ var ScannedDirectoriesSchema = dal.Collection{
 				}
 
 				return nil
-			},
-		}, {
-			Name:        `label`,
-			Description: `A short label what will be used to identify this group of files, typically for use with share filters.`,
-			Type:        dal.StringType,
-			Required:    true,
-			Formatter: func(value interface{}, _ dal.FieldOperation) (interface{}, error) {
-				return stringutil.Underscore(fmt.Sprintf("%v", value)), nil
 			},
 		}, {
 			Name: `file_pattern`,

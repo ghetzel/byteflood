@@ -63,27 +63,30 @@ type nfoMovieDetails struct {
 
 type MediaLoader struct {
 	Loader
+	nfoFileName string
 }
 
-func (self MediaLoader) CanHandle(name string) bool {
+func (self *MediaLoader) CanHandle(name string) Loader {
 	if nfoFileName := self.getNfoPath(name); nfoFileName != `` {
 		if _, err := os.Stat(nfoFileName); err == nil {
-			return true
+			return &MediaLoader{
+				nfoFileName: nfoFileName,
+			}
 		}
 	}
 
-	return false
+	return nil
 }
 
-func (self MediaLoader) LoadMetadata(name string) (map[string]interface{}, error) {
-	if nfoFileName := self.getNfoPath(name); nfoFileName != `` {
-		return self.parseMediaInfoFile(nfoFileName)
+func (self *MediaLoader) LoadMetadata(name string) (map[string]interface{}, error) {
+	if self.nfoFileName != `` {
+		return self.parseMediaInfoFile(self.nfoFileName)
 	}
 
 	return nil, nil
 }
 
-func (self MediaLoader) getNfoPath(name string) string {
+func (self *MediaLoader) getNfoPath(name string) string {
 	dir, base := path.Split(name)
 	ext := path.Ext(base)
 
@@ -94,7 +97,7 @@ func (self MediaLoader) getNfoPath(name string) string {
 	return ``
 }
 
-func (self MediaLoader) parseMediaInfoFile(name string) (map[string]interface{}, error) {
+func (self *MediaLoader) parseMediaInfoFile(name string) (map[string]interface{}, error) {
 	if file, err := os.Open(name); err == nil {
 		decoder := xml.NewDecoder(file)
 		rv := make(map[string]interface{})
@@ -134,7 +137,9 @@ func (self MediaLoader) parseMediaInfoFile(name string) (map[string]interface{},
 				}
 			}
 
-			return rv, nil
+			return map[string]interface{}{
+				`media`: rv,
+			}, nil
 		}
 
 		return nil, fmt.Errorf("Unrecognized MediaInfo file format at %q", name)

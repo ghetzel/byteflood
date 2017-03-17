@@ -18,10 +18,10 @@ import (
 var endpointModelMap = map[string]mapper.Mapper{}
 
 var endpointInstanceMap = map[string]reflect.Type{
-	`shares`:      reflect.TypeOf(db.Shares{}),
-	`peers`:       reflect.TypeOf(db.AuthorizedPeers{}),
-	`directories`: reflect.TypeOf(db.ScannedDirectories{}),
-	`downloads`:   reflect.TypeOf(db.Downloads{}),
+	`shares`:      reflect.TypeOf(shares.Share{}),
+	`peers`:       reflect.TypeOf(peer.RemotePeer{}),
+	`directories`: reflect.TypeOf(db.Directory{}),
+	`downloads`:   reflect.TypeOf(QueuedDownload{}),
 }
 
 func (self *API) handleStatus(w http.ResponseWriter, req *http.Request) {

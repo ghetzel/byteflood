@@ -7,7 +7,27 @@ bindings:
 ---
 <div class="col-sm-12 col-md-6">
     <form name="directories" method="POST" data-redirect-to="/database">
-        <input name="id" type="hidden" value="{{ .bindings.directory.id }}">
+        <div class="form-group">
+            <label for="id">
+                <b>Label</b>
+                <small><i>(required)</i></small>
+            </label>
+            <input
+                type="text"
+                class="form-control"
+                name="id"
+                aria-describedby="idHelp"
+                required
+                {{ if eq (or .request.url.query.id "new") "new" }}autofocus{{ else }}readonly{{ end }}
+                value="{{ .bindings.directory.id }}"
+            >
+
+            <small id="idHelp" class="form-text text-muted">
+                This is a value that will be used to logically group items imported from this path.  Shares
+                created with the same name (via a case insensitive "snake_case" match) and without specifying
+                a base filter will use this value to expose files.
+            </small>
+        </div>
 
         <div class="form-group">
             <label for="path"><b>Local Path</b> <small><i>(required)</i></small></label>
@@ -17,33 +37,12 @@ bindings:
                 name="path"
                 aria-describedby="pathHelp"
                 required
-                autofocus
+                {{ if ne (or .request.url.query.id "new") "new" }}autofocus{{ end }}
                 value="{{ .bindings.directory.path }}"
             >
 
             <small id="pathHelp" class="form-text text-muted">
                 This is the local filesystem path that should be scanned into the database.
-            </small>
-        </div>
-
-        <div class="form-group">
-            <label for="label">
-                <b>Label</b>
-                <small><i>(required)</i></small>
-            </label>
-            <input
-                type="text"
-                class="form-control"
-                name="label"
-                aria-describedby="labelHelp"
-                required
-                value="{{ .bindings.directory.label }}"
-            >
-
-            <small id="labelHelp" class="form-text text-muted">
-                This is a value that will be used to logically group items imported from this path.  Shares
-                created with the same name (via a case insensitive "snake_case" match) and without specifying
-                a base filter will use this value to expose files.
             </small>
         </div>
 

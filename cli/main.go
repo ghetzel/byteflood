@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood"
 	"github.com/ghetzel/byteflood/client"
+	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/cli"
@@ -87,11 +88,12 @@ func main() {
 				cli.StringFlag{
 					Name:  `address, a`,
 					Usage: `The address the client should listen on`,
-					Value: `0.0.0.0`,
+					Value: byteflood.DefaultApiAddress,
 				},
-				cli.IntFlag{
-					Name:  `port, p`,
-					Usage: `The port the client should listen on`,
+				cli.StringFlag{
+					Name:  `ui-dir`,
+					Usage: `The path to the UI directory.`,
+					Value: byteflood.DefaultUiDirectory,
 				},
 				cli.StringFlag{
 					Name:  `api-address`,
@@ -118,6 +120,9 @@ func main() {
 			},
 			Action: func(c *cli.Context) {
 				if app, err := createApplication(c); err == nil {
+					app.API.Address = c.String(`address`)
+					app.API.UiDirectory = c.String(`ui-dir`)
+
 					if err := app.Run(); err != nil {
 						log.Fatal(err)
 					}
@@ -130,15 +135,13 @@ func main() {
 			Usage: `Scans all configured source directories for changes`,
 			Flags: []cli.Flag{
 				cli.BoolFlag{
-					Name:  `force, F`,
-					Usage: `Force a rescan of all file metadata regardless of age.`,
+					Name:  `deep, D`,
+					Usage: `Force a deep scan of all file metadata regardless of age.`,
 				},
 			},
 			Action: func(c *cli.Context) {
 				if app, err := createApplication(c); err == nil {
-					app.Database.ForceRescan = c.Bool(`force`)
-
-					if err := app.Scan(c.Args()...); err != nil {
+					if err := app.Scan(c.Bool(`deep`), c.Args()...); err != nil {
 						log.Fatalf("Failed to scan: %v", err)
 					}
 				} else {
@@ -182,9 +185,11 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				if app, err := createApplication(c); err == nil {
+				if _, err := createApplication(c); err == nil {
 					if f, err := db.ParseFilter(strings.Join(c.Args(), `/`)); err == nil {
-						if rs, err := app.Database.Query(c.String(`db`), f); err == nil {
+						var rs dal.RecordSet
+
+						if err := db.Metadata.Find(f, &rs); err == nil {
 							printWithFormat(c.String(`format`), rs, func() {
 								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 

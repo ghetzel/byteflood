@@ -9,3 +9,4 @@
 *.key
 *.pub
 /tmp
+/static.go
