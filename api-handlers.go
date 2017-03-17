@@ -26,7 +26,8 @@ var endpointInstanceMap = map[string]reflect.Type{
 
 func (self *API) handleStatus(w http.ResponseWriter, req *http.Request) {
 	Respond(w, map[string]interface{}{
-		`version`: Version,
+		`version`:       Version,
+		`local_peer_id`: self.application.LocalPeer.ID(),
 	})
 }
 

@@ -1,7 +1,21 @@
 ---
 page:
   title: Peer Management
+
+bindings:
+- name: status
+  resource: :/api/status
 ---
+<div class="card">
+  <div class="card-header">
+    Your Peer ID
+  </div>
+
+  <div class="card-block">
+    <h2 class="card-text">{{ .bindings.status.local_peer_id }}</h2>
+  </div>
+</div>
+
 <div
   bf-load="/peers/_sessions"
   bf-interval="5000"

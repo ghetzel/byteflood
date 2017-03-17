@@ -11,52 +11,63 @@ bindings:
   on_error: print
 ---
 {{ $scanning := .bindings.db.scan_in_progress }}
-{{ if $scanning }}
-<div class="alert alert-info" role="alert">
-  A database scan is currently in progress.
-</div>
-{{ end }}
-
 <div class="card">
   <div class="card-header">
     Scanned Directories
   </div>
 
+  <nav class="navbar navbar-full navbar-light bg-faded">
+    <ul class="nav navbar-nav">
+      <li class="nav-item">
+        <a
+          class="nav-link"
+          href="/database/edit?id=new"
+          title="Add Directory"
+        >
+          <i class="fa fa-fw fa-folder"></i>
+          Add Directory
+        </a>
+      </li>
+    </ul>
+
+    <ul class="nav navbar-nav pull-right">
+      {{ if $scanning }}
+      <li class="nav-item">
+        <a class="nav-link">Scanning...</a>
+      </li>
+      {{ else }}
+      <li class="nav-item">
+        <a
+          class="nav-link {{ if $scanning }}disabled{{ end }}"
+          onclick="byteflood.scan()"
+        >
+          <i class="fa fa-search"></i>
+          Scan All
+        </a>
+      </li>
+      {{ end }}
+    </ul>
+  </nav>
+
   {{ if .bindings.directories }}
   <table class="table table-sm table-striped table-hover ">
     <thead>
       <tr>
-        <th>Label</th>
+        <th>ID</th>
         <th>Path</th>
         <th></th>
       </tr>
     </thead>
     <tbody>
-      <tr>
-        <td></td>
-        <td></td>
-        <td>
-          <span class="pull-right">
-            <button
-              class="btn btn-sm btn-primary"
-              onclick="byteflood.scan()"
-              {{ if $scanning }}disabled{{ end }}
-            >
-              <i class="fa fa-search"></i>
-              Scan All
-            </button>
-          </span>
-        </td>
-      </tr>
       {{ range .bindings.directories }}
       <tr>
-        <td>{{ .label }}</td>
+        <td>{{ .id }}</td>
         <td>{{ .path }}</td>
         <td>
           <span class="pull-right">
             <button
               class="btn btn-sm btn-success"
-              onclick="byteflood.scan('{{ .label }}')"
+              onclick="byteflood.scan('{{ .id }}')"
               {{ if $scanning }}disabled{{ end }}
             >
               <i class="fa fa-search"></i> Scan
@@ -80,15 +91,6 @@ bindings:
         </td>
       </tr>
       {{ end }}
-      <tr>
-        <td colspan="3">
-          <span class="pull-right">
-            <a class="btn btn-sm btn-success" href="/database/edit">
-              <i class="fa fa-plus"></i> Add Directory
-            </a>
-          </span>
-        </td>
-      </tr>
     </tbody>
   </table>
   {{ else }}
