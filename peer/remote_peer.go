@@ -363,6 +363,7 @@ func (self *RemotePeer) TransferData(id uuid.UUID, data []byte) error {
 // Transfers the given filename to the peer.
 //
 func (self *RemotePeer) TransferFile(id uuid.UUID, path string) error {
+	log.Debugf("[%v] Transfer requested for file at %s", id, path)
 
 	if file, err := os.Open(path); err == nil {
 		if stat, err := file.Stat(); err == nil {
@@ -372,15 +373,19 @@ func (self *RemotePeer) TransferFile(id uuid.UUID, path string) error {
 				if _, err := io.Copy(transfer, file); err == nil {
 					return transfer.Close()
 				} else {
+					log.Debugf("[%v] Transfer failed: %v", id, err)
 					return err
 				}
 			} else {
+				log.Debugf("[%v] Transfer failed: %v", id, err)
 				return err
 			}
 		} else {
+			log.Debugf("[%v] Transfer failed: %v", id, err)
 			return err
 		}
 	} else {
+		log.Debugf("[%v] Transfer failed: %v", id, err)
 		return err
 	}
 }

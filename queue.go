@@ -142,7 +142,7 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 			go func(item *QueuedDownload, t *peer.Transfer) {
 				for {
 					if t.IsFinished() {
-						log.Debugf("Transfer %v finished", t.ID)
+						log.Debugf("[%v] Transfer finished", t.ID)
 						return
 					}
 
@@ -165,7 +165,7 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 
 					item.lastByteSize = t.BytesReceived
 
-					log.Debugf("Progress: %g, %d bytes", item.Progress, item.lastByteSize)
+					log.Debugf("[%v] Progress: %g, %d bytes", t.ID, item.Progress, item.lastByteSize)
 				}
 			}(self, transfer)
 
