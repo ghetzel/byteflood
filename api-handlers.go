@@ -24,6 +24,15 @@ var endpointInstanceMap = map[string]reflect.Type{
 	`downloads`:   reflect.TypeOf(QueuedDownload{}),
 }
 
+type ActionPeerConnect struct {
+	ID      string `json:"id,omitempty"`
+	Address string `json:"address,omitempty"`
+}
+
+type ActionPeerDisconnect struct {
+	SessionID string `json:"session_id"`
+}
+
 func (self *API) handleStatus(w http.ResponseWriter, req *http.Request) {
 	Respond(w, map[string]interface{}{
 		`version`:       Version,
@@ -112,6 +121,67 @@ func (self *API) handleDeleteModel(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 	} else {
+		http.Error(w, ``, http.StatusNotFound)
+	}
+}
+
+func (self *API) handlePerformAction(w http.ResponseWriter, req *http.Request) {
+	action := vestigo.Param(req, `action`)
+
+	switch action {
+	case `connect`:
+		var payload ActionPeerConnect
+
+		if err := json.NewDecoder(req.Body).Decode(&payload); err == nil {
+			if payload.Address != `` {
+				if _, err := self.application.LocalPeer.ConnectTo(payload.Address); err == nil {
+					w.WriteHeader(http.StatusNoContent)
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+
+			} else if payload.ID != `` {
+				var peer peer.AuthorizedPeer
+
+				if err := db.AuthorizedPeers.Get(payload.ID, &peer); err == nil {
+					if addrs := peer.GetAddresses(); len(addrs) > 0 {
+						// TODO: this sucks, does not handle multiple addresses
+						if _, err := self.application.LocalPeer.ConnectTo(addrs[0]); err == nil {
+							w.WriteHeader(http.StatusNoContent)
+						} else {
+							http.Error(w, err.Error(), http.StatusInternalServerError)
+						}
+					} else {
+						http.Error(w, `No addresses associated with peer`, http.StatusBadRequest)
+					}
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+			} else {
+				http.Error(w, `Must specify either "id" or "address" field.`, http.StatusBadRequest)
+			}
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+
+	case `disconnect`:
+		var payload ActionPeerDisconnect
+
+		if err := json.NewDecoder(req.Body).Decode(&payload); err == nil {
+			if payload.SessionID != `` {
+				if err := self.application.LocalPeer.RemovePeer(payload.SessionID); err == nil {
+					w.WriteHeader(http.StatusNoContent)
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+			} else {
+				http.Error(w, `Must specify "session_id" field.`, http.StatusBadRequest)
+			}
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+
+	default:
 		http.Error(w, ``, http.StatusNotFound)
 	}
 }

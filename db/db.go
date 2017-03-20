@@ -172,7 +172,7 @@ func (self *Database) Scan(deep bool, labels ...string) error {
 			}
 		}
 
-		if err := self.cleanupMissingFiles(); err != nil {
+		if err := self.Cleanup(); err != nil {
 			return err
 		}
 	} else {
@@ -182,7 +182,7 @@ func (self *Database) Scan(deep bool, labels ...string) error {
 	return nil
 }
 
-func (self *Database) cleanupMissingFiles() error {
+func (self *Database) Cleanup() error {
 	var scannedDirectories []Directory
 	var ids []string
 

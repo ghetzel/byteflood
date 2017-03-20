@@ -8,10 +8,13 @@ import (
 	"github.com/ghetzel/byteflood/client"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/byteflood/peer"
+	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
 	"io"
@@ -24,6 +27,10 @@ import (
 const DEFAULT_FORMAT = `text`
 
 var log = logging.MustGetLogger(`main`)
+var DefaultLogLevel = map[string]logging.Level{
+	`run`: logging.DEBUG,
+	``: logging.NOTICE,
+}
 
 func main() {
 	app := cli.NewApp()
@@ -32,12 +39,19 @@ func main() {
 	app.Version = byteflood.Version
 	app.EnableBashCompletion = false
 
+	var application *byteflood.Application
+	api := client.NewClient()
+
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:   `log-level, L`,
 			Usage:  `Level of log output verbosity`,
-			Value:  `debug`,
 			EnvVar: `LOGLEVEL`,
+		},
+		cli.StringFlag{
+			Name:  `address, a`,
+			Usage: `The address the client should listen on`,
+			Value: byteflood.DefaultApiAddress,
 		},
 		cli.BoolFlag{
 			Name:  `log-queries, Q`,
@@ -56,15 +70,35 @@ func main() {
 			Name:  `private-key, K`,
 			Usage: `The path to the file containing the local private key`,
 		},
+		cli.StringFlag{
+			Name: `format, f`,
+			Usage: `The output format to print records as (one of: json, yaml, xml, text)`,
+			Value: DEFAULT_FORMAT,
+		},
+		cli.DurationFlag{
+			Name:  `timeout, t`,
+			Usage: `Byteflood client request timeout`,
+			Value: client.DefaultRequestTimeout,
+		},
 	}
 
 	app.Before = func(c *cli.Context) error {
 		logging.SetFormatter(logging.MustStringFormatter(`%{color}%{level:.4s}%{color:reset}[%{id:04d}] %{message}`))
 
-		if level, err := logging.LogLevel(c.String(`log-level`)); err == nil {
-			logging.SetLevel(level, ``)
-		} else {
-			return err
+		if logLevel := c.String(`log-level`); logLevel == `` {
+			if lvl, ok := DefaultLogLevel[c.Args().First()]; ok {
+				logging.SetLevel(lvl, ``)
+			}else if lvl, ok := DefaultLogLevel[``]; ok {
+				logging.SetLevel(lvl, ``)
+			}else{
+				logging.SetLevel(logging.DEBUG, ``)
+			}
+		}else{
+			if level, err := logging.LogLevel(logLevel); err == nil {
+				logging.SetLevel(level, ``)
+			} else {
+				return err
+			}
 		}
 
 		if c.Bool(`log-queries`) {
@@ -75,7 +109,18 @@ func main() {
 
 		logging.SetLevel(logging.ERROR, `diecast`)
 
+		api.Timeout = c.Duration(`timeout`)
+		api.Address = c.String(`address`)
+		log.Debugf("Client address is %s", api.Address)
+
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
+
+
+		if a, err := createApplication(c); err == nil {
+			application = a
+		}else{
+			return err
+		}
 
 		return nil
 	}
@@ -85,11 +130,6 @@ func main() {
 			Name:  `run`,
 			Usage: `Start a file transfer peer using the given configuration`,
 			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  `address, a`,
-					Usage: `The address the client should listen on`,
-					Value: byteflood.DefaultApiAddress,
-				},
 				cli.StringFlag{
 					Name:  `ui-dir`,
 					Usage: `The path to the UI directory.`,
@@ -119,14 +159,10 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				if app, err := createApplication(c); err == nil {
-					app.API.Address = c.String(`address`)
-					app.API.UiDirectory = c.String(`ui-dir`)
+				application.API.Address = c.GlobalString(`address`)
+				application.API.UiDirectory = c.String(`ui-dir`)
 
-					if err := app.Run(); err != nil {
-						log.Fatal(err)
-					}
-				} else {
+				if err := application.Run(); err != nil {
 					log.Fatal(err)
 				}
 			},
@@ -140,13 +176,10 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				if app, err := createApplication(c); err == nil {
-					if err := app.Scan(c.Bool(`deep`), c.Args()...); err != nil {
-						log.Fatalf("Failed to scan: %v", err)
-					}
-				} else {
-					log.Fatal(err)
+				if err := application.Scan(c.Bool(`deep`), c.Args()...); err != nil {
+					log.Fatalf("Failed to scan: %v", err)
 				}
+
 			},
 		}, {
 			Name:      `genkeypair`,
@@ -169,11 +202,6 @@ func main() {
 			Usage:     `Query the metadata database.`,
 			ArgsUsage: `FILTER`,
 			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  `format, f`,
-					Usage: `The output format to use when printing results`,
-					Value: DEFAULT_FORMAT,
-				},
 				cli.StringSliceFlag{
 					Name:  `field, F`,
 					Usage: `Additional fields to include in output tables in addition to ID and path`,
@@ -185,33 +213,29 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				if _, err := createApplication(c); err == nil {
-					if f, err := db.ParseFilter(strings.Join(c.Args(), `/`)); err == nil {
-						var rs dal.RecordSet
+				if f, err := db.ParseFilter(strings.Join(c.Args(), `/`)); err == nil {
+					var rs dal.RecordSet
 
-						if err := db.Metadata.Find(f, &rs); err == nil {
-							printWithFormat(c.String(`format`), rs, func() {
-								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
+					if err := db.Metadata.Find(f, &rs); err == nil {
+						printWithFormat(c.GlobalString(`format`), rs, func() {
+							tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 
-								for _, record := range rs.Records {
-									values := make([]interface{}, 0)
+							for _, record := range rs.Records {
+								values := make([]interface{}, 0)
 
-									values = append(values, record.ID)
+								values = append(values, record.ID)
 
-									for _, fieldName := range c.StringSlice(`field`) {
-										if v := maputil.DeepGet(record.Fields, strings.Split(fieldName, `.`), nil); v != nil {
-											values = append(values, v)
-										}
+								for _, fieldName := range c.StringSlice(`field`) {
+									if v := maputil.DeepGet(record.Fields, strings.Split(fieldName, `.`), nil); v != nil {
+										values = append(values, v)
 									}
-
-									fmt.Fprintf(tw, strings.TrimSpace(strings.Repeat("%v\t", len(values)))+"\n", values...)
 								}
 
-								tw.Flush()
-							})
-						} else {
-							log.Fatal(err)
-						}
+								fmt.Fprintf(tw, strings.TrimSpace(strings.Repeat("%v\t", len(values)))+"\n", values...)
+							}
+
+							tw.Flush()
+						})
 					} else {
 						log.Fatal(err)
 					}
@@ -223,13 +247,9 @@ func main() {
 			Name:  `cleanup`,
 			Usage: `Cleanup the metadata database.`,
 			Action: func(c *cli.Context) {
-				log.Fatal("Not Implemented")
-				// if app, err := createApplication(c); err == nil {
-				// 	if err := app.Database.CleanRecords(); err != nil {
-				// 		log.Fatal(err)
-				// 	}
-				// } else {
-				// }
+				if err := application.Database.Cleanup(); err != nil {
+					log.Fatal(err)
+				}
 			},
 		}, {
 			Name:  `call`,
@@ -240,16 +260,6 @@ func main() {
 					Usage: `The HTTP method to use for the call`,
 					Value: `get`,
 				},
-				cli.StringFlag{
-					Name:  `address, a`,
-					Usage: `The address of the Byteflood API to contact`,
-					Value: client.DefaultAddress,
-				},
-				cli.DurationFlag{
-					Name:  `timeout, t`,
-					Usage: `HTTP request timeout`,
-					Value: client.DefaultRequestTimeout,
-				},
 				cli.StringSliceFlag{
 					Name:  `param, p`,
 					Usage: `An HTTP query string parameter to include in the call, formatted as "name=value"`,
@@ -258,11 +268,6 @@ func main() {
 					Name:  `header, H`,
 					Usage: `An HTTP header to include in the call, formatted as "name=value"`,
 				},
-				cli.StringFlag{
-					Name:  `format, f`,
-					Usage: `The output format to use when printing results`,
-					Value: `json`,
-				},
 			},
 			Action: func(c *cli.Context) {
 				if c.NArg() == 0 {
@@ -270,12 +275,8 @@ func main() {
 					return
 				}
 
-				bf := client.NewClient()
 				params := make(map[string]string)
 				headers := make(map[string]string)
-
-				bf.Address = c.String(`address`)
-				bf.Timeout = c.Duration(`timeout`)
 
 				for _, pair := range c.StringSlice(`header`) {
 					if kv := strings.SplitN(pair, `=`, 2); len(kv) == 2 {
@@ -301,7 +302,7 @@ func main() {
 					}
 				}
 
-				if response, err := bf.Request(
+				if response, err := api.Request(
 					c.String(`method`),
 					path,
 					params,
@@ -317,7 +318,7 @@ func main() {
 					data, _ := client.ParseResponse(response)
 
 					if data != nil {
-						printWithFormat(c.String(`format`), data, func() {
+						printWithFormat(c.GlobalString(`format`), data, func() {
 							fmt.Printf("%v\n", data)
 						})
 					}
@@ -334,14 +335,194 @@ func main() {
 		}, {
 			Name:  `peers`,
 			Usage: `Manage peer authorizations and access.`,
-			Action: func(c *cli.Context) {
-				log.Fatal("Not Implemented")
+			Subcommands: []cli.Command{
+				{
+					Name: `show`,
+					ArgsUsage: `[NAME ..]`,
+					Usage: `List authorized peers`,
+					Action: func(c *cli.Context) {
+						var authorized []peer.AuthorizedPeer
+
+						if err := db.AuthorizedPeers.All(&authorized); err == nil {
+							printWithFormat(c.GlobalString(`format`), authorized, func(){
+								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
+
+								fmt.Fprintf(tw, "NAME\tSTATUS\tPEERID\tADDRESSES\n")
+
+								peers := c.Args()
+								printed := 0
+
+								for _, peer := range authorized {
+									if len(peers) > 0 {
+										if !sliceutil.ContainsString(peers, peer.PeerName) {
+											continue
+										}
+									}
+
+									status := `inactive`
+
+									if _, err := api.GetSession(peer.PeerName); err == nil {
+										status = `connected`
+									}else{
+										log.Debugf("Request failed: %v", err)
+									}
+
+									fmt.Fprintf(
+										tw,
+										"%s\t%s\t%s\t%s\n",
+										peer.PeerName,
+										status,
+										peer.ID,
+										peer.Addresses,
+									)
+
+									printed += 1
+								}
+
+								if len(peers) > 0 && printed == 0 {
+									log.Fatalf("None of the listed peers were found.")
+								}
+
+								tw.Flush()
+							})
+						}else{
+							log.Fatal(err)
+						}
+					},
+				},{
+					Name: `authorize`,
+					Usage: `Authorize a peer for communication with us.`,
+					ArgsUsage: `PEERID NAME`,
+					Flags: []cli.Flag{
+						cli.StringSliceFlag{
+							Name: `address, a`,
+							Usage: `Zero or more addresses to automatically connect to.`,
+						},
+					},
+					Action: func(c *cli.Context) {
+						peerID := c.Args().Get(0)
+						name := c.Args().Get(1)
+
+						if peerID == `` {
+							log.Fatalf("Must specify a PEERID to authorize.")
+						}
+
+						if name == `` {
+							log.Fatalf("Must specify a NAME for the peer.")
+						}
+
+						if !db.AuthorizedPeers.Exists(peerID) {
+							if err := db.AuthorizedPeers.Create(&peer.AuthorizedPeer{
+								ID: peerID,
+								PeerName: name,
+								Addresses: strings.Join(c.StringSlice(`address`), `,`),
+							}); err == nil {
+								log.Noticef("Peer ID %q successfully authorized with name %q", peerID, name)
+							}else{
+								log.Fatalf("Failed to authorize peer ID %q: v", peerID, err)
+							}
+						}else{
+							log.Noticef("Peer ID %q is already authorized.", peerID)
+						}
+					},
+				},{
+					Name: `revoke`,
+					ArgsUsage: `PEERID`,
+					Usage: `Deauthorize a peer`,
+					Action: func(c *cli.Context) {
+						peerID := c.Args().Get(0)
+
+						if peerID == `` {
+							log.Fatalf("Must specify a PEERID to revoke.")
+						}
+
+						if db.AuthorizedPeers.Exists(peerID) {
+							if err := db.AuthorizedPeers.Delete(peerID); err == nil {
+								log.Noticef("Peer ID %q access has been revoked.", peerID)
+							}else{
+								log.Fatalf("Failed to revoke peer ID %q: v", peerID, err)
+							}
+						}else{
+							log.Warningf("Peer ID %q does not exist.", peerID)
+						}
+					},
+				},{
+					Name: `connect`,
+					ArgsUsage: `PEERID_OR_NAME [ADDRESS]`,
+					Usage: `Connect to a peer.`,
+					Action: func(c *cli.Context) {
+						// via HTTP + client
+					},
+				},{
+					Name: `disconnect`,
+					Usage: `Disconnect a connected peer.`,
+					Action: func(c *cli.Context) {
+						// via HTTP + client
+					},
+				},{
+					Name: `ls`,
+					Usage: `Browse a remote peer's shares.`,
+					Action: func(c *cli.Context) {
+						// via HTTP + client
+					},
+				},{
+					Name: `get`,
+					Usage: `Download data from a remote peer.`,
+					Action: func(c *cli.Context) {
+						// via HTTP + client
+					},
+				},
 			},
 		}, {
 			Name:  `shares`,
 			Usage: `Manage shared files`,
-			Action: func(c *cli.Context) {
-				log.Fatal("Not Implemented")
+			Subcommands: []cli.Command{
+				{
+					Name: `show`,
+					ArgsUsage: `[NAME ..]`,
+					Usage: `List shares.`,
+					Action: func(c *cli.Context) {
+						var shares []shares.Share
+
+						if err := db.Shares.All(&shares); err == nil {
+							printWithFormat(c.GlobalString(`format`), shares, func(){
+								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
+
+								fmt.Fprintf(tw, "ID\tNAME\tFILTER\tDESCRIPTION\n")
+
+								shareFilter := c.Args()
+								printed := 0
+
+								for _, share := range shares {
+									if len(shareFilter) > 0 {
+										if !sliceutil.ContainsString(shareFilter, fmt.Sprintf("%v", share.ID)) {
+											continue
+										}
+									}
+
+									fmt.Fprintf(
+										tw,
+										"%d\t%s\t%s\t%s\n",
+										share.ID,
+										share.Name,
+										share.BaseFilter,
+										share.Description,
+									)
+
+									printed += 1
+								}
+
+								if len(shareFilter) > 0 && printed == 0 {
+									log.Fatalf("None of the listed shares were found.")
+								}
+
+								tw.Flush()
+							})
+						}else{
+							log.Fatal(err)
+						}
+					},
+				},
 			},
 		},
 	}

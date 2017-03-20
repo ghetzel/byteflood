@@ -38,6 +38,10 @@ type AuthorizedPeer struct {
 	Addresses string `json:"addresses,omitempty"`
 }
 
+func (self *AuthorizedPeer) GetAddresses() []string {
+	return rxAddrSplit.Split(self.Addresses, -1)
+}
+
 type Peer interface {
 	ID() string
 	String() string
@@ -99,8 +103,7 @@ func (self *LocalPeer) Initialize() error {
 	if err := db.AuthorizedPeers.Each(AuthorizedPeer{}, func(v interface{}) {
 		if peer, ok := v.(*AuthorizedPeer); ok {
 			if peer.Addresses != `` {
-				addrs := rxAddrSplit.Split(peer.Addresses, -1)
-				self.AutoconnectPeers = append(self.AutoconnectPeers, addrs...)
+				self.AutoconnectPeers = append(self.AutoconnectPeers, peer.GetAddresses()...)
 			}
 		}
 	}); err != nil {
@@ -441,20 +444,25 @@ func (self *LocalPeer) GetSession(sessionOrName string) (*RemotePeer, bool) {
 	return nil, false
 }
 
-func (self *LocalPeer) RemovePeer(sessionId string) {
-	v, ok := self.sessions.Get(sessionId)
-	remotePeer, ok := v.(*RemotePeer)
+func (self *LocalPeer) RemovePeer(sessionId string) error {
+	if v, ok := self.sessions.Get(sessionId); ok {
+		if remotePeer, ok := v.(*RemotePeer); ok {
+			log.Errorf("Disconnected from %s", remotePeer.String())
 
-	if ok {
-		log.Errorf("Disconnected from %s", remotePeer.String())
+			err := remotePeer.Disconnect()
 
-		if err := remotePeer.Disconnect(); err != nil {
-			log.Errorf("Error disconnecting from peer: %v", err)
+			if err != nil {
+				log.Errorf("Error disconnecting from peer: %v", err)
+			}
+
+			self.sessions.Remove(sessionId)
+
+			return err
+		} else {
+			return fmt.Errorf("corrupt session '%s'", sessionId)
 		}
-
-		self.sessions.Remove(sessionId)
-
-		log.Debugf("%d peers registered", self.sessions.Count())
+	} else {
+		return fmt.Errorf("unknown session '%s'", sessionId)
 	}
 }
 

@@ -86,6 +86,9 @@ func (self *API) Serve() error {
 	router.Get(`/api/directories/new`, self.handleGetNewModelInstance)
 	router.Get(`/api/files/:file`, self.handleDownloadFile)
 
+	// actions
+	router.Post(`/api/actions/:action`, self.handlePerformAction)
+
 	// authorized peer management endpoints
 	router.Get(`/api/peers`, self.handleGetPeers)
 	router.Post(`/api/peers`, self.handleSaveModel)

@@ -65,6 +65,16 @@ func (self *Client) Request(method string, path string, params map[string]string
 	}
 }
 
+func (self *Client) getResponseError(response *http.Response) error {
+    msg := `Unknown Error`
+
+    if body, err := ioutil.ReadAll(response.Body); err == nil {
+        msg = fmt.Sprintf("%v", string(body[:]))
+    }
+
+    return fmt.Errorf("%s: %v", response.Status, msg)
+}
+
 func ParseResponse(response *http.Response) (map[string]interface{}, error) {
 	rv := make(map[string]interface{})
 
