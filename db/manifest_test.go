@@ -63,7 +63,7 @@ func getTestManifestItems() []ManifestItem {
 			RelativePath: `/subdir1/file.1`,
 			Values: []ManifestValue{
 				int64(42),
-				`b3daf10acf5cbf6e10bc12e22155b759e60d756d0fde8f70b89edced4852d6a7`,
+				`aae9c3aa50b937f1c2fef02853677d3f68a28193`,
 			},
 		}, {
 			ID:           `test2`,
@@ -71,7 +71,7 @@ func getTestManifestItems() []ManifestItem {
 			RelativePath: `/file.top1`,
 			Values: []ManifestValue{
 				int64(56),
-				`9b96597ff17b553d0aaa4dda11c631def21cbb3e60f4540dd4e75d301127a9e5`,
+				`b004ff62dd5510e33807ae38366553381451ed5b`,
 			},
 		},
 	}
@@ -153,8 +153,8 @@ func TestSyncManifestLoadTSV(t *testing.T) {
 
 	lines := []string{
 		"test1\t/subdir1\tdirectory\t\t",
-		"test1a\t/subdir1/file.1\tfile\t42\tb3daf10acf5cbf6e10bc12e22155b759e60d756d0fde8f70b89edced4852d6a7",
-		"test2\t/file.top1\tfile\t56\t9b96597ff17b553d0aaa4dda11c631def21cbb3e60f4540dd4e75d301127a9e5",
+		"test1a\t/subdir1/file.1\tfile\t42\taae9c3aa50b937f1c2fef02853677d3f68a28193",
+		"test2\t/file.top1\tfile\t56\tb004ff62dd5510e33807ae38366553381451ed5b",
 	}
 
 	tsv := strings.Join(lines, "\n")

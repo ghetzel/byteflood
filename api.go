@@ -32,10 +32,11 @@ func NewAPI(application *Application) *API {
 }
 
 func (self *API) Initialize() error {
-	endpointModelMap[`shares`] = db.Shares
-	endpointModelMap[`peers`] = db.AuthorizedPeers
 	endpointModelMap[`directories`] = db.ScannedDirectories
 	endpointModelMap[`downloads`] = db.Downloads
+	endpointModelMap[`peers`] = db.AuthorizedPeers
+	endpointModelMap[`shares`] = db.Shares
+	endpointModelMap[`subscriptions`] = db.Subscriptions
 
 	return nil
 }
@@ -121,6 +122,14 @@ func (self *API) Serve() error {
 	router.Get(`/api/shares/:id/query/*`, self.handleQueryShare)
 	router.Get(`/api/shares/:id/browse/`, self.handleBrowseShare)
 	router.Get(`/api/shares/:id/browse/:parent`, self.handleBrowseShare)
+
+	// subscription management endpoints
+	router.Get(`/api/subscriptions`, self.handleGetSubscriptions)
+	router.Post(`/api/subscriptions`, self.handleSaveModel)
+	router.Put(`/api/subscriptions`, self.handleSaveModel)
+	router.Get(`/api/subscriptions/new`, self.handleGetNewModelInstance)
+	router.Get(`/api/subscriptions/:id`, self.handleGetSubscription)
+	router.Delete(`/api/subscriptions/:id`, self.handleDeleteModel)
 
 	mux.Handle(`/api/`, router)
 	mux.Handle(`/`, ui)

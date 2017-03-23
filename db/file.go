@@ -1,7 +1,8 @@
 package db
 
 import (
-	"crypto/sha256"
+	"bufio"
+	"crypto/sha1"
 	"encoding/base32"
 	"encoding/hex"
 	"encoding/json"
@@ -10,11 +11,13 @@ import (
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/go-stockutil/typeutil"
 	"github.com/spaolacci/murmur3"
 	"io"
 	"math/big"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 )
 
@@ -22,6 +25,7 @@ const FileFingerprintSize = 16777216
 
 var MetadataEncoding = base32.NewEncoding(`abcdefghijklmnopqrstuvwxyz234567`)
 var MaxChildEntries = 10000
+var rxSha1Sum = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 type File struct {
 	ID              string                 `json:"id"`
@@ -66,10 +70,13 @@ func (self *File) LoadMetadata() error {
 	for _, loader := range metadata.GetLoadersForFile(self.filename) {
 		if data, err := loader.LoadMetadata(self.filename); err == nil {
 			for k, v := range data {
-				if strings.Contains(k, `.`) {
-					maputil.DeepSet(self.Metadata, strings.Split(k, `.`), v)
-				} else {
-					self.Metadata[k] = v
+				// only honor this value if it's not empty
+				if !typeutil.IsEmpty(v) {
+					if strings.Contains(k, `.`) {
+						maputil.DeepSet(self.Metadata, strings.Split(k, `.`), v)
+					} else {
+						self.Metadata[k] = v
+					}
 				}
 			}
 		} else {
@@ -121,8 +128,25 @@ func (self *File) GenerateChecksum() (string, error) {
 		return ``, fmt.Errorf("Cannot generate checksum on directory")
 	}
 
+	if ckFile, err := os.Open(fmt.Sprintf("%s.sha1", self.filename)); err == nil {
+		scanner := bufio.NewScanner(ckFile)
+
+		for scanner.Scan() {
+			if scanner.Err() == nil {
+				parts := strings.SplitN(scanner.Text(), ` `, 3)
+
+				// looks for all the world like a SHA-1 sum....
+				if len(parts) == 3 && rxSha1Sum.MatchString(parts[0]) {
+					if parts[2] == path.Base(self.filename) {
+						return parts[0], nil
+					}
+				}
+			}
+		}
+	}
+
 	if fsFile, err := os.Open(self.filename); err == nil {
-		hash := sha256.New()
+		hash := sha1.New()
 
 		if _, err := io.Copy(hash, fsFile); err != nil {
 			return ``, err

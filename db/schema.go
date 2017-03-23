@@ -204,10 +204,6 @@ var SubscriptionsSchema = dal.Collection{
 	Name: `subscriptions`,
 	Fields: []dal.Field{
 		{
-			Name:     `name`,
-			Type:     dal.StringType,
-			Required: true,
-		}, {
 			Name:        `source_group`,
 			Description: `The peer name or @-prefixed peer group to source data from.`,
 			Type:        dal.StringType,

@@ -1,6 +1,7 @@
 package byteflood
 
 import (
+	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/peer"
@@ -91,6 +92,14 @@ func (self *Application) Initialize() error {
 	); err == nil {
 		self.LocalPeer.PublicKey = publicKey
 		self.LocalPeer.PrivateKey = privateKey
+
+		if len(self.LocalPeer.PublicKey) == 0 {
+			return fmt.Errorf("Public key is empty")
+		}
+
+		if len(self.LocalPeer.PrivateKey) == 0 {
+			return fmt.Errorf("Private key is empty")
+		}
 
 		if err := self.LocalPeer.Initialize(); err != nil {
 			return err

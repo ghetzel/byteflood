@@ -18,10 +18,11 @@ import (
 var endpointModelMap = map[string]mapper.Mapper{}
 
 var endpointInstanceMap = map[string]reflect.Type{
-	`shares`:      reflect.TypeOf(shares.Share{}),
-	`peers`:       reflect.TypeOf(peer.RemotePeer{}),
-	`directories`: reflect.TypeOf(db.Directory{}),
-	`downloads`:   reflect.TypeOf(QueuedDownload{}),
+	`directories`:   reflect.TypeOf(db.Directory{}),
+	`downloads`:     reflect.TypeOf(QueuedDownload{}),
+	`peers`:         reflect.TypeOf(peer.RemotePeer{}),
+	`shares`:        reflect.TypeOf(shares.Share{}),
+	`subscriptions`: reflect.TypeOf(shares.Subscription{}),
 }
 
 type ActionPeerConnect struct {

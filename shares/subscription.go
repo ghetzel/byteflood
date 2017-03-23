@@ -11,7 +11,7 @@ type WantedItem struct {
 }
 
 type Subscription struct {
-	Name            string    `json:"name"`
+	ID              string    `json:"id"`
 	ShareName       string    `json:"share_name"`
 	SourceGroup     string    `json:"source_group"`
 	TargetPath      string    `json:"target_path"`
@@ -25,7 +25,7 @@ type Subscription struct {
 func (self *Subscription) GetWantedItems() []*WantedItem {
 	items := make([]*WantedItem, 0)
 
-	// get manifests from everyone in the source group
+	// get manifests from everyone in the source group that we're connected to
 
 	// for each manifest:
 	//     set BaseDirectory to TargetPath

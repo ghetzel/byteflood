@@ -3,6 +3,7 @@ package encryption
 import (
 	"crypto/rand"
 	"encoding/pem"
+	"fmt"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/op/go-logging"
 	"golang.org/x/crypto/nacl/box"
@@ -18,8 +19,12 @@ func LoadKeyfiles(publicKeyPath string, privateKeyPath string) ([]byte, []byte, 
 
 	if path, err := pathutil.ExpandUser(publicKeyPath); err == nil {
 		if data, err := pemDecodeFileName(path); err == nil {
-			log.Infof("Loaded public key at %s", path)
-			publicKey = data
+			if len(data) > 0 {
+				publicKey = data
+				log.Infof("Loaded public key at %s", path)
+			} else {
+				return nil, nil, fmt.Errorf("Public key at %s is empty or invalid", path)
+			}
 		} else {
 			return nil, nil, err
 		}
@@ -29,8 +34,12 @@ func LoadKeyfiles(publicKeyPath string, privateKeyPath string) ([]byte, []byte, 
 
 	if path, err := pathutil.ExpandUser(privateKeyPath); err == nil {
 		if data, err := pemDecodeFileName(path); err == nil {
-			log.Infof("Loaded private key at %s", path)
-			privateKey = data
+			if len(data) > 0 {
+				privateKey = data
+				log.Infof("Loaded private key at %s", path)
+			} else {
+				return nil, nil, fmt.Errorf("Private key at %s is empty or invalid", path)
+			}
 		} else {
 			return nil, nil, err
 		}

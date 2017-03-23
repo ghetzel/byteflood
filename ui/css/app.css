@@ -4,14 +4,21 @@
         width: 100%;
         padding-top: 15px;
     }
+
+    .navbar.sitewide.site-secondary {
+        display: none;
+    }
 }
 
 /* large and above */
 @media (min-width: 1200px) {
-    .navbar.site-main {
+    .navbar.sitewide {
         width: 200px;
         position: fixed;
         height: 100%;
+    }
+
+    .navbar.sitewide.site-main {
         -webkit-box-shadow: inset -10px 0px 10px -6px rgba(0,0,0,0.66);
         -moz-box-shadow: inset -10px 0px 10px -6px rgba(0,0,0,0.66);
         box-shadow: inset -10px 0px 10px -6px rgba(0,0,0,0.66);
@@ -21,13 +28,25 @@
         filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#162d50', endColorstr='#0f1f38',GradientType=0 );
     }
 
-    .navbar.site-main .navbar-brand,
-    .navbar.site-main .nav-item {
+    .navbar.sitewide.site-secondary {
+        -webkit-box-shadow: inset 10px 0px 10px -6px rgba(0,0,0,0.66);
+        -moz-box-shadow: inset 10px 0px 10px -6px rgba(0,0,0,0.66);
+        box-shadow: inset 10px 0px 10px -6px rgba(0,0,0,0.66);
+        background: -moz-linear-gradient(left, #162d50 25%, #0f1f38 100%);
+        background: -webkit-linear-gradient(left, #162d50 25%,#0f1f38 100%);
+        background: linear-gradient(to right, #162d50 25%,#0f1f38 100%);
+        filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#162d50', endColorstr='#0f1f38',GradientType=0 );
+        right: 0;
+        top: 0;
+    }
+
+    .navbar.sitewide .navbar-brand,
+    .navbar.sitewide .nav-item {
         width: 100%;
         margin-left: 0 !important;
     }
 
-    .navbar.site-main .navbar-brand {
+    .navbar.sitewide .navbar-brand {
         text-align: center;
     }
 
@@ -61,16 +80,17 @@
     cursor: pointer;
 }
 
-.navbar.site-main {
+.navbar.sitewide {
     border-radius: 0;
-}
-
-.navbar.site-main {
     background-color: #162d50 !important;
 }
 
-.navbar.site-main .navbar-brand {
+.navbar.sitewide.site-main .navbar-brand {
     margin-right: 1.5em;
+}
+
+.navbar.sitewide.site-secondary .navbar-brand {
+    margin-left: 1.5em;
 }
 
 .bf-nav-tree > li {

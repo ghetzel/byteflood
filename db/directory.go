@@ -30,9 +30,10 @@ type Directory struct {
 
 var RootDirectoryName = `root`
 
-func NewDirectory(db *Database, path string) *Directory {
+func NewDirectory(db *Database, dirpath string) *Directory {
 	return &Directory{
-		Path:        path,
+		ID:          path.Base(dirpath),
+		Path:        dirpath,
 		Parent:      RootDirectoryName,
 		Directories: make([]*Directory, 0),
 		Checksum:    true,

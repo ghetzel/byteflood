@@ -30,7 +30,7 @@
     <title>Byteflood{{ if .page.title }} :: {{ .page.title }}{{ end }}</title>
   </head>
   <body>
-    <nav class="navbar navbar-dark bg-inverse site-main">
+    <nav class="navbar navbar-dark bg-inverse sitewide site-main">
         <div class="container-fluid">
             <a class="navbar-brand" href="/">
               <img src="/img/byteflood-text.png">
@@ -62,6 +62,15 @@
                     <i class="fa fa-fw fa-folder"></i>
                     Shares
                     {{ if hasPrefix .request.url.path `/shares` }}
+                    <span class="sr-only">(current)</span>
+                    {{ end }}
+                  </a>
+                </li>
+                <li class="nav-item {{ if hasPrefix .request.url.path `/subscriptions` }}active{{end}}">
+                  <a class="nav-link" href="/subscriptions">
+                    <i class="fa fa-fw fa-refresh"></i>
+                    Subscriptions
+                    {{ if hasPrefix .request.url.path `/subscriptions` }}
                     <span class="sr-only">(current)</span>
                     {{ end }}
                   </a>
@@ -108,5 +117,10 @@
       {{ end }}
       {{ template "content" . }}
     </div>
+
+    <nav class="navbar navbar-dark bg-inverse sitewide site-secondary">
+        <div class="container-fluid">
+        </div>
+    </nav>
   </body>
 </html>
