@@ -116,10 +116,14 @@ func (self *API) handleDeleteModel(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		if err := model.Delete(vestigo.Param(req, `id`)); err == nil {
-			http.Error(w, ``, http.StatusNoContent)
+		if model.Exists(vestigo.Param(req, `id`)) {
+			if err := model.Delete(vestigo.Param(req, `id`)); err == nil {
+				http.Error(w, ``, http.StatusNoContent)
+			} else {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			}
 		} else {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, ``, http.StatusNotFound)
 		}
 	} else {
 		http.Error(w, ``, http.StatusNotFound)

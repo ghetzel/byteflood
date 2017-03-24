@@ -20,6 +20,7 @@ fmt:
 	gofmt -w ./db
 	gofmt -w ./util
 	gofmt -w ./shares
+	gofmt -w ./client
 	go vet *.go
 	go vet ./peer/..
 	go vet ./encryption/..

@@ -37,6 +37,8 @@ func (self *Client) Request(method string, path string, params map[string]string
 		Timeout: self.Timeout,
 	}
 
+	log.Debugf("%+v", body)
+
 	if request, err := http.NewRequest(
 		strings.ToUpper(method),
 		fmt.Sprintf("%s://%s%s", self.Scheme, self.Address, path),
@@ -66,13 +68,13 @@ func (self *Client) Request(method string, path string, params map[string]string
 }
 
 func (self *Client) getResponseError(response *http.Response) error {
-    msg := `Unknown Error`
+	msg := `Unknown Error`
 
-    if body, err := ioutil.ReadAll(response.Body); err == nil {
-        msg = fmt.Sprintf("%v", string(body[:]))
-    }
+	if body, err := ioutil.ReadAll(response.Body); err == nil {
+		msg = fmt.Sprintf("%v", string(body[:]))
+	}
 
-    return fmt.Errorf("%s: %v", response.Status, msg)
+	return fmt.Errorf("%s: %v", response.Status, msg)
 }
 
 func ParseResponse(response *http.Response) (map[string]interface{}, error) {
@@ -92,4 +94,16 @@ func ParseResponse(response *http.Response) (map[string]interface{}, error) {
 			`error`: err.Error(),
 		}, err
 	}
+}
+
+func IsBadRequest(err error) bool {
+	return strings.HasPrefix(err.Error(), `400 Bad Request`)
+}
+
+func IsForbidden(err error) bool {
+	return strings.HasPrefix(err.Error(), `403 Forbidden`)
+}
+
+func IsNotFound(err error) bool {
+	return strings.HasPrefix(err.Error(), `404 Not Found`)
 }

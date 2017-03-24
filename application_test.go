@@ -2,7 +2,6 @@ package byteflood
 
 import (
 	"github.com/ghetzel/byteflood/db"
-	"time"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
@@ -13,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+	"time"
 )
 
 func setupApplication(assert *require.Assertions, source string, dest string) *Application {
@@ -66,7 +66,7 @@ func TestSingleApplication(t *testing.T) {
 	assert := require.New(t)
 	app := setupApplication(assert, `./tests/files`, `./tests/target`)
 
-	defer func(){
+	defer func() {
 		os.RemoveAll(app.Database.BaseDirectory)
 		os.RemoveAll(`./tests/target`)
 	}()
@@ -132,7 +132,7 @@ func TestApplicationSuperFriends(t *testing.T) {
 	assert.Nil(local.Scan(true))
 	assert.Nil(friend.Scan(true))
 
-	defer func(){
+	defer func() {
 		os.RemoveAll(local.Database.BaseDirectory)
 		os.RemoveAll(friend.Database.BaseDirectory)
 		os.RemoveAll(`./tests/target`)
@@ -141,13 +141,13 @@ func TestApplicationSuperFriends(t *testing.T) {
 
 	// authorize local->friend
 	assert.Nil(local.Database.AuthorizedPeers.Create(&peer.AuthorizedPeer{
-		ID: friend.LocalPeer.ID(),
+		ID:       friend.LocalPeer.ID(),
 		PeerName: `friend`,
 	}))
 
 	// authorize friend->local
 	assert.Nil(friend.Database.AuthorizedPeers.Create(&peer.AuthorizedPeer{
-		ID: local.LocalPeer.ID(),
+		ID:       local.LocalPeer.ID(),
 		PeerName: `local`,
 	}))
 

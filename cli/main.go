@@ -8,7 +8,6 @@ import (
 	"github.com/ghetzel/byteflood/client"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/byteflood/db"
-	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/cli"
@@ -37,7 +36,7 @@ func main() {
 	app.Name = `byteflood`
 	app.Usage = byteflood.Description
 	app.Version = byteflood.Version
-	app.EnableBashCompletion = false
+	app.EnableBashCompletion = true
 
 	var application *byteflood.Application
 	var database *db.Database
@@ -348,13 +347,11 @@ func main() {
 					ArgsUsage: `[NAME ..]`,
 					Usage: `List authorized peers`,
 					Action: func(c *cli.Context) {
-						var authorized []peer.AuthorizedPeer
-
-						if err := database.AuthorizedPeers.All(&authorized); err == nil {
+						if authorized, err := api.GetAuthorizedPeers(); err == nil {
 							printWithFormat(c.GlobalString(`format`), authorized, func(){
 								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
 
-								fmt.Fprintf(tw, "NAME\tSTATUS\tPEERID\tADDRESSES\n")
+								fmt.Fprintf(tw, "ID\tNAME\tSTATUS\tADDRESSES\n")
 
 								peers := c.Args()
 								printed := 0
@@ -377,9 +374,9 @@ func main() {
 									fmt.Fprintf(
 										tw,
 										"%s\t%s\t%s\t%s\n",
+										peer.ID,
 										peer.PeerName,
 										status,
-										peer.ID,
 										peer.Addresses,
 									)
 
@@ -401,6 +398,10 @@ func main() {
 					Usage: `Authorize a peer for communication with us.`,
 					ArgsUsage: `PEERID NAME`,
 					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name: `group, g`,
+							Usage: `A named group this peer should belong to.`,
+						},
 						cli.StringSliceFlag{
 							Name: `address, a`,
 							Usage: `Zero or more addresses to automatically connect to.`,
@@ -418,15 +419,16 @@ func main() {
 							log.Fatalf("Must specify a NAME for the peer.")
 						}
 
-						if !database.AuthorizedPeers.Exists(peerID) {
-							if err := database.AuthorizedPeers.Create(&peer.AuthorizedPeer{
-								ID: peerID,
-								PeerName: name,
-								Addresses: strings.Join(c.StringSlice(`address`), `,`),
-							}); err == nil {
+						if _, err := api.GetAuthorizedPeer(peerID); client.IsNotFound(err) {
+							if err := api.AuthorizePeer(
+								peerID,
+								name,
+								c.String(`group`),
+								c.StringSlice(`address`),
+							); err == nil {
 								log.Noticef("Peer ID %q successfully authorized with name %q", peerID, name)
 							}else{
-								log.Fatalf("Failed to authorize peer ID %q: v", peerID, err)
+								log.Fatalf("Failed to authorize peer ID %q: %v", peerID, err)
 							}
 						}else{
 							log.Noticef("Peer ID %q is already authorized.", peerID)
@@ -443,14 +445,12 @@ func main() {
 							log.Fatalf("Must specify a PEERID to revoke.")
 						}
 
-						if database.AuthorizedPeers.Exists(peerID) {
-							if err := database.AuthorizedPeers.Delete(peerID); err == nil {
-								log.Noticef("Peer ID %q access has been revoked.", peerID)
-							}else{
-								log.Fatalf("Failed to revoke peer ID %q: v", peerID, err)
-							}
-						}else{
+						if err := api.RevokePeer(peerID); err == nil {
+							log.Noticef("Peer ID %q access has been revoked.", peerID)
+						}else if client.IsNotFound(err) {
 							log.Warningf("Peer ID %q does not exist.", peerID)
+						}else{
+							log.Fatalf("Failed to revoke peer ID %q: v", peerID, err)
 						}
 					},
 				},{
@@ -468,9 +468,42 @@ func main() {
 					},
 				},{
 					Name: `ls`,
+					ArgsUsage: `PEER [PATH]`,
 					Usage: `Browse a remote peer's shares.`,
 					Action: func(c *cli.Context) {
-						// via HTTP + client
+						peerOrSession := c.Args().Get(0)
+						sharePath :=c.Args().Get(1)
+
+						if peer, err := api.GetSession(peerOrSession); err == nil {
+							if authPeer, err := api.GetAuthorizedPeer(peer.ID); err == nil {
+								if sharePath == `` {
+									if shares, err := api.GetShares(peer.SessionID()); err == nil {
+										printWithFormat(c.GlobalString(`format`), shares, func(){
+											tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
+
+											for _, share := range shares {
+												fmt.Fprintf(
+													tw,
+													`sr-xr-xr-x`,
+													authPeer.PeerName,
+													authPeer.Group,
+													-1,
+													share.ID,
+												)
+											}
+
+											tw.Flush()
+										})
+									}else{
+										log.Fatal(err)
+									}
+								}
+							}else{
+								log.Fatalf("** CRITICAL**: Could not find authorization for peer %v", peer)
+							}
+						}else{
+							log.Fatal(err)
+						}
 					},
 				},{
 					Name: `get`,
@@ -527,6 +560,36 @@ func main() {
 						}else{
 							log.Fatal(err)
 						}
+					},
+				},
+			},
+		}, {
+			Name:  `subscriptions`,
+			Usage: `Manage subscriptions to other peer's content.`,
+			Subcommands: []cli.Command{
+				{
+					Name: `show`,
+					ArgsUsage: `[NAME ..]`,
+					Usage: `List subscriptions`,
+					Action: func(c *cli.Context) {
+					},
+				}, {
+					Name: `create`,
+					ArgsUsage: `SHARE TARGET SOURCES`,
+					Usage: `Create a new subscription.`,
+					Action: func(c *cli.Context) {
+					},
+				}, {
+					Name: `delete`,
+					ArgsUsage: `ID`,
+					Usage: `Remove a subscription.`,
+					Action: func(c *cli.Context) {
+					},
+				}, {
+					Name: `sync`,
+					ArgsUsage: `[NAME ..]`,
+					Usage: `Sync data from subscriptions.`,
+					Action: func(c *cli.Context) {
 					},
 				},
 			},

@@ -19,7 +19,7 @@ const (
 
 type ManifestValue interface{}
 
-var DefaultManifestFields = []string{ `id`, `relative_path`, `type` }
+var DefaultManifestFields = []string{`id`, `relative_path`, `type`}
 
 type ManifestItem struct {
 	ID           string
