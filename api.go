@@ -7,16 +7,22 @@ import (
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/diecast"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/gorilla/websocket"
 	"github.com/husobee/vestigo"
+	"github.com/orcaman/concurrent-map"
 	"github.com/urfave/negroni"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type API struct {
-	Address     string `json:"address,omitempty"`
-	UiDirectory string `json:"ui_directory,omitempty"`
-	application *Application
+	Address       string `json:"address,omitempty"`
+	UiDirectory   string `json:"ui_directory,omitempty"`
+	application   *Application
+	eventUpgrader websocket.Upgrader
+	eventStreams  cmap.ConcurrentMap
+	events        chan *Event
 }
 
 var DefaultApiAddress = `:11984`
@@ -25,9 +31,11 @@ var DefaultUiDirectory = `embedded`
 
 func NewAPI(application *Application) *API {
 	return &API{
-		Address:     DefaultApiAddress,
-		UiDirectory: DefaultUiDirectory,
-		application: application,
+		Address:      DefaultApiAddress,
+		UiDirectory:  DefaultUiDirectory,
+		application:  application,
+		eventStreams: cmap.New(),
+		events:       make(chan *Event),
 	}
 }
 
@@ -37,6 +45,24 @@ func (self *API) Initialize() error {
 	endpointModelMap[`peers`] = db.AuthorizedPeers
 	endpointModelMap[`shares`] = db.Shares
 	endpointModelMap[`subscriptions`] = db.Subscriptions
+
+	self.eventUpgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+
+	go self.startEventDispatcher()
+
+	go func() {
+		for _ = range time.Tick(5 * time.Second) {
+			self.SendEvent(&Event{
+				Type: HeartbeatEvent,
+			})
+		}
+	}()
 
 	return nil
 }
@@ -63,6 +89,7 @@ func (self *API) Serve() error {
 
 	router.Get(`/api/status`, self.handleStatus)
 	router.Get(`/api/configuration`, self.handleGetConfig)
+	router.Get(`/api/events`, self.wsEventStream)
 
 	// download queue endpoints
 	router.Get(`/api/downloads`, self.handleGetQueue)
@@ -161,6 +188,21 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 	return router
 }
 
+func (self *API) SendEvent(event *Event) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
+
+	self.events <- event
+}
+
+func (self *API) SendMessage(message string) {
+	self.SendEvent(&Event{
+		Type:    MessageEvent,
+		Payload: message,
+	})
+}
+
 func (self *API) qsInt(req *http.Request, key string) (int64, error) {
 	if v := req.URL.Query().Get(key); v != `` {
 		if i, err := stringutil.ConvertToInteger(v); err == nil {
@@ -211,4 +253,14 @@ func (self *API) getSearchParams(req *http.Request) (int, int, []string, error) 
 	}
 
 	return limit, offset, sort, nil
+}
+
+func (self *API) startEventDispatcher() {
+	for event := range self.events {
+		self.eventStreams.IterCb(func(key string, valueI interface{}) {
+			if conn, ok := valueI.(*websocket.Conn); ok {
+				conn.WriteJSON(event)
+			}
+		})
+	}
 }

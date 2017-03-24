@@ -115,7 +115,6 @@ func main() {
 
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
 
-
 		if a, err := createApplication(c); err == nil {
 			application = a
 		}else{

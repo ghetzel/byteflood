@@ -1,0 +1,32 @@
+---
+page:
+  title: Subscription Editor
+bindings:
+- name: subscription
+  resource: :/api/subscriptions/{{ or .request.url.query.id "new" }}
+---
+<div class="col-sm-12 col-md-6">
+    <form name="subscriptions">
+        <input name="id" type="hidden" value="{{ .bindings.subscription.id }}">
+
+        <div class="form-group">
+            <label for="name">Share Name</label>
+            <input
+                type="text"
+                class="form-control"
+                name="share_name"
+                aria-describedby="shareNameHelp"
+                placeholder="Name of share where files will come from"
+                required
+                autofocus
+                value="{{ or .request.url.query.share_name .bindings.subscription.share_name }}"
+            >
+
+            <small id="nameHelp" class="form-text text-muted">
+                This is the name of the share that files will come from.
+            </small>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Save</button>
+    </form>
+</div>

@@ -186,3 +186,21 @@ func (self *API) handlePerformAction(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, ``, http.StatusNotFound)
 	}
 }
+
+// Upgrades an image stream connection request and attaches the connection to the requesting client
+//
+func (self *API) wsEventStream(w http.ResponseWriter, request *http.Request) {
+	if conn, err := self.eventUpgrader.Upgrade(w, request, nil); err == nil {
+		id := fmt.Sprintf("%v", conn.RemoteAddr())
+
+		conn.SetCloseHandler(func(code int, text string) error {
+			self.eventStreams.Remove(id)
+			return nil
+		})
+
+		self.eventStreams.Set(id, conn)
+	} else {
+		log.Errorf("Error setting up WebSocket: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
