@@ -97,7 +97,7 @@ func (self *API) handleRequestFileFromShare(w http.ResponseWriter, req *http.Req
 	if remotePeer, ok := self.application.LocalPeer.GetSession(req.Header.Get(`X-Byteflood-Session`)); ok {
 		var file db.File
 
-		if err := db.Metadata.Get(vestigo.Param(req, `file`), &file); err == nil {
+		if err := self.db.Metadata.Get(vestigo.Param(req, `file`), &file); err == nil {
 			// get the absolute filesystem path to the file at :id
 			if absPath, err := file.GetAbsolutePath(); err == nil {
 				// parse the given :transfer UUID

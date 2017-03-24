@@ -14,20 +14,21 @@ import (
 var log = logging.MustGetLogger(`byteflood/shares`)
 
 type Share struct {
-	ID              int      `json:"id"`
-	Name            string   `json:"name"`
-	BaseFilter      string   `json:"filter,omitempty"`
-	Description     string   `json:"description,omitempty"`
-	FilterTemplates []string `json:"filter_templates,omitempty"`
+	ID          string `json:"id"`
+	BaseFilter  string `json:"filter,omitempty"`
+	Description string `json:"description,omitempty"`
+	db          *db.Database
 }
 
-func NewShare() *Share {
-	return new(Share)
+func NewShare(db *db.Database) *Share {
+	return &Share{
+		db: db,
+	}
 }
 
 func (self *Share) GetQuery(filters ...string) string {
 	if self.BaseFilter == `` {
-		self.BaseFilter = fmt.Sprintf("label%s%s", filter.FieldTermSeparator, stringutil.Underscore(self.Name))
+		self.BaseFilter = fmt.Sprintf("label%s%s", filter.FieldTermSeparator, stringutil.Underscore(self.ID))
 	}
 
 	for i, f := range filters {
@@ -45,7 +46,7 @@ func (self *Share) Length() int {
 	var entries []*db.File
 
 	if f, err := db.ParseFilter(self.GetQuery()); err == nil {
-		if err := db.Metadata.Find(f, &entries); err == nil {
+		if err := self.db.Metadata.Find(f, &entries); err == nil {
 			return len(entries)
 		} else {
 			return 0
@@ -68,7 +69,7 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 
 		var recordset dal.RecordSet
 
-		if err := db.Metadata.Find(f, &recordset); err == nil {
+		if err := self.db.Metadata.Find(f, &recordset); err == nil {
 			return &recordset, nil
 		} else {
 			return nil, err
@@ -81,7 +82,8 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 func (self *Share) Get(id string) (*db.File, error) {
 	entry := new(db.File)
 
-	if err := db.Metadata.Get(id, entry); err == nil {
+	if err := self.db.Metadata.Get(id, entry); err == nil {
+		entry.SetDatabase(self.db)
 		return entry, nil
 	} else {
 		return nil, err
@@ -95,7 +97,11 @@ func (self *Share) Children(filterString ...string) ([]*db.File, error) {
 
 		files := make([]*db.File, 0)
 
-		if err := db.Metadata.Find(f, &files); err == nil {
+		if err := self.db.Metadata.Find(f, &files); err == nil {
+			for _, file := range files {
+				file.SetDatabase(self.db)
+			}
+
 			return files, nil
 		} else {
 			return nil, err

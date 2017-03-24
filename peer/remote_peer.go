@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/jbenet/go-base58"
@@ -13,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -183,6 +185,29 @@ func (self *RemotePeer) Disconnect() error {
 	})
 
 	return self.connection.Close()
+}
+
+// Retrieves the file manifest of the named share
+//
+func (self *RemotePeer) GetManifest(share string, fields ...string) (*db.Manifest, error) {
+	if response, err := self.ServiceRequest(
+		`GET`,
+		fmt.Sprintf("/shares/%v/manifest", share),
+		nil,
+		map[string]string{
+			`X-Byteflood-Manifest-Fields`: strings.Join(fields, `,`),
+		},
+	); err == nil {
+		manifest := db.NewManifest(``)
+
+		if err := manifest.LoadTSV(response.Body, fields...); err == nil {
+			return manifest, nil
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
 }
 
 // Receive the next message from this peer.

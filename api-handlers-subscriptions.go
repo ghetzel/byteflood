@@ -1,16 +1,14 @@
 package byteflood
 
 import (
-	"github.com/ghetzel/byteflood/db"
-	"github.com/ghetzel/byteflood/shares"
 	"github.com/husobee/vestigo"
 	"net/http"
 )
 
 func (self *API) handleGetSubscriptions(w http.ResponseWriter, req *http.Request) {
-	var subscriptions []*shares.Subscription
+	var subscriptions []*Subscription
 
-	if err := db.Subscriptions.All(&subscriptions); err == nil {
+	if err := self.db.Subscriptions.All(&subscriptions); err == nil {
 		Respond(w, subscriptions)
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -18,9 +16,9 @@ func (self *API) handleGetSubscriptions(w http.ResponseWriter, req *http.Request
 }
 
 func (self *API) handleGetSubscription(w http.ResponseWriter, req *http.Request) {
-	subscription := new(shares.Subscription)
+	subscription := new(Subscription)
 
-	if err := db.Subscriptions.Get(vestigo.Param(req, `id`), subscription); err == nil {
+	if err := self.db.Subscriptions.Get(vestigo.Param(req, `id`), subscription); err == nil {
 		Respond(w, subscription)
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)

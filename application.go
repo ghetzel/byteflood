@@ -27,15 +27,21 @@ type Application struct {
 	running        chan bool
 }
 
-func NewApplicationFromConfig(configFile string) (*Application, error) {
+func NewApplication() *Application {
 	app := &Application{
-		LocalPeer: peer.NewLocalPeer(),
-		Database:  db.NewDatabase(),
-		running:   make(chan bool),
+		Database: db.NewDatabase(),
+		running:  make(chan bool),
 	}
 
+	app.LocalPeer = peer.NewLocalPeer(app.Database)
 	app.Queue = NewDownloadQueue(app)
 	app.API = NewAPI(app)
+
+	return app
+}
+
+func NewApplicationFromConfig(configFile string) (*Application, error) {
+	app := NewApplication()
 
 	if configFilePath, err := pathutil.ExpandUser(configFile); err == nil {
 		if file, err := os.Open(configFilePath); err == nil {
@@ -155,7 +161,7 @@ func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
 	if f, err := db.ParseFilter("name=%s", name); err == nil {
 		var shares []*shares.Share
 
-		if err := db.Shares.Find(f, &shares); err == nil {
+		if err := self.Database.Shares.Find(f, &shares); err == nil {
 			if len(shares) == 1 {
 				return shares[0], true
 			} else if len(shares) > 1 {

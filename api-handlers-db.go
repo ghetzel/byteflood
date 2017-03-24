@@ -16,13 +16,13 @@ type DatabaseScanRequest struct {
 }
 
 func (self *API) handleGetDatabase(w http.ResponseWriter, req *http.Request) {
-	Respond(w, self.application.Database)
+	Respond(w, self.db)
 }
 
 func (self *API) handleGetDatabaseItem(w http.ResponseWriter, req *http.Request) {
 	var record dal.Record
 
-	if err := db.Metadata.Get(vestigo.Param(req, `id`), &record); err == nil {
+	if err := self.db.Metadata.Get(vestigo.Param(req, `id`), &record); err == nil {
 		Respond(w, record)
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -42,7 +42,7 @@ func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request) {
 
 			var recordset dal.RecordSet
 
-			if err := db.Metadata.Find(f, &recordset); err == nil {
+			if err := self.db.Metadata.Find(f, &recordset); err == nil {
 				Respond(w, recordset)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -76,7 +76,7 @@ func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request) 
 
 			var recordset dal.RecordSet
 
-			if err := db.Metadata.Find(f, &recordset); err == nil {
+			if err := self.db.Metadata.Find(f, &recordset); err == nil {
 				Respond(w, recordset)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -100,7 +100,7 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 	fields := strings.Split(fV, `/`)
 
 	if v := self.qs(req, `q`); v == `` {
-		if rs, err := db.Metadata.List(fields); err == nil {
+		if rs, err := self.db.Metadata.List(fields); err == nil {
 			Respond(w, rs)
 			return
 		} else {
@@ -109,7 +109,7 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 		}
 	} else {
 		if f, err := db.ParseFilter(v); err == nil {
-			if rs, err := db.Metadata.ListWithFilter(fields, f); err == nil {
+			if rs, err := self.db.Metadata.ListWithFilter(fields, f); err == nil {
 				Respond(w, rs)
 				return
 			} else {
@@ -137,7 +137,7 @@ func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request) 
 			}
 		}
 
-		go self.application.Database.Scan(payload.DeepScan, payload.Labels...)
+		go self.db.Scan(payload.DeepScan, payload.Labels...)
 		http.Error(w, ``, http.StatusNoContent)
 
 	default:

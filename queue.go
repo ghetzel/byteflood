@@ -48,6 +48,7 @@ type QueuedDownload struct {
 	Progress        float64   `json:"progress"`
 	Rate            uint64    `json:"rate"`
 	application     *Application
+	db              *db.Database
 	tempFile        *os.File
 	destinationFile io.Reader
 	lastByteSize    uint64
@@ -223,11 +224,13 @@ func (self *QueuedDownload) VerifyPath(name string) (string, error) {
 type DownloadQueue struct {
 	CurrentDownload *QueuedDownload `json:"current_download"`
 	application     *Application
+	db              *db.Database
 }
 
 func NewDownloadQueue(app *Application) *DownloadQueue {
 	return &DownloadQueue{
 		application: app,
+		db:          app.Database,
 	}
 }
 
@@ -299,7 +302,7 @@ func (self *DownloadQueue) enqueueFile(remotePeer *peer.RemotePeer, shareID stri
 		return fmt.Errorf("File record does not contain a 'file.size' field")
 	}
 
-	if err := db.Downloads.Create(&QueuedDownload{
+	if err := self.db.Downloads.Create(&QueuedDownload{
 		Status:          `idle`,
 		SessionID:       remotePeer.SessionID(),
 		PeerName:        remotePeer.Name,
@@ -348,7 +351,7 @@ func (self *DownloadQueue) DownloadAll() {
 				item.Status = `failed`
 			}
 
-			if err := db.Downloads.Update(item); err != nil {
+			if err := self.db.Downloads.Update(item); err != nil {
 				log.Warningf("Failed to update queue item %s: %v", item.ID, err)
 			}
 		} else {
@@ -365,7 +368,7 @@ func (self *DownloadQueue) CurrentItem() *QueuedDownload {
 
 		var downloads []*QueuedDownload
 
-		if err := db.Downloads.Find(f, &downloads); err == nil && len(downloads) == 1 {
+		if err := self.db.Downloads.Find(f, &downloads); err == nil && len(downloads) == 1 {
 			download := downloads[0]
 			download.application = self.application
 

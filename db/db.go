@@ -18,14 +18,6 @@ import (
 
 var log = logging.MustGetLogger(`byteflood/db`)
 
-var Metadata mapper.Mapper
-var Shares mapper.Mapper
-var Downloads mapper.Mapper
-var AuthorizedPeers mapper.Mapper
-var System mapper.Mapper
-var ScannedDirectories mapper.Mapper
-var Subscriptions mapper.Mapper
-
 var DefaultGlobalExclusions = []string{
 	`._.DS_Store`,
 	`._.Trashes`,
@@ -48,6 +40,13 @@ type Database struct {
 	GlobalExclusions   []string          `json:"global_exclusions,omitempty"`
 	ScanInProgress     bool              `json:"scan_in_progress"`
 	ExtractFields      []string          `json:"extract_fields,omitempty"`
+	Metadata           mapper.Mapper     `json:"-"`
+	Shares             mapper.Mapper     `json:"-"`
+	Downloads          mapper.Mapper     `json:"-"`
+	AuthorizedPeers    mapper.Mapper     `json:"-"`
+	System             mapper.Mapper     `json:"-"`
+	ScannedDirectories mapper.Mapper     `json:"-"`
+	Subscriptions      mapper.Mapper     `json:"-"`
 	db                 backends.Backend
 }
 
@@ -141,7 +140,7 @@ func (self *Database) Scan(deep bool, labels ...string) error {
 
 	var scannedDirectories []Directory
 
-	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
+	if err := self.ScannedDirectories.All(&scannedDirectories); err == nil {
 		for _, directory := range scannedDirectories {
 			directory.DeepScan = deep
 
@@ -186,7 +185,7 @@ func (self *Database) Cleanup() error {
 	var scannedDirectories []Directory
 	var ids []string
 
-	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
+	if err := self.ScannedDirectories.All(&scannedDirectories); err == nil {
 		for _, dir := range scannedDirectories {
 			ids = append(ids, dir.ID)
 		}
@@ -198,8 +197,10 @@ func (self *Database) Cleanup() error {
 
 	log.Debugf("Cleaning up...")
 
-	if err := Metadata.Each(File{}, func(fileI interface{}) {
+	if err := self.Metadata.Each(File{}, func(fileI interface{}) {
 		if file, ok := fileI.(*File); ok {
+			file.db = self
+
 			if !sliceutil.ContainsString(ids, file.Label) {
 				filesToDelete = append(filesToDelete, file.ID)
 			} else if absPath, err := file.GetAbsolutePath(); err == nil {
@@ -210,7 +211,7 @@ func (self *Database) Cleanup() error {
 		}
 	}); err == nil {
 		if l := len(filesToDelete); l > 0 {
-			if err := Metadata.Delete(filesToDelete...); err == nil {
+			if err := self.Metadata.Delete(filesToDelete...); err == nil {
 				log.Infof("Removed %d file entries", l)
 			} else {
 				log.Warningf("Failed to cleanup missing files: %v", err)
@@ -226,22 +227,22 @@ func (self *Database) Cleanup() error {
 }
 
 func (self *Database) setupSchemata() error {
-	AuthorizedPeers = mapper.NewModel(self.db, AuthorizedPeersSchema)
-	Downloads = mapper.NewModel(self.db, DownloadsSchema)
-	Metadata = mapper.NewModel(self.db, MetadataSchema)
-	ScannedDirectories = mapper.NewModel(self.db, ScannedDirectoriesSchema)
-	Shares = mapper.NewModel(self.db, SharesSchema)
-	Subscriptions = mapper.NewModel(self.db, SubscriptionsSchema)
-	System = mapper.NewModel(self.db, SystemSchema)
+	self.AuthorizedPeers = mapper.NewModel(self.db, AuthorizedPeersSchema)
+	self.Downloads = mapper.NewModel(self.db, DownloadsSchema)
+	self.Metadata = mapper.NewModel(self.db, MetadataSchema)
+	self.ScannedDirectories = mapper.NewModel(self.db, ScannedDirectoriesSchema)
+	self.Shares = mapper.NewModel(self.db, SharesSchema)
+	self.Subscriptions = mapper.NewModel(self.db, SubscriptionsSchema)
+	self.System = mapper.NewModel(self.db, SystemSchema)
 
 	models := []mapper.Mapper{
-		AuthorizedPeers,
-		Downloads,
-		Metadata,
-		ScannedDirectories,
-		Shares,
-		Subscriptions,
-		System,
+		self.AuthorizedPeers,
+		self.Downloads,
+		self.Metadata,
+		self.ScannedDirectories,
+		self.Shares,
+		self.Subscriptions,
+		self.System,
 	}
 
 	for _, model := range models {

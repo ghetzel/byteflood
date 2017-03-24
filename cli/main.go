@@ -40,6 +40,7 @@ func main() {
 	app.EnableBashCompletion = false
 
 	var application *byteflood.Application
+	var database *db.Database
 	api := client.NewClient()
 
 	app.Flags = []cli.Flag{
@@ -117,6 +118,7 @@ func main() {
 
 		if a, err := createApplication(c); err == nil {
 			application = a
+			database = a.Database
 		}else{
 			return err
 		}
@@ -181,6 +183,12 @@ func main() {
 
 			},
 		}, {
+			Name: `id`,
+			Usage: `Print your local peer ID that is shared with other peers.`,
+			Action: func(c *cli.Context) {
+				fmt.Printf("%v\n", application.LocalPeer.ID())
+			},
+		},{
 			Name:      `genkeypair`,
 			Usage:     `Generates a new public/private key pair and saves them to files`,
 			ArgsUsage: `BASENAME`,
@@ -215,7 +223,7 @@ func main() {
 				if f, err := db.ParseFilter(strings.Join(c.Args(), `/`)); err == nil {
 					var rs dal.RecordSet
 
-					if err := db.Metadata.Find(f, &rs); err == nil {
+					if err := database.Metadata.Find(f, &rs); err == nil {
 						printWithFormat(c.GlobalString(`format`), rs, func() {
 							tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 
@@ -342,7 +350,7 @@ func main() {
 					Action: func(c *cli.Context) {
 						var authorized []peer.AuthorizedPeer
 
-						if err := db.AuthorizedPeers.All(&authorized); err == nil {
+						if err := database.AuthorizedPeers.All(&authorized); err == nil {
 							printWithFormat(c.GlobalString(`format`), authorized, func(){
 								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
 
@@ -410,8 +418,8 @@ func main() {
 							log.Fatalf("Must specify a NAME for the peer.")
 						}
 
-						if !db.AuthorizedPeers.Exists(peerID) {
-							if err := db.AuthorizedPeers.Create(&peer.AuthorizedPeer{
+						if !database.AuthorizedPeers.Exists(peerID) {
+							if err := database.AuthorizedPeers.Create(&peer.AuthorizedPeer{
 								ID: peerID,
 								PeerName: name,
 								Addresses: strings.Join(c.StringSlice(`address`), `,`),
@@ -435,8 +443,8 @@ func main() {
 							log.Fatalf("Must specify a PEERID to revoke.")
 						}
 
-						if db.AuthorizedPeers.Exists(peerID) {
-							if err := db.AuthorizedPeers.Delete(peerID); err == nil {
+						if database.AuthorizedPeers.Exists(peerID) {
+							if err := database.AuthorizedPeers.Delete(peerID); err == nil {
 								log.Noticef("Peer ID %q access has been revoked.", peerID)
 							}else{
 								log.Fatalf("Failed to revoke peer ID %q: v", peerID, err)
@@ -483,11 +491,11 @@ func main() {
 					Action: func(c *cli.Context) {
 						var shares []shares.Share
 
-						if err := db.Shares.All(&shares); err == nil {
+						if err := database.Shares.All(&shares); err == nil {
 							printWithFormat(c.GlobalString(`format`), shares, func(){
 								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
 
-								fmt.Fprintf(tw, "ID\tNAME\tFILTER\tDESCRIPTION\n")
+								fmt.Fprintf(tw, "ID\tFILTER\tDESCRIPTION\n")
 
 								shareFilter := c.Args()
 								printed := 0
@@ -503,7 +511,6 @@ func main() {
 										tw,
 										"%d\t%s\t%s\t%s\n",
 										share.ID,
-										share.Name,
 										share.BaseFilter,
 										share.Description,
 									)

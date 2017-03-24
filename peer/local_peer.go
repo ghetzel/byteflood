@@ -36,6 +36,7 @@ var rxAddrSplit = regexp.MustCompile(`[\s,;]+`)
 type AuthorizedPeer struct {
 	ID        string `json:"id"`
 	PeerName  string `json:"name"`
+	Group     string `json:"group,omitempty"`
 	Addresses string `json:"addresses,omitempty"`
 }
 
@@ -68,9 +69,10 @@ type LocalPeer struct {
 	listening            chan bool
 	peerServer           *PeerServer
 	peerRequestHandler   http.Handler
+	db                   *db.Database
 }
 
-func NewLocalPeer() *LocalPeer {
+func NewLocalPeer(db *db.Database) *LocalPeer {
 	return &LocalPeer{
 		Address:              DEFAULT_PEER_SERVER_ADDRESS,
 		Autoconnect:          true,
@@ -80,6 +82,7 @@ func NewLocalPeer() *LocalPeer {
 		autoReceiveMessages:  true,
 		sessions:             cmap.New(),
 		listening:            make(chan bool),
+		db:                   db,
 	}
 }
 
@@ -101,7 +104,7 @@ func (self *LocalPeer) Initialize() error {
 	self.peerServer = NewPeerServer(self)
 
 	// load all authorized peers and populate AutoconnectPeers with their known addresses
-	if err := db.AuthorizedPeers.Each(AuthorizedPeer{}, func(v interface{}) {
+	if err := self.db.AuthorizedPeers.Each(AuthorizedPeer{}, func(v interface{}) {
 		if peer, ok := v.(*AuthorizedPeer); ok {
 			if peer.Addresses != `` {
 				self.AutoconnectPeers = append(self.AutoconnectPeers, peer.GetAddresses()...)
@@ -140,8 +143,8 @@ func (self *LocalPeer) AddAuthorizedPeer(peerID string, name string) error {
 		PeerName: name,
 	}
 
-	if !db.AuthorizedPeers.Exists(peerID) {
-		return db.AuthorizedPeers.Create(peer)
+	if !self.db.AuthorizedPeers.Exists(peerID) {
+		return self.db.AuthorizedPeers.Create(peer)
 	} else {
 		return fmt.Errorf("Peer %s already exists", peerID)
 	}
@@ -301,18 +304,60 @@ func (self *LocalPeer) RunPeerServer() error {
 	}
 }
 
-func (self *LocalPeer) GetPeersByKey(publicKey []byte) []*RemotePeer {
+func (self *LocalPeer) GetPeers() []*RemotePeer {
 	peers := make([]*RemotePeer, 0)
 
 	self.sessions.IterCb(func(id string, v interface{}) {
 		if remotePeer, ok := v.(*RemotePeer); ok {
-			if bytes.Compare(publicKey, remotePeer.GetPublicKey()) == 0 {
-				peers = append(peers, remotePeer)
-			}
+			peers = append(peers, remotePeer)
 		}
 	})
 
 	return peers
+}
+
+func (self *LocalPeer) GetPeersByKey(publicKey []byte) []*RemotePeer {
+	peers := make([]*RemotePeer, 0)
+
+	for _, remotePeer := range self.GetPeers() {
+		if bytes.Compare(publicKey, remotePeer.GetPublicKey()) == 0 {
+			peers = append(peers, remotePeer)
+		}
+	}
+
+	return peers
+}
+
+func (self *LocalPeer) GetPeersInGroup(nameOrGroup string) ([]*RemotePeer, error) {
+	peers := make([]*RemotePeer, 0)
+	var authPeersInGroup []*AuthorizedPeer
+	query := make(map[string]interface{})
+
+	// peer groups are given to us as @-prefixed strings
+	if strings.HasPrefix(nameOrGroup, `@`) {
+		query[`group`] = strings.TrimPrefix(nameOrGroup, `@`)
+	} else {
+		query[`name`] = nameOrGroup
+	}
+
+	if f, err := db.ParseFilter(query); err == nil {
+		if err := self.db.AuthorizedPeers.Find(f, &authPeersInGroup); err == nil {
+			for _, remotePeer := range self.GetPeers() {
+				for _, authPeer := range authPeersInGroup {
+					if remotePeer.ID == authPeer.ID {
+						peers = append(peers, remotePeer)
+						break
+					}
+				}
+			}
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
+
+	return peers, nil
 }
 
 func (self *LocalPeer) PeerServer() *PeerServer {
@@ -361,7 +406,7 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 
 		if remotePeer, err := NewRemotePeerFromRequest(remotePeeringRequest, conn); err == nil {
 			// if a record exists for this peer ID, their name will be added to the remotePeer instance
-			if err := db.AuthorizedPeers.Get(remotePeer.ID, remotePeer); err != nil {
+			if err := self.db.AuthorizedPeers.Get(remotePeer.ID, remotePeer); err != nil {
 				log.Errorf("rejecting unknown peer %s (%s)", remotePeer.ID, remotePeer.String())
 				return nil, err
 			}

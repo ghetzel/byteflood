@@ -73,7 +73,7 @@ func (self *Directory) Scan() error {
 			// recursive directory handling
 			if entry.IsDir() {
 				if !self.NoRecurseDirectories {
-					dirEntry := NewFile(self.ID, self.RootPath, absPath)
+					dirEntry := NewFile(self.db, self.ID, self.RootPath, absPath)
 
 					subdirectory := NewDirectory(self.db, absPath)
 
@@ -99,9 +99,9 @@ func (self *Directory) Scan() error {
 						if f, err := ParseFilter(map[string]interface{}{
 							`parent`: subdirectory.Parent,
 						}); err == nil {
-							if values, err := Metadata.ListWithFilter([]string{`id`}, f); err == nil {
+							if values, err := self.db.Metadata.ListWithFilter([]string{`id`}, f); err == nil {
 								if ids, ok := values[`id`]; ok {
-									Metadata.Delete(ids...)
+									self.db.Metadata.Delete(ids...)
 								}
 							} else {
 								log.Errorf("[%s] Failed to cleanup files under %s: %v", self.ID, subdirectory.Parent, err)
@@ -110,8 +110,8 @@ func (self *Directory) Scan() error {
 							log.Errorf("[%s] Failed to cleanup files under %s: %v", self.ID, subdirectory.Parent, err)
 						}
 
-						if Metadata.Exists(dirEntry.ID) {
-							Metadata.Delete(dirEntry.ID)
+						if self.db.Metadata.Exists(dirEntry.ID) {
+							self.db.Metadata.Delete(dirEntry.ID)
 						}
 					} else {
 						if _, err := self.indexFile(absPath, true); err == nil {
@@ -170,7 +170,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	}
 
 	// get file implementation
-	file := NewFile(self.ID, self.RootPath, name)
+	file := NewFile(self.db, self.ID, self.RootPath, name)
 
 	// skip the file if it's in the global exclusions list (case sensitive exact match)
 	if sliceutil.ContainsString(self.db.GlobalExclusions, path.Base(name)) {
@@ -187,7 +187,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 		if !self.DeepScan {
 			var existingFile File
 
-			if err := Metadata.Get(file.ID, &existingFile); err == nil {
+			if err := self.db.Metadata.Get(file.ID, &existingFile); err == nil {
 				if file.LastModifiedAt == existingFile.LastModifiedAt {
 					return &existingFile, nil
 				}
@@ -227,7 +227,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	tm = stats.NewTiming()
 
 	// persist the file record
-	if err := Metadata.CreateOrUpdate(file.ID, file); err != nil {
+	if err := self.db.Metadata.CreateOrUpdate(file.ID, file); err != nil {
 		return nil, err
 	}
 
@@ -240,10 +240,12 @@ func (self *Directory) cleanupMissingFiles(query interface{}) error {
 	var files []File
 
 	if f, err := ParseFilter(query); err == nil {
-		if err := Metadata.Find(f, &files); err == nil {
+		if err := self.db.Metadata.Find(f, &files); err == nil {
 			filesToDelete := make([]interface{}, 0)
 
 			for _, file := range files {
+				file.SetDatabase(self.db)
+
 				if absPath, err := file.GetAbsolutePath(); err == nil {
 					if _, err := os.Stat(absPath); os.IsNotExist(err) {
 						filesToDelete = append(filesToDelete, file.ID)
@@ -254,7 +256,7 @@ func (self *Directory) cleanupMissingFiles(query interface{}) error {
 			}
 
 			if l := len(filesToDelete); l > 0 {
-				if err := Metadata.Delete(filesToDelete...); err == nil {
+				if err := self.db.Metadata.Delete(filesToDelete...); err == nil {
 					log.Infof("[%s] Cleaned up %d missing files", self.ID, l)
 				} else {
 					log.Warningf("[%s] Failed to cleanup missing files: %v", self.ID, err)

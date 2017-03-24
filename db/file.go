@@ -41,11 +41,12 @@ type File struct {
 	info            os.FileInfo            `json:"-"`
 	filename        string
 	metadataLoaded  bool
+	db              *Database
 }
 
 type WalkFunc func(path string, file *File, err error) error // {}
 
-func NewFile(label string, root string, name string) *File {
+func NewFile(db *Database, label string, root string, name string) *File {
 	normFileName := NormalizeFileName(root, name)
 
 	return &File{
@@ -53,7 +54,12 @@ func NewFile(label string, root string, name string) *File {
 		RelativePath: normFileName,
 		Metadata:     make(map[string]interface{}),
 		filename:     name,
+		db:           db,
 	}
+}
+
+func (self *File) SetDatabase(db *Database) {
+	self.db = db
 }
 
 func (self *File) Info() os.FileInfo {
@@ -106,9 +112,11 @@ func (self *File) Children(filterString ...string) ([]*File, error) {
 
 		files := make([]*File, 0)
 
-		if err := Metadata.Find(f, &files); err == nil {
+		if err := self.db.Metadata.Find(f, &files); err == nil {
 			// enforce a strict path hierarchy for parent-child relationships
 			for _, file := range files {
+				file.SetDatabase(self.db)
+
 				if !strings.HasPrefix(file.RelativePath, self.RelativePath+`/`) {
 					return nil, fmt.Errorf("child entry falls outside of parent path")
 				}
@@ -162,7 +170,7 @@ func (self *File) GenerateChecksum() (string, error) {
 func (self *File) GetAbsolutePath() (string, error) {
 	var rootDirectory Directory
 
-	if err := ScannedDirectories.Get(self.Label, &rootDirectory); err == nil {
+	if err := self.db.ScannedDirectories.Get(self.Label, &rootDirectory); err == nil {
 		return path.Join(rootDirectory.Path, self.RelativePath), nil
 	} else {
 		return ``, err
@@ -185,7 +193,7 @@ func (self *File) GetManifest(fields []string, filterString string) (*Manifest, 
 			var itemType ManifestItemType
 
 			if file.IsDirectory {
-				itemType = DirectoryItem
+				return nil
 			} else {
 				itemType = FileItem
 			}

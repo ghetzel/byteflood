@@ -160,9 +160,7 @@ func TestSyncManifestLoadTSV(t *testing.T) {
 	tsv := strings.Join(lines, "\n")
 	reader := bytes.NewReader([]byte(tsv[:]))
 
-	assert.Nil(manifest.LoadTSV(reader, []string{
-		`id`, `relative_path`, `type`, `file.size`, `checksum`,
-	}))
+	assert.Nil(manifest.LoadTSV(reader, `id`, `relative_path`, `type`, `file.size`, `checksum`))
 
 	assert.Equal(wantedItems, manifest.Items)
 }

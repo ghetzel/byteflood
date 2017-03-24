@@ -7,23 +7,21 @@ bindings:
 ---
 <div class="col-sm-12 col-md-6">
     <form name="shares">
-        <input name="id" type="hidden" value="{{ .bindings.share.id }}">
-
         <div class="form-group">
-            <label for="name">Share Name</label>
+            <label for="id">Share ID</label>
             <input
                 type="text"
                 class="form-control"
-                name="name"
+                name="id"
                 aria-describedby="nameHelp"
                 placeholder="Public share name..."
                 required
-                autofocus
-                value="{{ .bindings.share.name }}"
+                {{ if eq (or .request.url.query.id "new") "new" }}autofocus{{ else }}readonly{{ end }}
+                value="{{ .bindings.share.id }}"
             >
 
-            <small id="nameHelp" class="form-text text-muted">
-                This is the name that other users will see when browsing your content.
+            <small id="idHelp" class="form-text text-muted">
+                This is the unique ID of the share.
             </small>
         </div>
 

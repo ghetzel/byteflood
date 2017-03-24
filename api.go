@@ -20,6 +20,7 @@ type API struct {
 	Address       string `json:"address,omitempty"`
 	UiDirectory   string `json:"ui_directory,omitempty"`
 	application   *Application
+	db            *db.Database
 	eventUpgrader websocket.Upgrader
 	eventStreams  cmap.ConcurrentMap
 	events        chan *Event
@@ -34,17 +35,18 @@ func NewAPI(application *Application) *API {
 		Address:      DefaultApiAddress,
 		UiDirectory:  DefaultUiDirectory,
 		application:  application,
+		db:           application.Database,
 		eventStreams: cmap.New(),
 		events:       make(chan *Event),
 	}
 }
 
 func (self *API) Initialize() error {
-	endpointModelMap[`directories`] = db.ScannedDirectories
-	endpointModelMap[`downloads`] = db.Downloads
-	endpointModelMap[`peers`] = db.AuthorizedPeers
-	endpointModelMap[`shares`] = db.Shares
-	endpointModelMap[`subscriptions`] = db.Subscriptions
+	endpointModelMap[`directories`] = self.db.ScannedDirectories
+	endpointModelMap[`downloads`] = self.db.Downloads
+	endpointModelMap[`peers`] = self.db.AuthorizedPeers
+	endpointModelMap[`shares`] = self.db.Shares
+	endpointModelMap[`subscriptions`] = self.db.Subscriptions
 
 	self.eventUpgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -55,14 +57,6 @@ func (self *API) Initialize() error {
 	}
 
 	go self.startEventDispatcher()
-
-	go func() {
-		for _ = range time.Tick(5 * time.Second) {
-			self.SendEvent(&Event{
-				Type: HeartbeatEvent,
-			})
-		}
-	}()
 
 	return nil
 }

@@ -15,7 +15,7 @@ func (self *API) handleGetQueue(w http.ResponseWriter, req *http.Request) {
 func (self *API) handleGetQueuedDownloads(w http.ResponseWriter, req *http.Request) {
 	var downloads []QueuedDownload
 
-	if err := db.Downloads.All(&downloads); err == nil {
+	if err := self.db.Downloads.All(&downloads); err == nil {
 		Respond(w, downloads)
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -53,7 +53,7 @@ func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
 	} else {
 		var file db.File
 
-		if err := db.Metadata.Get(fileId, &file); err == nil {
+		if err := self.db.Metadata.Get(fileId, &file); err == nil {
 			if absPath, err := file.GetAbsolutePath(); err == nil {
 				if osFile, err := os.Open(absPath); err == nil {
 					if n, err := io.Copy(w, osFile); err == nil {

@@ -48,14 +48,10 @@ var MetadataSchema = dal.Collection{
 }
 
 var SharesSchema = dal.Collection{
-	Name: `shares`,
+	Name:              `shares`,
+	IdentityFieldType: dal.StringType,
 	Fields: []dal.Field{
 		{
-			Name:     `name`,
-			Type:     dal.StringType,
-			Required: true,
-			Unique:   true,
-		}, {
 			Name: `filter`,
 			Type: dal.StringType,
 		}, {

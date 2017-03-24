@@ -19,6 +19,8 @@ const (
 
 type ManifestValue interface{}
 
+var DefaultManifestFields = []string{ `id`, `relative_path`, `type` }
+
 type ManifestItem struct {
 	ID           string
 	Type         ManifestItemType
@@ -56,7 +58,7 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 		}
 	default:
 		// perform field checks
-		file := NewFile(self.Label, manifest.BaseDirectory, absPath)
+		file := NewFile(nil, self.Label, manifest.BaseDirectory, absPath)
 
 		for i, value := range self.Values {
 			if i < len(manifest.Fields) {
@@ -100,19 +102,6 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 	return false, nil
 }
 
-type SyncPolicy struct {
-	ID     string   `json:"id"`
-	Fields []string `json:"fields"`
-}
-
-func (self *SyncPolicy) Compare(field string, value interface{}, other interface{}) bool {
-	if fmt.Sprintf("%v", value) == fmt.Sprintf("%v", other) {
-		return true
-	}
-
-	return false
-}
-
 type Manifest struct {
 	BaseDirectory string
 	Items         []ManifestItem
@@ -127,20 +116,33 @@ func NewManifest(baseDirectory string, fields ...string) *Manifest {
 	}
 }
 
-func (self *Manifest) LoadTSV(r io.Reader, fields []string) error {
+func (self *Manifest) LoadTSV(r io.Reader, fields ...string) error {
 	scanner := bufio.NewScanner(r)
 	self.Fields = nil
+	headerSkipped := false
+
+	fields = append(DefaultManifestFields, fields...)
 
 	for scanner.Scan() {
 		if err := scanner.Err(); err != nil {
 			return err
 		}
 
+		// skip the first line (header)
+		if !headerSkipped {
+			headerSkipped = true
+			continue
+		}
+
 		line := scanner.Text()
 		values := strings.Split(line, "\t")
 
 		if len(values) != len(fields) {
-			return fmt.Errorf("Column count does not match given schema")
+			return fmt.Errorf(
+				"Column count does not match given schema (got %d values for %d fields)",
+				len(values),
+				len(fields),
+			)
 		}
 
 		item := ManifestItem{}

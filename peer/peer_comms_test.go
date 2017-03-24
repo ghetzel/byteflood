@@ -13,15 +13,17 @@ import (
 	"time"
 )
 
+var database *db.Database
+
 func TestMain(m *testing.M) {
 	if tmpfile, err := ioutil.TempFile(``, `byteflood`); err == nil {
 		defer os.Remove(tmpfile.Name())
 
-		db := db.NewDatabase()
-		db.URI = `sqlite://` + tmpfile.Name()
-		db.Indexer = ``
+		database = db.NewDatabase()
+		database.URI = `sqlite://` + tmpfile.Name()
+		database.Indexer = ``
 
-		if err := db.Initialize(); err == nil {
+		if err := database.Initialize(); err == nil {
 			os.Exit(m.Run())
 		} else {
 			panic(err.Error())
@@ -33,7 +35,7 @@ func TestMain(m *testing.M) {
 
 func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	if publicKey, privateKey, err := box.GenerateKey(rand.Reader); err == nil {
-		localPeer := NewLocalPeer()
+		localPeer := NewLocalPeer(database)
 		localPeer.PublicKey = []byte(publicKey[:])
 		localPeer.PrivateKey = []byte(privateKey[:])
 
@@ -48,7 +50,7 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	}
 
 	if publicKey, privateKey, err := box.GenerateKey(rand.Reader); err == nil {
-		localPeer := NewLocalPeer()
+		localPeer := NewLocalPeer(database)
 		localPeer.PublicKey = []byte(publicKey[:])
 		localPeer.PrivateKey = []byte(privateKey[:])
 
