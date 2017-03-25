@@ -168,3 +168,7 @@
     font-size: 10pt;
     font-family: monospace;
 }
+
+.children-display-block > * {
+    display: block;
+}

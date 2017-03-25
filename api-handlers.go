@@ -5,24 +5,23 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
-	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/mapper"
 	"github.com/husobee/vestigo"
 	"net/http"
-	"reflect"
 	"strings"
 )
 
 // populated in API.Initialize()
 var endpointModelMap = map[string]mapper.Mapper{}
 
-var endpointInstanceMap = map[string]reflect.Type{
-	`directories`:   reflect.TypeOf(db.Directory{}),
-	`downloads`:     reflect.TypeOf(QueuedDownload{}),
-	`peers`:         reflect.TypeOf(peer.RemotePeer{}),
-	`shares`:        reflect.TypeOf(shares.Share{}),
-	`subscriptions`: reflect.TypeOf(Subscription{}),
+var endpointInstanceMap = map[string]*dal.Collection{
+	`directories`:   &db.ScannedDirectoriesSchema,
+	`downloads`:     &db.DownloadsSchema,
+	`peers`:         &db.AuthorizedPeersSchema,
+	`shares`:        &db.SharesSchema,
+	`subscriptions`: &db.SubscriptionsSchema,
+	`system`:        &db.SystemSchema,
 }
 
 type ActionPeerConnect struct {
@@ -51,8 +50,8 @@ func (self *API) handleGetNewModelInstance(w http.ResponseWriter, req *http.Requ
 	if len(parts) >= 3 {
 		modelName := parts[2]
 
-		if typeOf, ok := endpointInstanceMap[modelName]; ok {
-			Respond(w, reflect.New(typeOf).Interface())
+		if schema, ok := endpointInstanceMap[modelName]; ok {
+			Respond(w, schema.NewInstance())
 		} else {
 			http.Error(w, fmt.Sprintf("Unknown model '%s'", modelName), http.StatusNotFound)
 		}

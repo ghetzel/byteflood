@@ -14,15 +14,24 @@ import (
 var log = logging.MustGetLogger(`byteflood/shares`)
 
 type Share struct {
-	ID          string `json:"id"`
-	BaseFilter  string `json:"filter,omitempty"`
-	Description string `json:"description,omitempty"`
-	db          *db.Database
+	ID              string `json:"id"`
+	IconName        string `json:"icon_name"`
+	BaseFilter      string `json:"filter,omitempty"`
+	Description     string `json:"description,omitempty"`
+	LongDescription string `json:"long_description,omitempty"`
+	db              *db.Database
 }
 
-func NewShare(db *db.Database) *Share {
+func NewShare(conn *db.Database) *Share {
+	icon := ``
+
+	if field, ok := db.SharesSchema.GetField(`icon_name`); ok {
+		icon = fmt.Sprintf("%v", field.DefaultValue)
+	}
+
 	return &Share{
-		db: db,
+		IconName: icon,
+		db:       conn,
 	}
 }
 

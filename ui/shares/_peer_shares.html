@@ -3,44 +3,27 @@ bindings:
 - name: shares
   resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares
   params:
-    limit: '{{ or .request.url.query.limit 15 }}'
+    limit:  '{{ or .request.url.query.limit 15 }}'
     offset: '{{ or .request.url.query.offset 0 }}'
     sort:   '{{ .request.url.query.sort }}'
 ---
 {{ $share := or .request.url.query.share `` }}
 {{ $session := or .request.url.query.session `` }}
-<ul class="nav">
-  {{ if .bindings.shares }}
-  {{ range .bindings.shares }}
-  <li>
-      <a
-        class="{{ if eq (asStr .id) $share }} active{{ end }}"
-        href="/shares/?share={{ .id }}{{ if $session }}&amp;session={{ $session }}{{ end }}"
-      >
-        {{ .id }}
-      </a>
-      <span
-        class="pull-right"
-      >
-        {{ if not $session }}
-        <a
-          href="/shares/edit?id={{ .id }}"
-        ><i class="fa fa-pencil"></i></a>
-
-        <a onclick="byteflood.delete('shares', '{{ .id }}')" href="#">
-          <i class="fa fa-remove text-danger"></i>
-        </a>
-        {{ end }}
-        <a
-          href="/api{{ if $session }}/sessions/{{ $session }}/proxy{{ end }}/shares/{{ .id }}/browse/"
-          target="_blank"
-        ><i class="fa fa-external-link-square"></i></a>
-      </span>
-  </li>
-  {{ end }}
-  {{ else }}
-  <li>
-    <i>No shares available.</i>
-  </li>
-  {{ end }}
-</ul>
+<div class="list-group">
+    {{ if .bindings.shares }}
+    {{ range .bindings.shares }}
+    <button
+        type="button"
+        class="list-group-item list-group-item-action{{ if eq .id $share }} active{{ end }}"
+        onclick="location.href='/shares/?share={{ .id }}{{ if $session }}&amp;session={{ $session }}{{ end }}'"
+    >
+        <i class="fa fa-fw fa-{{ or .icon_name `folder-o` }}"></i>
+        <span class="align-self-start">{{ or .description .id }}</span>
+    </button>
+    {{ end }}
+    {{ else }}
+    <a class="list-group-item disabled">
+        <i>No shares available.</i>
+    </a>
+    {{ end }}
+</div>

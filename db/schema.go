@@ -61,8 +61,16 @@ var SharesSchema = dal.Collection{
 			Name: `description`,
 			Type: dal.StringType,
 		}, {
+			Name: `long_description`,
+			Type: dal.StringType,
+		}, {
 			Name: `filter_templates`,
 			Type: dal.StringType,
+		}, {
+			Name:         `icon_name`,
+			Type:         dal.StringType,
+			Required:     true,
+			DefaultValue: `folder`,
 		},
 	},
 }
@@ -190,7 +198,7 @@ var ScannedDirectoriesSchema = dal.Collection{
 			Type:        dal.IntType,
 		}, {
 			Name: `checksum`,
-			Description: `If true, all scanned files will have a SHA-256 checksum calculated for them. ` +
+			Description: `If true, all scanned files will have a SHA-1 checksum calculated for them. ` +
 				`Note: this will significantly increase the time to scan large directories.`,
 			Type:         dal.BooleanType,
 			Required:     true,

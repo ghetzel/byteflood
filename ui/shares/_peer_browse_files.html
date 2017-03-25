@@ -24,6 +24,50 @@ bindings:
 {{ $grandparent := or .request.url.query.grandparent `` }}
 {{ $parent := or .request.url.query.parent `` }}
 {{ $offset := or .request.url.query.offset 0 }}
+
+
+<nav class="navbar navbar-full navbar-light">
+  <ul class="nav navbar-nav">
+    <li class="nav-item">
+      <a
+          href="/api{{ if $session }}/sessions/{{ $session }}/proxy{{ end }}/shares/{{ $share }}/browse/"
+          target="_blank"
+      >
+        <i class="fa fa-external-link-square"></i>
+        API Link
+      </a>
+    </li>
+  </ul>
+
+  {{ if not $session }}
+  <ul class="nav navbar-nav pull-right">
+    <li class="nav-item">
+      <a
+        class="nav-link"
+        href="/shares/edit?id={{ $share }}"
+        title="Edit this share."
+      >
+        <i class="fa fa-pencil"></i>
+        Edit
+      </a>
+    </li>
+
+    <li class="nav-item">
+      <a
+        class="nav-link"
+        href="#"
+        onclick="byteflood.delete('shares', '{{ .id }}')"
+        title="Delete this share."
+      >
+        <i class="fa fa-remove"></i>
+        Delete
+      </a>
+    </li>
+  </ul>
+  {{ end }}
+</nav>
+
+
 {{ if .bindings.results }}
 <div class="card">
   <div class="card-header">

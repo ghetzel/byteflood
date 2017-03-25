@@ -1,7 +1,7 @@
 ---
 page:
   title: Shares
-  local_interval: 5000
+  local_interval: 50000
   peer_interval: 30000
 bindings:
 - name: sessions
@@ -24,7 +24,7 @@ bindings:
           </span>
 
           <div
-            bf-load="/shares/_peer_shares"
+            bf-load="/shares/_peer_shares?share={{ $share }}"
             bf-interval="{{ $.page.local_interval }}"
           ></div>
         </li>
@@ -43,7 +43,7 @@ bindings:
           </span>
 
           <div
-            bf-load="/shares/_peer_shares?session={{ .session_id }}"
+            bf-load="/shares/_peer_shares?session={{ .session_id }}&amp;share={{ $share }}"
             bf-interval="{{ $.page.peer_interval }}"
           ></div>
         </li>

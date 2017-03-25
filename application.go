@@ -90,6 +90,15 @@ func (self *Application) Initialize() error {
 		return err
 	}
 
+	// register types to schemata
+	db.AuthorizedPeersSchema.SetRecordType(peer.AuthorizedPeer{})
+	db.DownloadsSchema.SetRecordType(QueuedDownload{})
+	db.MetadataSchema.SetRecordType(db.File{})
+	db.ScannedDirectoriesSchema.SetRecordType(db.Directory{})
+	db.SharesSchema.SetRecordType(shares.Share{})
+	db.SubscriptionsSchema.SetRecordType(Subscription{})
+	db.SystemSchema.SetRecordType(db.Property{})
+
 	// load keys and initialize LocalPeer
 	// --------------------------------------------------------------------------------------------
 	if publicKey, privateKey, err := encryption.LoadKeyfiles(
