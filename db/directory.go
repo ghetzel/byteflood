@@ -178,6 +178,7 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	}
 
 	if stat, err := os.Stat(name); err == nil {
+		file.Size = stat.Size()
 		file.LastModifiedAt = stat.ModTime().UnixNano()
 
 		// Deep scan: only proceed with loading metadata and updating the record if

@@ -61,7 +61,7 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 		f.Limit = limit
 		f.Offset = offset
 
-		if sort == nil {
+		if len(sort) == 0 {
 			f.Sort = []string{`-directory`, `name`}
 		} else {
 			f.Sort = sort

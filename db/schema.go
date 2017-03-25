@@ -20,6 +20,9 @@ var MetadataSchema = dal.Collection{
 			Type:     dal.StringType,
 			Required: true,
 		}, {
+			Name: `size`,
+			Type: dal.IntType,
+		}, {
 			Name: `checksum`,
 			Type: dal.StringType,
 		}, {

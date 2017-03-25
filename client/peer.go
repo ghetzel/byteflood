@@ -5,7 +5,26 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/go-stockutil/typeutil"
 	"strings"
+	"time"
 )
+
+type Peer struct {
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	SessionID  string    `json:"session_id"`
+	Address    string    `json:"address"`
+	LastSeenAt time.Time `json:"last_seen_at"`
+}
+
+func (self *Client) GetSessions() (output *[]Peer, err error) {
+	err = self.Retrieve(`sessions`, nil, &output)
+	return
+}
+
+func (self *Client) GetSession(idOrName string) (output *Peer, err error) {
+	err = self.Retrieve(`sessions`, idOrName, &output)
+	return
+}
 
 func (self *Client) GetAuthorizedPeers() (output []*peer.AuthorizedPeer, err error) {
 	err = self.Retrieve(`peers`, nil, &output)
@@ -14,11 +33,6 @@ func (self *Client) GetAuthorizedPeers() (output []*peer.AuthorizedPeer, err err
 
 func (self *Client) GetAuthorizedPeer(peerID string) (output *peer.AuthorizedPeer, err error) {
 	err = self.Retrieve(`peers`, peerID, &output)
-	return
-}
-
-func (self *Client) GetSession(idOrName string) (output *peer.RemotePeer, err error) {
-	err = self.Retrieve(`sessions`, idOrName, &output)
 	return
 }
 

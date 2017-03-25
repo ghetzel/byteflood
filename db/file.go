@@ -32,6 +32,7 @@ type File struct {
 	RelativePath    string                 `json:"name"`
 	Parent          string                 `json:"parent,omitempty"`
 	Checksum        string                 `json:"checksum,omitempty"`
+	Size            int64                  `json:"size,omitempty"`
 	Label           string                 `json:"label"`
 	IsDirectory     bool                   `json:"directory"`
 	ChildCount      int                    `json:"children"`
@@ -175,6 +176,16 @@ func (self *File) GetAbsolutePath() (string, error) {
 	} else {
 		return ``, err
 	}
+}
+
+func (self *File) GetHumanSize() string {
+	sz := self.Get(`file.size`, 0)
+
+	if human, err := stringutil.ToByteString(self.Get(`file.size`, 0)); err == nil {
+		return human
+	}
+
+	return fmt.Sprintf("%g", sz)
 }
 
 func (self *File) Get(key string, fallback ...interface{}) interface{} {

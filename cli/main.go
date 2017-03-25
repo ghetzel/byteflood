@@ -6,19 +6,20 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood"
 	"github.com/ghetzel/byteflood/client"
-	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/byteflood/db"
-	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/byteflood/encryption"
+	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/maputil"
-	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
+	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/pivot/dal"
 	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
 	"io"
 	"os"
 	"os/signal"
+	"path"
 	"strings"
 	"text/tabwriter"
 )
@@ -28,7 +29,7 @@ const DEFAULT_FORMAT = `text`
 var log = logging.MustGetLogger(`main`)
 var DefaultLogLevel = map[string]logging.Level{
 	`run`: logging.DEBUG,
-	``: logging.NOTICE,
+	``:    logging.NOTICE,
 }
 
 func main() {
@@ -71,7 +72,7 @@ func main() {
 			Usage: `The path to the file containing the local private key`,
 		},
 		cli.StringFlag{
-			Name: `format, f`,
+			Name:  `format, f`,
 			Usage: `The output format to print records as (one of: json, yaml, xml, text)`,
 			Value: DEFAULT_FORMAT,
 		},
@@ -88,12 +89,12 @@ func main() {
 		if logLevel := c.String(`log-level`); logLevel == `` {
 			if lvl, ok := DefaultLogLevel[c.Args().First()]; ok {
 				logging.SetLevel(lvl, ``)
-			}else if lvl, ok := DefaultLogLevel[``]; ok {
+			} else if lvl, ok := DefaultLogLevel[``]; ok {
 				logging.SetLevel(lvl, ``)
-			}else{
+			} else {
 				logging.SetLevel(logging.DEBUG, ``)
 			}
-		}else{
+		} else {
 			if level, err := logging.LogLevel(logLevel); err == nil {
 				logging.SetLevel(level, ``)
 			} else {
@@ -118,7 +119,7 @@ func main() {
 		if a, err := createApplication(c); err == nil {
 			application = a
 			database = a.Database
-		}else{
+		} else {
 			return err
 		}
 
@@ -182,12 +183,12 @@ func main() {
 
 			},
 		}, {
-			Name: `id`,
+			Name:  `id`,
 			Usage: `Print your local peer ID that is shared with other peers.`,
 			Action: func(c *cli.Context) {
 				fmt.Printf("%v\n", application.LocalPeer.ID())
 			},
-		},{
+		}, {
 			Name:      `genkeypair`,
 			Usage:     `Generates a new public/private key pair and saves them to files`,
 			ArgsUsage: `BASENAME`,
@@ -343,12 +344,12 @@ func main() {
 			Usage: `Manage peer authorizations and access.`,
 			Subcommands: []cli.Command{
 				{
-					Name: `show`,
+					Name:      `show`,
 					ArgsUsage: `[NAME ..]`,
-					Usage: `List authorized peers`,
+					Usage:     `List authorized peers`,
 					Action: func(c *cli.Context) {
 						if authorized, err := api.GetAuthorizedPeers(); err == nil {
-							printWithFormat(c.GlobalString(`format`), authorized, func(){
+							printWithFormat(c.GlobalString(`format`), authorized, func() {
 								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
 
 								fmt.Fprintf(tw, "ID\tNAME\tSTATUS\tADDRESSES\n")
@@ -367,7 +368,7 @@ func main() {
 
 									if _, err := api.GetSession(peer.PeerName); err == nil {
 										status = `connected`
-									}else{
+									} else {
 										log.Debugf("Request failed: %v", err)
 									}
 
@@ -389,21 +390,21 @@ func main() {
 
 								tw.Flush()
 							})
-						}else{
+						} else {
 							log.Fatal(err)
 						}
 					},
-				},{
-					Name: `authorize`,
-					Usage: `Authorize a peer for communication with us.`,
+				}, {
+					Name:      `authorize`,
+					Usage:     `Authorize a peer for communication with us.`,
 					ArgsUsage: `PEERID NAME`,
 					Flags: []cli.Flag{
 						cli.StringFlag{
-							Name: `group, g`,
+							Name:  `group, g`,
 							Usage: `A named group this peer should belong to.`,
 						},
 						cli.StringSliceFlag{
-							Name: `address, a`,
+							Name:  `address, a`,
 							Usage: `Zero or more addresses to automatically connect to.`,
 						},
 					},
@@ -427,17 +428,17 @@ func main() {
 								c.StringSlice(`address`),
 							); err == nil {
 								log.Noticef("Peer ID %q successfully authorized with name %q", peerID, name)
-							}else{
+							} else {
 								log.Fatalf("Failed to authorize peer ID %q: %v", peerID, err)
 							}
-						}else{
+						} else {
 							log.Noticef("Peer ID %q is already authorized.", peerID)
 						}
 					},
-				},{
-					Name: `revoke`,
+				}, {
+					Name:      `revoke`,
 					ArgsUsage: `PEERID`,
-					Usage: `Deauthorize a peer`,
+					Usage:     `Deauthorize a peer`,
 					Action: func(c *cli.Context) {
 						peerID := c.Args().Get(0)
 
@@ -447,66 +448,140 @@ func main() {
 
 						if err := api.RevokePeer(peerID); err == nil {
 							log.Noticef("Peer ID %q access has been revoked.", peerID)
-						}else if client.IsNotFound(err) {
+						} else if client.IsNotFound(err) {
 							log.Warningf("Peer ID %q does not exist.", peerID)
-						}else{
+						} else {
 							log.Fatalf("Failed to revoke peer ID %q: v", peerID, err)
 						}
 					},
-				},{
-					Name: `connect`,
+				}, {
+					Name:      `connect`,
 					ArgsUsage: `PEERID_OR_NAME [ADDRESS]`,
-					Usage: `Connect to a peer.`,
+					Usage:     `Connect to a peer.`,
 					Action: func(c *cli.Context) {
 						// via HTTP + client
 					},
-				},{
-					Name: `disconnect`,
+				}, {
+					Name:  `disconnect`,
 					Usage: `Disconnect a connected peer.`,
 					Action: func(c *cli.Context) {
 						// via HTTP + client
 					},
-				},{
-					Name: `ls`,
+				}, {
+					Name:      `ls`,
 					ArgsUsage: `PEER [PATH]`,
-					Usage: `Browse a remote peer's shares.`,
+					Usage:     `Browse a remote peer's shares.`,
 					Action: func(c *cli.Context) {
 						peerOrSession := c.Args().Get(0)
-						sharePath :=c.Args().Get(1)
+						sharePath := strings.TrimPrefix(c.Args().Get(1), `/`)
 
 						if peer, err := api.GetSession(peerOrSession); err == nil {
 							if authPeer, err := api.GetAuthorizedPeer(peer.ID); err == nil {
+								if authPeer.Group == `` {
+									authPeer.Group = fmt.Sprintf("@%s", authPeer.PeerName)
+								}
+
 								if sharePath == `` {
-									if shares, err := api.GetShares(peer.SessionID()); err == nil {
-										printWithFormat(c.GlobalString(`format`), shares, func(){
+									if shares, err := api.GetShares(peerOrSession); err == nil {
+										printWithFormat(c.GlobalString(`format`), shares, func() {
 											tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 
 											for _, share := range shares {
 												fmt.Fprintf(
 													tw,
+													"%s\t%s\t%s\t\t%s\t\n",
 													`sr-xr-xr-x`,
 													authPeer.PeerName,
 													authPeer.Group,
-													-1,
 													share.ID,
 												)
 											}
 
 											tw.Flush()
 										})
-									}else{
+									} else {
+										log.Fatal(err)
+									}
+								} else {
+									parts := strings.Split(sharePath, `/`)
+									shareID := parts[0]
+									parent := ``
+
+									if len(parts) > 1 {
+										if rs, err := api.QueryShare(shareID, map[string]interface{}{
+											`name`: fmt.Sprintf("/%s", strings.Join(parts[1:], `/`)),
+										}, 1, 0, []string{
+											`-directory`,
+											`name`,
+										}, peerOrSession); err == nil {
+											if len(rs.Records) == 1 {
+												parent = fmt.Sprintf("%v", rs.Records[0].ID)
+											} else {
+												log.Fatalf("Could not find parent ID for path %q", sharePath)
+											}
+										} else {
+											log.Fatalf("Could not find parent ID for path %q: %v", sharePath, err)
+										}
+									}
+
+									if rs, err := api.BrowseShare(shareID, parent, peerOrSession); err == nil {
+										printWithFormat(c.GlobalString(`format`), rs, func() {
+											tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
+
+											for _, record := range rs.Records {
+												var file db.File
+												var fileSize string
+
+												if c.Bool(`human`) {
+													fileSize = file.GetHumanSize()
+												} else {
+													if v, err := stringutil.ToString(file.Get(`file.size`, 0)); err == nil {
+														fileSize = v
+													}
+												}
+
+												if fileSize == `` {
+													fileSize = `-`
+												}
+
+												if err := record.Populate(&file, nil); err == nil {
+													fmt.Fprintf(
+														tw,
+														"%v\t%s\t%s\t%s\t%s\t%s\n",
+														file.Get(`file.permissions.string`, `??????????`),
+														authPeer.PeerName,
+														authPeer.Group,
+														fileSize,
+														path.Base(file.RelativePath),
+														file.ID,
+													)
+												} else {
+													fmt.Fprintf(
+														tw,
+														"%v\t%s\t%s\t-\t%s\t\n",
+														`??????????`,
+														authPeer.PeerName,
+														authPeer.Group,
+														fmt.Sprintf("err:%v", err),
+													)
+												}
+											}
+
+											tw.Flush()
+										})
+									} else {
 										log.Fatal(err)
 									}
 								}
-							}else{
-								log.Fatalf("** CRITICAL**: Could not find authorization for peer %v", peer)
+							} else {
+								log.Fatalf("** CRITICAL**: Could not find authorization for peer %v", peer.ID)
 							}
-						}else{
+						} else {
 							log.Fatal(err)
 						}
 					},
-				},{
-					Name: `get`,
+				}, {
+					Name:  `get`,
 					Usage: `Download data from a remote peer.`,
 					Action: func(c *cli.Context) {
 						// via HTTP + client
@@ -518,14 +593,14 @@ func main() {
 			Usage: `Manage shared files`,
 			Subcommands: []cli.Command{
 				{
-					Name: `show`,
+					Name:      `show`,
 					ArgsUsage: `[NAME ..]`,
-					Usage: `List shares.`,
+					Usage:     `List shares.`,
 					Action: func(c *cli.Context) {
 						var shares []shares.Share
 
 						if err := database.Shares.All(&shares); err == nil {
-							printWithFormat(c.GlobalString(`format`), shares, func(){
+							printWithFormat(c.GlobalString(`format`), shares, func() {
 								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
 
 								fmt.Fprintf(tw, "ID\tFILTER\tDESCRIPTION\n")
@@ -557,7 +632,7 @@ func main() {
 
 								tw.Flush()
 							})
-						}else{
+						} else {
 							log.Fatal(err)
 						}
 					},
@@ -568,27 +643,27 @@ func main() {
 			Usage: `Manage subscriptions to other peer's content.`,
 			Subcommands: []cli.Command{
 				{
-					Name: `show`,
+					Name:      `show`,
 					ArgsUsage: `[NAME ..]`,
-					Usage: `List subscriptions`,
+					Usage:     `List subscriptions`,
 					Action: func(c *cli.Context) {
 					},
 				}, {
-					Name: `create`,
+					Name:      `create`,
 					ArgsUsage: `SHARE TARGET SOURCES`,
-					Usage: `Create a new subscription.`,
+					Usage:     `Create a new subscription.`,
 					Action: func(c *cli.Context) {
 					},
 				}, {
-					Name: `delete`,
+					Name:      `delete`,
 					ArgsUsage: `ID`,
-					Usage: `Remove a subscription.`,
+					Usage:     `Remove a subscription.`,
 					Action: func(c *cli.Context) {
 					},
 				}, {
-					Name: `sync`,
+					Name:      `sync`,
 					ArgsUsage: `[NAME ..]`,
-					Usage: `Sync data from subscriptions.`,
+					Usage:     `Sync data from subscriptions.`,
 					Action: func(c *cli.Context) {
 					},
 				},

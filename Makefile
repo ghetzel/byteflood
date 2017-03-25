@@ -14,19 +14,8 @@ clean:
 	rm -rf vendor bin
 
 fmt:
-	gofmt -w *.go
-	gofmt -w ./peer
-	gofmt -w ./encryption
-	gofmt -w ./db
-	gofmt -w ./util
-	gofmt -w ./shares
-	gofmt -w ./client
-	go vet *.go
-	go vet ./peer/..
-	go vet ./encryption/..
-	go vet ./db/..
-	go vet ./util/..
-	go vet ./shares/..
+	gofmt -w .
+	go vet .
 
 regen-test-files:
 	@-rm -rf "tests/files"

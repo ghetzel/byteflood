@@ -17,7 +17,7 @@ bindings:
         class="{{ if eq (asStr .id) $share }} active{{ end }}"
         href="/shares/?share={{ .id }}{{ if $session }}&amp;session={{ $session }}{{ end }}"
       >
-        {{ .name }}
+        {{ .id }}
       </a>
       <span
         class="pull-right"
