@@ -7,6 +7,7 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/go-stockutil/pathutil"
+	"github.com/ghetzel/pivot/dal"
 	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
 	"io/ioutil"
@@ -90,14 +91,20 @@ func (self *Application) Initialize() error {
 		return err
 	}
 
-	// register types to schemata
-	db.AuthorizedPeersSchema.SetRecordType(peer.AuthorizedPeer{})
-	db.DownloadsSchema.SetRecordType(QueuedDownload{})
-	db.MetadataSchema.SetRecordType(db.File{})
-	db.ScannedDirectoriesSchema.SetRecordType(db.Directory{})
-	db.SharesSchema.SetRecordType(shares.Share{})
-	db.SubscriptionsSchema.SetRecordType(Subscription{})
-	db.SystemSchema.SetRecordType(db.Property{})
+	// register types to schemata,set model initializers and perform test instantiation of instances
+	for schema, recordInstance := range map[*dal.Collection]interface{}{
+		db.AuthorizedPeersSchema:    peer.AuthorizedPeer{},
+		db.DownloadsSchema:          QueuedDownload{},
+		db.MetadataSchema:           db.Entry{},
+		db.ScannedDirectoriesSchema: db.Directory{},
+		db.SharesSchema:             shares.Share{},
+		db.SubscriptionsSchema:      Subscription{},
+		db.SystemSchema:             db.Property{},
+	} {
+		schema.SetRecordType(recordInstance)
+		schema.SetInitializer(self.Database.Initializer)
+		schema.NewInstance()
+	}
 
 	// load keys and initialize LocalPeer
 	// --------------------------------------------------------------------------------------------

@@ -6,6 +6,7 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/op/go-logging"
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"os"
@@ -14,6 +15,14 @@ import (
 	"testing"
 	"time"
 )
+
+func TestMain(m *testing.M) {
+	// turn down aggressively-verbose logging
+	logging.SetLevel(logging.ERROR, `diecast`)
+	logging.SetLevel(logging.CRITICAL, `pivot/querylog`)
+
+	os.Exit(m.Run())
+}
 
 func setupApplication(assert *require.Assertions, source string, dest string) *Application {
 	app := NewApplication()
@@ -50,7 +59,14 @@ func setupApplication(assert *require.Assertions, source string, dest string) *A
 	assert.Nil(err)
 	assert.True(info.IsDir())
 
-	assert.Nil(app.Database.ScannedDirectories.Create(db.NewDirectory(app.Database, dir)))
+	directory, ok := app.Database.ScannedDirectories.NewInstance(func(i interface{}) interface{} {
+		d := i.(*db.Directory)
+		d.Path = dir
+		return d
+	}).(*db.Directory)
+
+	assert.True(ok)
+	assert.Nil(app.Database.ScannedDirectories.Create(directory))
 	assert.Nil(app.Database.Shares.Create(&shares.Share{
 		ID:         `music`,
 		BaseFilter: `label=music`,
@@ -104,7 +120,8 @@ func TestSingleApplication(t *testing.T) {
 
 	// Share Testing
 	// ------------------------------------------------------------------------
-	musicShare := new(shares.Share)
+	musicShare, ok := db.SharesSchema.NewInstance().(*shares.Share)
+	assert.True(ok)
 	assert.Nil(app.Database.Shares.Get(`music`, musicShare))
 	assert.Equal(`music`, musicShare.ID)
 	assert.Equal(28, musicShare.Length())

@@ -50,14 +50,6 @@ func populateManifestTestDestination(base string) error {
 func getTestManifestItems() []ManifestItem {
 	return []ManifestItem{
 		{
-			ID:           `test1`,
-			Type:         DirectoryItem,
-			RelativePath: `/subdir1`,
-			Values: []ManifestValue{
-				nil,
-				nil,
-			},
-		}, {
 			ID:           `test1a`,
 			Type:         FileItem,
 			RelativePath: `/subdir1/file.1`,
@@ -142,7 +134,7 @@ func TestSyncManifestUpdates(t *testing.T) {
 	updates, err = manifest.GetUpdateManifest(policy)
 	assert.Nil(err)
 	assert.NotNil(updates)
-	assert.Equal(wantedItems[1:2], updates.Items)
+	assert.Equal(wantedItems[0:1], updates.Items)
 }
 
 func TestSyncManifestLoadTSV(t *testing.T) {
@@ -152,7 +144,7 @@ func TestSyncManifestLoadTSV(t *testing.T) {
 	manifest := NewManifest(`loadtsv`)
 
 	lines := []string{
-		"test1\t/subdir1\tdirectory\t\t",
+		"id\trelative_path\ttype\tfile.size\tchecsum",
 		"test1a\t/subdir1/file.1\tfile\t42\taae9c3aa50b937f1c2fef02853677d3f68a28193",
 		"test2\t/file.top1\tfile\t56\tb004ff62dd5510e33807ae38366553381451ed5b",
 	}
@@ -160,7 +152,7 @@ func TestSyncManifestLoadTSV(t *testing.T) {
 	tsv := strings.Join(lines, "\n")
 	reader := bytes.NewReader([]byte(tsv[:]))
 
-	assert.Nil(manifest.LoadTSV(reader, `id`, `relative_path`, `type`, `file.size`, `checksum`))
+	assert.Nil(manifest.LoadTSV(reader, `file.size`, `checksum`))
 
 	assert.Equal(wantedItems, manifest.Items)
 }

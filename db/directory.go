@@ -30,18 +30,19 @@ type Directory struct {
 
 var RootDirectoryName = `root`
 
-func NewDirectory(db *Database, dirpath string) *Directory {
-	return &Directory{
-		ID:          path.Base(dirpath),
-		Path:        dirpath,
-		Parent:      RootDirectoryName,
-		Directories: make([]*Directory, 0),
-		Checksum:    true,
-		db:          db,
-	}
+func (self *Directory) SetDatabase(conn *Database) {
+	self.db = conn
 }
 
-func (self *Directory) Initialize(db *Database) error {
+func (self *Directory) Constructor() interface{} {
+	if self.ID == `` && self.Path != `` {
+		self.ID = path.Base(self.Path)
+	}
+
+	return self
+}
+
+func (self *Directory) Initialize() error {
 	if self.Path == `` {
 		return fmt.Errorf("Directory path must be specified.")
 	} else {
@@ -60,8 +61,6 @@ func (self *Directory) Initialize(db *Database) error {
 		self.Parent = RootDirectoryName
 	}
 
-	self.db = db
-
 	return nil
 }
 
@@ -73,57 +72,60 @@ func (self *Directory) Scan() error {
 			// recursive directory handling
 			if entry.IsDir() {
 				if !self.NoRecurseDirectories {
-					dirEntry := NewFile(self.db, self.ID, self.RootPath, absPath)
+					dirEntry := NewEntry(self.db, self.ID, self.RootPath, absPath)
 
-					subdirectory := NewDirectory(self.db, absPath)
+					if subdirectory, ok := ScannedDirectoriesSchema.NewInstance().(*Directory); ok {
+						subdirectory.ID = self.ID
+						subdirectory.Path = absPath
+						subdirectory.Parent = dirEntry.ID
+						subdirectory.RootPath = self.RootPath
+						subdirectory.FilePattern = self.FilePattern
+						subdirectory.NoRecurseDirectories = self.NoRecurseDirectories
+						subdirectory.FileMinimumSize = self.FileMinimumSize
+						subdirectory.DeepScan = self.DeepScan
 
-					subdirectory.ID = self.ID
-					subdirectory.Parent = dirEntry.ID
-					subdirectory.RootPath = self.RootPath
-					subdirectory.FilePattern = self.FilePattern
-					subdirectory.NoRecurseDirectories = self.NoRecurseDirectories
-					subdirectory.FileMinimumSize = self.FileMinimumSize
-					subdirectory.DeepScan = self.DeepScan
+						log.Infof("[%s] %s: Scanning subdirectory %s", self.ID, subdirectory.Parent, subdirectory.Path)
 
-					log.Infof("[%s] %s: Scanning subdirectory %s", self.ID, subdirectory.Parent, subdirectory.Path)
-
-					if err := subdirectory.Scan(); err == nil {
-						self.FileCount = subdirectory.FileCount
-						self.Directories = append(self.Directories, subdirectory)
-					} else {
-						return err
-					}
-
-					if self.FileCount == 0 {
-						// cleanup files for whom we are the parent
-						if f, err := ParseFilter(map[string]interface{}{
-							`parent`: subdirectory.Parent,
-						}); err == nil {
-							if values, err := self.db.Metadata.ListWithFilter([]string{`id`}, f); err == nil {
-								if ids, ok := values[`id`]; ok {
-									self.db.Metadata.Delete(ids...)
-								}
-							} else {
-								log.Errorf("[%s] Failed to cleanup files under %s: %v", self.ID, subdirectory.Parent, err)
-							}
-						} else {
-							log.Errorf("[%s] Failed to cleanup files under %s: %v", self.ID, subdirectory.Parent, err)
-						}
-
-						if self.db.Metadata.Exists(dirEntry.ID) {
-							self.db.Metadata.Delete(dirEntry.ID)
-						}
-					} else {
-						if _, err := self.indexFile(absPath, true); err == nil {
-							// cleanup files for whom we are the parent
-							if err := self.cleanupMissingFiles(map[string]interface{}{
-								`parent`: subdirectory.Parent,
-							}); err != nil {
-								log.Errorf("[%s] Failed to cleanup files under %s: %v", self.ID, subdirectory.Parent, err)
-							}
+						if err := subdirectory.Scan(); err == nil {
+							self.FileCount = subdirectory.FileCount
+							self.Directories = append(self.Directories, subdirectory)
 						} else {
 							return err
 						}
+
+						if self.FileCount == 0 {
+							// cleanup entries for whom we are the parent
+							if f, err := ParseFilter(map[string]interface{}{
+								`parent`: subdirectory.Parent,
+							}); err == nil {
+								if values, err := self.db.Metadata.ListWithFilter([]string{`id`}, f); err == nil {
+									if ids, ok := values[`id`]; ok {
+										self.db.Metadata.Delete(ids...)
+									}
+								} else {
+									log.Errorf("[%s] Failed to cleanup entries under %s: %v", self.ID, subdirectory.Parent, err)
+								}
+							} else {
+								log.Errorf("[%s] Failed to cleanup entries under %s: %v", self.ID, subdirectory.Parent, err)
+							}
+
+							if self.db.Metadata.Exists(dirEntry.ID) {
+								self.db.Metadata.Delete(dirEntry.ID)
+							}
+						} else {
+							if _, err := self.scanEntry(absPath, true); err == nil {
+								// cleanup entries for whom we are the parent
+								if err := self.cleanupMissingEntries(map[string]interface{}{
+									`parent`: subdirectory.Parent,
+								}); err != nil {
+									log.Errorf("[%s] Failed to cleanup entries under %s: %v", self.ID, subdirectory.Parent, err)
+								}
+							} else {
+								return err
+							}
+						}
+					} else {
+						return fmt.Errorf("Failed to instantiate new Directory")
 					}
 				}
 			} else {
@@ -144,8 +146,8 @@ func (self *Directory) Scan() error {
 					}
 				}
 
-				// scan the file as a sharable asset
-				if _, err := self.indexFile(absPath, false); err == nil {
+				// scan the entry as a sharable asset
+				if _, err := self.scanEntry(absPath, false); err == nil {
 					self.FileCount += 1
 				} else {
 					return err
@@ -159,37 +161,37 @@ func (self *Directory) Scan() error {
 	return nil
 }
 
-func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
+func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 	defer stats.NewTiming().Send(`byteflood.db.entry_scan_time`)
 	stats.Increment(`byteflood.db.entry`)
 
 	if isDir {
 		stats.Increment(`byteflood.db.directory`)
 	} else {
-		stats.Increment(`byteflood.db.file`)
+		stats.Increment(`byteflood.db.entry`)
 	}
 
-	// get file implementation
-	file := NewFile(self.db, self.ID, self.RootPath, name)
+	// get entry implementation
+	entry := NewEntry(self.db, self.ID, self.RootPath, name)
 
-	// skip the file if it's in the global exclusions list (case sensitive exact match)
+	// skip the entry if it's in the global exclusions list (case sensitive exact match)
 	if sliceutil.ContainsString(self.db.GlobalExclusions, path.Base(name)) {
-		return file, nil
+		return entry, nil
 	}
 
 	if stat, err := os.Stat(name); err == nil {
-		file.Size = stat.Size()
-		file.LastModifiedAt = stat.ModTime().UnixNano()
+		entry.Size = stat.Size()
+		entry.LastModifiedAt = stat.ModTime().UnixNano()
 
 		// Deep scan: only proceed with loading metadata and updating the record if
-		//   - The file is new, or...
-		//   - The file exists but has been modified since we last saw it
+		//   - The entry is new, or...
+		//   - The entry exists but has been modified since we last saw it
 		//
 		if !self.DeepScan {
-			var existingFile File
+			var existingFile Entry
 
-			if err := self.db.Metadata.Get(file.ID, &existingFile); err == nil {
-				if file.LastModifiedAt == existingFile.LastModifiedAt {
+			if err := self.db.Metadata.Get(entry.ID, &existingFile); err == nil {
+				if entry.LastModifiedAt == existingFile.LastModifiedAt {
 					return &existingFile, nil
 				}
 			}
@@ -198,27 +200,27 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 
 	// Deep Scan only from here on...
 	// --------------------------------------------------------------------------------------------
-	log.Infof("[%s] %s: Scanning file %s", self.ID, self.Parent, name)
+	log.Infof("[%s] %s: Scanning entry %s", self.ID, self.Parent, name)
 
-	file.Parent = self.Parent
-	file.Label = self.ID
-	file.IsDirectory = isDir
+	entry.Parent = self.Parent
+	entry.Label = self.ID
+	entry.IsDirectory = isDir
 
 	if isDir {
-		file.ChildCount = self.FileCount
+		entry.ChildCount = self.FileCount
 	}
 
 	tm := stats.NewTiming()
 
-	// load file metadata
-	if err := file.LoadMetadata(); err != nil {
+	// load entry metadata
+	if err := entry.LoadMetadata(); err != nil {
 		return nil, err
 	}
 
-	// calculate checksum for file
-	if self.Checksum && !file.IsDirectory {
-		if sum, err := file.GenerateChecksum(); err == nil {
-			file.Checksum = sum
+	// calculate checksum for entry
+	if self.Checksum && !entry.IsDirectory {
+		if sum, err := entry.GenerateChecksum(); err == nil {
+			entry.Checksum = sum
 		} else {
 			return nil, err
 		}
@@ -227,40 +229,40 @@ func (self *Directory) indexFile(name string, isDir bool) (*File, error) {
 	tm.Send(`byteflood.db.entry_metadata_load_time`)
 	tm = stats.NewTiming()
 
-	// persist the file record
-	if err := self.db.Metadata.CreateOrUpdate(file.ID, file); err != nil {
+	// persist the entry record
+	if err := self.db.Metadata.CreateOrUpdate(entry.ID, entry); err != nil {
 		return nil, err
 	}
 
 	tm.Send(`byteflood.db.entry_persist_time`)
 
-	return file, nil
+	return entry, nil
 }
 
-func (self *Directory) cleanupMissingFiles(query interface{}) error {
-	var files []File
+func (self *Directory) cleanupMissingEntries(query interface{}) error {
+	var entries []Entry
 
 	if f, err := ParseFilter(query); err == nil {
-		if err := self.db.Metadata.Find(f, &files); err == nil {
-			filesToDelete := make([]interface{}, 0)
+		if err := self.db.Metadata.Find(f, &entries); err == nil {
+			entriesToDelete := make([]interface{}, 0)
 
-			for _, file := range files {
-				file.SetDatabase(self.db)
+			for _, entry := range entries {
+				entry.SetDatabase(self.db)
 
-				if absPath, err := file.GetAbsolutePath(); err == nil {
+				if absPath, err := entry.GetAbsolutePath(); err == nil {
 					if _, err := os.Stat(absPath); os.IsNotExist(err) {
-						filesToDelete = append(filesToDelete, file.ID)
+						entriesToDelete = append(entriesToDelete, entry.ID)
 					}
 				} else {
-					log.Warningf("[%s] Failed to cleanup missing file %s (%s)", self.ID, file.ID, file.RelativePath)
+					log.Warningf("[%s] Failed to cleanup missing entry %s (%s)", self.ID, entry.ID, entry.RelativePath)
 				}
 			}
 
-			if l := len(filesToDelete); l > 0 {
-				if err := self.db.Metadata.Delete(filesToDelete...); err == nil {
-					log.Infof("[%s] Cleaned up %d missing files", self.ID, l)
+			if l := len(entriesToDelete); l > 0 {
+				if err := self.db.Metadata.Delete(entriesToDelete...); err == nil {
+					log.Infof("[%s] Cleaned up %d missing entries", self.ID, l)
 				} else {
-					log.Warningf("[%s] Failed to cleanup missing files: %v", self.ID, err)
+					log.Warningf("[%s] Failed to cleanup missing entries: %v", self.ID, err)
 				}
 			}
 

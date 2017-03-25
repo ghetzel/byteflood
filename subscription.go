@@ -24,6 +24,7 @@ type Subscription struct {
 	Quota           uint64    `json:"quota,omitempty"`
 	QuotaResetAt    time.Time `json:"quota_reset_at,omitempty"`
 	QuotaInterval   uint64    `json:"quota_interval,omitempty"`
+	db              *db.Database
 }
 
 func NewSubscription(id int, share string, source string, target string) *Subscription {
@@ -84,4 +85,8 @@ func (self *Subscription) GetWantedItems(application *Application) ([]*WantedIte
 	}
 
 	return items, nil
+}
+
+func (self *Subscription) SetDatabase(conn *db.Database) {
+	self.db = conn
 }

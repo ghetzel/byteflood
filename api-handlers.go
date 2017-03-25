@@ -16,12 +16,12 @@ import (
 var endpointModelMap = map[string]mapper.Mapper{}
 
 var endpointInstanceMap = map[string]*dal.Collection{
-	`directories`:   &db.ScannedDirectoriesSchema,
-	`downloads`:     &db.DownloadsSchema,
-	`peers`:         &db.AuthorizedPeersSchema,
-	`shares`:        &db.SharesSchema,
-	`subscriptions`: &db.SubscriptionsSchema,
-	`system`:        &db.SystemSchema,
+	`directories`:   db.ScannedDirectoriesSchema,
+	`downloads`:     db.DownloadsSchema,
+	`peers`:         db.AuthorizedPeersSchema,
+	`shares`:        db.SharesSchema,
+	`subscriptions`: db.SubscriptionsSchema,
+	`system`:        db.SystemSchema,
 }
 
 type ActionPeerConnect struct {

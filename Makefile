@@ -49,8 +49,8 @@ regen-test-files:
 test: regen-test-files
 	go test -race ./encryption
 	go test -race ./peer
-	go test -race ./db
-	go test -race .
+	go test ./db
+	go test .
 
 bench:
 	go test -race -v -bench=. ./encryption/

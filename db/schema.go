@@ -7,7 +7,7 @@ import (
 	"regexp"
 )
 
-var MetadataSchema = dal.Collection{
+var MetadataSchema = &dal.Collection{
 	Name:              `metadata`,
 	IdentityFieldType: dal.StringType,
 	Fields: []dal.Field{
@@ -50,7 +50,7 @@ var MetadataSchema = dal.Collection{
 	},
 }
 
-var SharesSchema = dal.Collection{
+var SharesSchema = &dal.Collection{
 	Name:              `shares`,
 	IdentityFieldType: dal.StringType,
 	Fields: []dal.Field{
@@ -75,7 +75,7 @@ var SharesSchema = dal.Collection{
 	},
 }
 
-var DownloadsSchema = dal.Collection{
+var DownloadsSchema = &dal.Collection{
 	Name: `downloads`,
 	Fields: []dal.Field{
 		{
@@ -125,7 +125,7 @@ var DownloadsSchema = dal.Collection{
 }
 
 // keyed on public peer ID
-var AuthorizedPeersSchema = dal.Collection{
+var AuthorizedPeersSchema = &dal.Collection{
 	Name:              `authorized_peers`,
 	IdentityFieldType: dal.StringType,
 	Fields: []dal.Field{
@@ -143,7 +143,7 @@ var AuthorizedPeersSchema = dal.Collection{
 	},
 }
 
-var SystemSchema = dal.Collection{
+var SystemSchema = &dal.Collection{
 	Name:              `system`,
 	IdentityField:     `key`,
 	IdentityFieldType: dal.StringType,
@@ -155,7 +155,7 @@ var SystemSchema = dal.Collection{
 	},
 }
 
-var ScannedDirectoriesSchema = dal.Collection{
+var ScannedDirectoriesSchema = &dal.Collection{
 	Name:              `scanned_directories`,
 	IdentityFieldType: dal.StringType,
 	Fields: []dal.Field{
@@ -207,7 +207,7 @@ var ScannedDirectoriesSchema = dal.Collection{
 	},
 }
 
-var SubscriptionsSchema = dal.Collection{
+var SubscriptionsSchema = &dal.Collection{
 	Name: `subscriptions`,
 	Fields: []dal.Field{
 		{

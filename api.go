@@ -88,7 +88,7 @@ func (self *API) Serve() error {
 	// download queue endpoints
 	router.Get(`/api/downloads`, self.handleGetQueue)
 	router.Get(`/api/downloads/history`, self.handleGetQueuedDownloads)
-	router.Post(`/api/downloads/:peer/:share/:file`, self.handleEnqueueFile)
+	router.Post(`/api/downloads/:peer/:share/:entry`, self.handleEnqueueEntry)
 
 	// metadata database endpoints
 	router.Get(`/api/db`, self.handleGetDatabase)
@@ -136,7 +136,7 @@ func (self *API) Serve() error {
 	router.Get(`/api/shares/new`, self.handleGetNewModelInstance)
 
 	router.Get(`/api/shares/:id`, self.handleGetShare)
-	router.Get(`/api/shares/:id/view/:file`, self.handleGetShareFile)
+	router.Get(`/api/shares/:id/view/:entry`, self.handleGetShareEntry)
 	router.Get(`/api/shares/:id/parents/:file`, self.handleGetShareFileIdsToRoot)
 	router.Get(`/api/shares/:id/manifest`, self.handleShareManifest)
 	router.Get(`/api/shares/:id/manifest/:file`, self.handleShareManifest)
@@ -168,10 +168,10 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 	router := vestigo.NewRouter()
 
 	router.Get(`/`, self.handleGetSessionStatus)
-	router.Post(`/transfers/:transfer/:file`, self.handleRequestFileFromShare)
+	router.Post(`/transfers/:transfer/:entry`, self.handleRequestEntryFromShare)
 	router.Get(`/shares`, self.handleGetShares)
 	router.Get(`/shares/:id`, self.handleGetShare)
-	router.Get(`/shares/:id/view/:file`, self.handleGetShareFile)
+	router.Get(`/shares/:id/view/:entry`, self.handleGetShareEntry)
 	router.Get(`/shares/:id/parents/:file`, self.handleGetShareFileIdsToRoot)
 	router.Get(`/shares/:id/manifest`, self.handleShareManifest)
 	router.Get(`/shares/:id/manifest/:file`, self.handleShareManifest)

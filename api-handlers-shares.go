@@ -47,7 +47,7 @@ func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request) {
 }
 
 func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request) {
-	share := shares.NewShare(self.db)
+	share := db.SharesSchema.NewInstance().(*shares.Share)
 
 	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		Respond(w, share)
@@ -56,12 +56,12 @@ func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (self *API) handleGetShareFile(w http.ResponseWriter, req *http.Request) {
-	share := shares.NewShare(self.db)
+func (self *API) handleGetShareEntry(w http.ResponseWriter, req *http.Request) {
+	share := db.SharesSchema.NewInstance().(*shares.Share)
 
 	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
-		if file, err := share.Get(vestigo.Param(req, `file`)); err == nil {
-			Respond(w, file)
+		if entry, err := share.Get(vestigo.Param(req, `entry`)); err == nil {
+			Respond(w, entry)
 		} else {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
@@ -71,22 +71,22 @@ func (self *API) handleGetShareFile(w http.ResponseWriter, req *http.Request) {
 }
 
 func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request) {
-	share := shares.NewShare(self.db)
+	share := db.SharesSchema.NewInstance().(*shares.Share)
 
 	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
-		fileId := vestigo.Param(req, `file`)
-		var files []*db.File
+		entryId := vestigo.Param(req, `entry`)
+		var entries []*db.Entry
 
-		if fileId == `` {
+		if entryId == `` {
 			if f, err := share.Children(); err == nil {
-				files = f
+				entries = f
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		} else {
-			if file, err := share.Get(vestigo.Param(req, `file`)); err == nil {
-				files = append(files, file)
+			if entry, err := share.Get(vestigo.Param(req, `entry`)); err == nil {
+				entries = append(entries, entry)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -113,8 +113,8 @@ func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, strings.Join(db.DefaultManifestFields, "\t")+"%s\n", fieldset)
 		log.Debugf(strings.Join(db.DefaultManifestFields, "\t")+"%s\n", fieldset)
 
-		for _, file := range files {
-			if manifest, err := file.GetManifest(fields, filterString); err == nil {
+		for _, entry := range entries {
+			if manifest, err := entry.GetManifest(fields, filterString); err == nil {
 				for _, item := range manifest.Items {
 					writeTsvFileLine(w, share, item)
 				}
@@ -129,7 +129,7 @@ func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request) {
 }
 
 func (self *API) handleGetShareFileIdsToRoot(w http.ResponseWriter, req *http.Request) {
-	share := shares.NewShare(self.db)
+	share := db.SharesSchema.NewInstance().(*shares.Share)
 
 	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		parents := make([]EntryParent, 0)
@@ -166,7 +166,7 @@ func (self *API) handleGetShareFileIdsToRoot(w http.ResponseWriter, req *http.Re
 }
 
 func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request) {
-	share := shares.NewShare(self.db)
+	share := db.SharesSchema.NewInstance().(*shares.Share)
 
 	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
@@ -184,7 +184,7 @@ func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request) {
 }
 
 func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request) {
-	share := shares.NewShare(self.db)
+	share := db.SharesSchema.NewInstance().(*shares.Share)
 
 	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {

@@ -32,6 +32,10 @@ var DefaultGlobalExclusions = []string{
 var DefaultBaseDirectory = `~/.config/byteflood`
 var AdminUserName = `admin`
 
+type Model interface {
+	SetDatabase(*Database)
+}
+
 type Database struct {
 	BaseDirectory      string            `json:"base_dir"`
 	URI                string            `json:"uri,omitempty"`
@@ -53,6 +57,11 @@ type Database struct {
 type Property struct {
 	Key   string      `json:"key,identity"`
 	Value interface{} `json:"value"`
+	db    *Database
+}
+
+func (self *Property) SetDatabase(conn *Database) {
+	self.db = conn
 }
 
 func NewDatabase() *Database {
@@ -160,7 +169,7 @@ func (self *Database) Scan(deep bool, labels ...string) error {
 				}
 			}
 
-			if err := directory.Initialize(self); err == nil {
+			if err := directory.Initialize(); err == nil {
 				log.Debugf("Scanning directory %s [%s]", directory.Path, directory.ID)
 
 				if err := directory.Scan(); err != nil {
@@ -193,32 +202,32 @@ func (self *Database) Cleanup() error {
 		return err
 	}
 
-	filesToDelete := make([]interface{}, 0)
+	entriesToDelete := make([]interface{}, 0)
 
 	log.Debugf("Cleaning up...")
 
-	if err := self.Metadata.Each(File{}, func(fileI interface{}) {
-		if file, ok := fileI.(*File); ok {
-			file.db = self
+	if err := self.Metadata.Each(Entry{}, func(entryI interface{}) {
+		if entry, ok := entryI.(*Entry); ok {
+			entry.db = self
 
-			if !sliceutil.ContainsString(ids, file.Label) {
-				filesToDelete = append(filesToDelete, file.ID)
-			} else if absPath, err := file.GetAbsolutePath(); err == nil {
+			if !sliceutil.ContainsString(ids, entry.Label) {
+				entriesToDelete = append(entriesToDelete, entry.ID)
+			} else if absPath, err := entry.GetAbsolutePath(); err == nil {
 				if _, err := os.Stat(absPath); os.IsNotExist(err) {
-					filesToDelete = append(filesToDelete, file.ID)
+					entriesToDelete = append(entriesToDelete, entry.ID)
 				}
 			}
 		}
 	}); err == nil {
-		if l := len(filesToDelete); l > 0 {
-			if err := self.Metadata.Delete(filesToDelete...); err == nil {
-				log.Infof("Removed %d file entries", l)
+		if l := len(entriesToDelete); l > 0 {
+			if err := self.Metadata.Delete(entriesToDelete...); err == nil {
+				log.Infof("Removed %d entries", l)
 			} else {
-				log.Warningf("Failed to cleanup missing files: %v", err)
+				log.Warningf("Failed to cleanup missing entries: %v", err)
 			}
 		}
 
-		log.Infof("Database cleanup finished, processed %d files.", len(filesToDelete))
+		log.Infof("Database cleanup finished, processed %d entries.", len(entriesToDelete))
 
 		return nil
 	} else {
@@ -252,4 +261,11 @@ func (self *Database) setupSchemata() error {
 	}
 
 	return nil
+}
+
+func (self *Database) Initializer(instance interface{}) interface{} {
+	// we want this to panic if the type cast fails
+	model := instance.(Model)
+	model.SetDatabase(self)
+	return instance
 }

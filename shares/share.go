@@ -22,17 +22,8 @@ type Share struct {
 	db              *db.Database
 }
 
-func NewShare(conn *db.Database) *Share {
-	icon := ``
-
-	if field, ok := db.SharesSchema.GetField(`icon_name`); ok {
-		icon = fmt.Sprintf("%v", field.DefaultValue)
-	}
-
-	return &Share{
-		IconName: icon,
-		db:       conn,
-	}
+func (self *Share) SetDatabase(conn *db.Database) {
+	self.db = conn
 }
 
 func (self *Share) GetQuery(filters ...string) string {
@@ -52,7 +43,7 @@ func (self *Share) GetQuery(filters ...string) string {
 }
 
 func (self *Share) Length() int {
-	var entries []*db.File
+	var entries []*db.Entry
 
 	if f, err := db.ParseFilter(self.GetQuery()); err == nil {
 		if err := self.db.Metadata.Find(f, &entries); err == nil {
@@ -88,23 +79,24 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 	}
 }
 
-func (self *Share) Get(id string) (*db.File, error) {
-	entry := new(db.File)
+func (self *Share) Get(id string) (*db.Entry, error) {
+	entry := db.NewEntry(self.db, ``, ``, ``)
 
 	if err := self.db.Metadata.Get(id, entry); err == nil {
 		entry.SetDatabase(self.db)
+
 		return entry, nil
 	} else {
 		return nil, err
 	}
 }
 
-func (self *Share) Children(filterString ...string) ([]*db.File, error) {
+func (self *Share) Children(filterString ...string) ([]*db.Entry, error) {
 	if f, err := db.ParseFilter(self.GetQuery(append(filterString, `parent=root`)...)); err == nil {
 		f.Limit = db.MaxChildEntries
 		f.Sort = []string{`-directory`, `name`}
 
-		files := make([]*db.File, 0)
+		files := make([]*db.Entry, 0)
 
 		if err := self.db.Metadata.Find(f, &files); err == nil {
 			for _, file := range files {

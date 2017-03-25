@@ -22,11 +22,11 @@ func (self *API) handleGetQueuedDownloads(w http.ResponseWriter, req *http.Reque
 	}
 }
 
-func (self *API) handleEnqueueFile(w http.ResponseWriter, req *http.Request) {
+func (self *API) handleEnqueueEntry(w http.ResponseWriter, req *http.Request) {
 	if err := self.application.Queue.Add(
 		vestigo.Param(req, `peer`),
 		vestigo.Param(req, `share`),
-		vestigo.Param(req, `file`),
+		vestigo.Param(req, `entry`),
 	); err == nil {
 		http.Error(w, ``, http.StatusNoContent)
 	} else {
@@ -36,7 +36,7 @@ func (self *API) handleEnqueueFile(w http.ResponseWriter, req *http.Request) {
 
 func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
 	session := vestigo.Param(req, `session`)
-	fileId := vestigo.Param(req, `file`)
+	entryId := vestigo.Param(req, `file`)
 
 	if mimeType := req.URL.Query().Get(`mimetype`); mimeType != `` {
 		w.Header().Set(`Content-Type`, mimeType)
@@ -46,15 +46,15 @@ func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
 		if _, err := self.application.Queue.Download(
 			w,
 			session,
-			fileId,
+			entryId,
 		); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	} else {
-		var file db.File
+		var entry db.Entry
 
-		if err := self.db.Metadata.Get(fileId, &file); err == nil {
-			if absPath, err := file.GetAbsolutePath(); err == nil {
+		if err := self.db.Metadata.Get(entryId, &entry); err == nil {
+			if absPath, err := entry.GetAbsolutePath(); err == nil {
 				if osFile, err := os.Open(absPath); err == nil {
 					if n, err := io.Copy(w, osFile); err == nil {
 						log.Debugf("Transferred %d bytes", n)

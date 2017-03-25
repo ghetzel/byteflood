@@ -12,7 +12,6 @@ import (
 	"github.com/orcaman/concurrent-map"
 	"net"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -31,18 +30,6 @@ var logproxy = util.NewLogProxy(`byteflood/peer`, `info`)
 var PeerMonitorRetryMultiplier = 2
 var PeerMonitorRetryMultiplierMax = 512
 var PeerMonitorRetryMax = -1
-var rxAddrSplit = regexp.MustCompile(`[\s,;]+`)
-
-type AuthorizedPeer struct {
-	ID        string `json:"id"`
-	PeerName  string `json:"name"`
-	Group     string `json:"group,omitempty"`
-	Addresses string `json:"addresses,omitempty"`
-}
-
-func (self *AuthorizedPeer) GetAddresses() []string {
-	return rxAddrSplit.Split(self.Addresses, -1)
-}
 
 type Peer interface {
 	ID() string

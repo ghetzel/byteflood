@@ -529,13 +529,13 @@ func main() {
 											tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 
 											for _, record := range rs.Records {
-												var file db.File
+												var entry db.Entry
 												var fileSize string
 
 												if c.Bool(`human`) {
-													fileSize = file.GetHumanSize()
+													fileSize = entry.GetHumanSize()
 												} else {
-													if v, err := stringutil.ToString(file.Get(`file.size`, 0)); err == nil {
+													if v, err := stringutil.ToString(entry.Get(`file.size`, 0)); err == nil {
 														fileSize = v
 													}
 												}
@@ -544,16 +544,16 @@ func main() {
 													fileSize = `-`
 												}
 
-												if err := record.Populate(&file, nil); err == nil {
+												if err := record.Populate(&entry, nil); err == nil {
 													fmt.Fprintf(
 														tw,
 														"%v\t%s\t%s\t%s\t%s\t%s\n",
-														file.Get(`file.permissions.string`, `??????????`),
+														entry.Get(`file.permissions.string`, `??????????`),
 														authPeer.PeerName,
 														authPeer.Group,
 														fileSize,
-														path.Base(file.RelativePath),
-														file.ID,
+														path.Base(entry.RelativePath),
+														entry.ID,
 													)
 												} else {
 													fmt.Fprintf(

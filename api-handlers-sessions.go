@@ -92,14 +92,14 @@ func (self *API) handleGetSessionStatus(w http.ResponseWriter, req *http.Request
 	}
 }
 
-func (self *API) handleRequestFileFromShare(w http.ResponseWriter, req *http.Request) {
+func (self *API) handleRequestEntryFromShare(w http.ResponseWriter, req *http.Request) {
 	// get remote peer from proxied request
 	if remotePeer, ok := self.application.LocalPeer.GetSession(req.Header.Get(`X-Byteflood-Session`)); ok {
-		var file db.File
+		var entry db.Entry
 
-		if err := self.db.Metadata.Get(vestigo.Param(req, `file`), &file); err == nil {
-			// get the absolute filesystem path to the file at :id
-			if absPath, err := file.GetAbsolutePath(); err == nil {
+		if err := self.db.Metadata.Get(vestigo.Param(req, `entry`), &entry); err == nil {
+			// get the absolute filesystem path to the entry at :id
+			if absPath, err := entry.GetAbsolutePath(); err == nil {
 				// parse the given :transfer UUID
 				if transferId, err := uuid.FromString(vestigo.Param(req, `transfer`)); err == nil {
 					// kick off the transfer on our end

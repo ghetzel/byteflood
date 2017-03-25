@@ -8,7 +8,7 @@ import (
 	"github.com/ghetzel/pivot/dal"
 )
 
-var objToSchema = map[string]dal.Collection{
+var objToSchema = map[string]*dal.Collection{
 	`peers`:         db.AuthorizedPeersSchema,
 	`directories`:   db.ScannedDirectoriesSchema,
 	`subscriptions`: db.SubscriptionsSchema,

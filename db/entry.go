@@ -27,7 +27,7 @@ var MetadataEncoding = base32.NewEncoding(`abcdefghijklmnopqrstuvwxyz234567`)
 var MaxChildEntries = 10000
 var rxSha1Sum = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
-type File struct {
+type Entry struct {
 	ID              string                 `json:"id"`
 	RelativePath    string                 `json:"name"`
 	Parent          string                 `json:"parent,omitempty"`
@@ -39,55 +39,63 @@ type File struct {
 	DescendantCount int                    `json:"descendants"`
 	LastModifiedAt  int64                  `json:"last_modified_at,omitempty"`
 	Metadata        map[string]interface{} `json:"metadata"`
+	InitialPath     string                 `json:"-"`
 	info            os.FileInfo            `json:"-"`
-	filename        string
 	metadataLoaded  bool
 	db              *Database
 }
 
-type WalkFunc func(path string, file *File, err error) error // {}
+type WalkFunc func(path string, file *Entry, err error) error // {}
 
-func NewFile(db *Database, label string, root string, name string) *File {
+func NewEntry(db *Database, label string, root string, name string) *Entry {
 	normFileName := NormalizeFileName(root, name)
 
-	return &File{
+	return &Entry{
 		ID:           FileIdFromName(label, normFileName),
 		RelativePath: normFileName,
 		Metadata:     make(map[string]interface{}),
-		filename:     name,
+		InitialPath:  name,
 		db:           db,
 	}
 }
 
-func (self *File) SetDatabase(db *Database) {
+func (self *Entry) SetDatabase(db *Database) {
 	self.db = db
 }
 
-func (self *File) Info() os.FileInfo {
+func (self *Entry) Info() os.FileInfo {
 	return self.info
 }
 
-func (self *File) LoadMetadata() error {
-	if stat, err := os.Stat(self.filename); err == nil {
+func (self *Entry) LoadMetadata() error {
+	if stat, err := os.Stat(self.InitialPath); err == nil {
 		self.info = stat
 	} else {
 		return err
 	}
 
-	for _, loader := range metadata.GetLoadersForFile(self.filename) {
-		if data, err := loader.LoadMetadata(self.filename); err == nil {
-			for k, v := range data {
-				// only honor this value if it's not empty
-				if !typeutil.IsEmpty(v) {
-					if strings.Contains(k, `.`) {
-						maputil.DeepSet(self.Metadata, strings.Split(k, `.`), v)
-					} else {
-						self.Metadata[k] = v
+	for _, loader := range metadata.GetLoadersForFile(self.InitialPath) {
+		if data, err := loader.LoadMetadata(self.InitialPath); err == nil {
+			// unwrap dot-separated keys into a deeply nested map for iteration
+			if diffused, err := maputil.DiffuseMap(data, `.`); err == nil {
+				// recursively walk through all nested keys of the map, testing that leaf values
+				// are not empty before committing them to Metadata
+				if err := maputil.Walk(diffused, func(value interface{}, path []string, isLeaf bool) error {
+					if isLeaf {
+						if !typeutil.IsEmpty(value) {
+							maputil.DeepSet(self.Metadata, path, value)
+						}
 					}
+
+					return nil
+				}); err != nil {
+					return err
 				}
+			} else {
+				return err
 			}
 		} else {
-			log.Warningf("Problem loading %T for file %q: %v", loader, self.filename, err)
+			log.Warningf("Problem loading %T for file %q: %v", loader, self.InitialPath, err)
 		}
 	}
 
@@ -96,7 +104,7 @@ func (self *File) LoadMetadata() error {
 	return nil
 }
 
-func (self *File) String() string {
+func (self *Entry) String() string {
 	if data, err := json.MarshalIndent(self, ``, `  `); err == nil {
 		return string(data[:])
 	} else {
@@ -104,14 +112,14 @@ func (self *File) String() string {
 	}
 }
 
-func (self *File) Children(filterString ...string) ([]*File, error) {
+func (self *Entry) Children(filterString ...string) ([]*Entry, error) {
 	filterString = append(filterString, fmt.Sprintf("parent=%s", self.ID))
 
 	if f, err := ParseFilter(sliceutil.CompactString(filterString)); err == nil {
 		f.Limit = MaxChildEntries
 		f.Sort = []string{`-directory`, `name`}
 
-		files := make([]*File, 0)
+		files := make([]*Entry, 0)
 
 		if err := self.db.Metadata.Find(f, &files); err == nil {
 			// enforce a strict path hierarchy for parent-child relationships
@@ -132,12 +140,12 @@ func (self *File) Children(filterString ...string) ([]*File, error) {
 	}
 }
 
-func (self *File) GenerateChecksum() (string, error) {
+func (self *Entry) GenerateChecksum() (string, error) {
 	if self.IsDirectory {
 		return ``, fmt.Errorf("Cannot generate checksum on directory")
 	}
 
-	if ckFile, err := os.Open(fmt.Sprintf("%s.sha1", self.filename)); err == nil {
+	if ckFile, err := os.Open(fmt.Sprintf("%s.sha1", self.InitialPath)); err == nil {
 		scanner := bufio.NewScanner(ckFile)
 
 		for scanner.Scan() {
@@ -146,7 +154,7 @@ func (self *File) GenerateChecksum() (string, error) {
 
 				// looks for all the world like a SHA-1 sum....
 				if len(parts) == 3 && rxSha1Sum.MatchString(parts[0]) {
-					if parts[2] == path.Base(self.filename) {
+					if parts[2] == path.Base(self.InitialPath) {
 						return parts[0], nil
 					}
 				}
@@ -154,7 +162,7 @@ func (self *File) GenerateChecksum() (string, error) {
 		}
 	}
 
-	if fsFile, err := os.Open(self.filename); err == nil {
+	if fsFile, err := os.Open(self.InitialPath); err == nil {
 		hash := sha1.New()
 
 		if _, err := io.Copy(hash, fsFile); err != nil {
@@ -168,7 +176,7 @@ func (self *File) GenerateChecksum() (string, error) {
 	}
 }
 
-func (self *File) GetAbsolutePath() (string, error) {
+func (self *Entry) GetAbsolutePath() (string, error) {
 	var rootDirectory Directory
 
 	if err := self.db.ScannedDirectories.Get(self.Label, &rootDirectory); err == nil {
@@ -178,7 +186,7 @@ func (self *File) GetAbsolutePath() (string, error) {
 	}
 }
 
-func (self *File) GetHumanSize() string {
+func (self *Entry) GetHumanSize() string {
 	sz := self.Get(`file.size`, 0)
 
 	if human, err := stringutil.ToByteString(self.Get(`file.size`, 0)); err == nil {
@@ -188,7 +196,7 @@ func (self *File) GetHumanSize() string {
 	return fmt.Sprintf("%g", sz)
 }
 
-func (self *File) Get(key string, fallback ...interface{}) interface{} {
+func (self *Entry) Get(key string, fallback ...interface{}) interface{} {
 	if len(fallback) == 0 {
 		fallback = append(fallback, nil)
 	}
@@ -196,10 +204,10 @@ func (self *File) Get(key string, fallback ...interface{}) interface{} {
 	return maputil.DeepGet(self.Metadata, strings.Split(key, `.`), fallback[0])
 }
 
-func (self *File) GetManifest(fields []string, filterString string) (*Manifest, error) {
+func (self *Entry) GetManifest(fields []string, filterString string) (*Manifest, error) {
 	manifest := NewManifest(self.RelativePath)
 
-	if err := self.Walk(func(path string, file *File, err error) error {
+	if err := self.Walk(func(path string, file *Entry, err error) error {
 		if err == nil {
 			var itemType ManifestItemType
 
@@ -246,7 +254,7 @@ func (self *File) GetManifest(fields []string, filterString string) (*Manifest, 
 	return manifest, nil
 }
 
-func (self *File) normalizeLoaderName(loader metadata.Loader) string {
+func (self *Entry) normalizeLoaderName(loader metadata.Loader) string {
 	name := fmt.Sprintf("%T", loader)
 	name = strings.TrimPrefix(name, `metadata.`)
 	name = strings.TrimSuffix(name, `Loader`)
@@ -254,7 +262,7 @@ func (self *File) normalizeLoaderName(loader metadata.Loader) string {
 	return stringutil.Underscore(name)
 }
 
-func (self *File) Walk(walkFn WalkFunc, filterStrings ...string) error {
+func (self *Entry) Walk(walkFn WalkFunc, filterStrings ...string) error {
 	if self.IsDirectory {
 		if err := walkFn(self.RelativePath, self, nil); err == nil {
 			if children, err := self.Children(filterStrings...); err == nil {
