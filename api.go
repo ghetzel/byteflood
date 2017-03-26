@@ -136,6 +136,7 @@ func (self *API) Serve() error {
 	router.Get(`/api/shares/new`, self.handleGetNewModelInstance)
 
 	router.Get(`/api/shares/:id`, self.handleGetShare)
+	router.Get(`/api/shares/:id/landing`, self.handleShareLandingPage)
 	router.Get(`/api/shares/:id/view/:entry`, self.handleGetShareEntry)
 	router.Get(`/api/shares/:id/parents/:file`, self.handleGetShareFileIdsToRoot)
 	router.Get(`/api/shares/:id/manifest`, self.handleShareManifest)
@@ -151,6 +152,7 @@ func (self *API) Serve() error {
 	router.Get(`/api/subscriptions/new`, self.handleGetNewModelInstance)
 	router.Get(`/api/subscriptions/:id`, self.handleGetSubscription)
 	router.Delete(`/api/subscriptions/:id`, self.handleDeleteModel)
+	router.Put(`/api/subscriptions/:id/actions/:sync`, self.handleActionSubscription)
 
 	mux.Handle(`/api/`, router)
 	mux.Handle(`/`, ui)
@@ -171,6 +173,7 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 	router.Post(`/transfers/:transfer/:entry`, self.handleRequestEntryFromShare)
 	router.Get(`/shares`, self.handleGetShares)
 	router.Get(`/shares/:id`, self.handleGetShare)
+	router.Get(`/shares/:id/landing`, self.handleShareLandingPage)
 	router.Get(`/shares/:id/view/:entry`, self.handleGetShareEntry)
 	router.Get(`/shares/:id/parents/:file`, self.handleGetShareFileIdsToRoot)
 	router.Get(`/shares/:id/manifest`, self.handleShareManifest)

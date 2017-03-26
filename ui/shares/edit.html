@@ -6,7 +6,7 @@ bindings:
   resource: :/api/shares/{{ or .request.url.query.id "new" }}
 ---
 <div class="col-sm-12 col-md-6">
-    <form name="shares" method="POST">
+    <form name="shares" method="POST" data-redirect-to="/shares/?share={{ .bindings.share.id }}">
         <div class="form-group">
             <label for="id">Share ID</label>
             <input
@@ -872,9 +872,8 @@ bindings:
                 class="form-control"
                 name="long_description"
                 aria-describedby="longDescriptionHelp"
-                value="{{ .bindings.share.long_description }}"
-            >
-            </textarea>
+                rows="13"
+            >{{ .bindings.share.long_description }}</textarea>
 
             <small id="longDescriptionHelp" class="form-text text-muted">
                 This is a Markdown-formatted section that will appear on the landing page when users are

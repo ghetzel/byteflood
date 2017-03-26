@@ -8,8 +8,8 @@ import (
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot/dal"
 	"io"
-	"time"
 	"path/filepath"
+	"time"
 )
 
 var EmptyPollInterval = 3 * time.Second
@@ -87,7 +87,7 @@ func (self *DownloadQueue) enqueueFile(remotePeer *peer.RemotePeer, shareID stri
 
 	if absPath, err := filepath.Abs(destination); err == nil {
 		destination = absPath
-	}else{
+	} else {
 		return err
 	}
 
@@ -194,7 +194,7 @@ func (self *DownloadQueue) CurrentItem() *QueuedDownload {
 
 				return download
 			}
-		}else{
+		} else {
 			log.Errorf("Error retrieving current download: %v", err)
 		}
 	} else {

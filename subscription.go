@@ -5,14 +5,14 @@ import (
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/go-stockutil/sliceutil"
-	"time"
 	"path"
+	"time"
 )
 
 type WantedItem struct {
-	SessionID string
-	ShareName string
-	EntryID   string
+	SessionID   string
+	ShareName   string
+	EntryID     string
 	Destination string
 }
 
@@ -68,12 +68,12 @@ func (self *Subscription) GetWantedItems(localPeer *peer.LocalPeer) ([]*WantedIt
 			if updates, err := manifest.GetUpdateManifest(policy); err == nil {
 				for _, item := range updates.Items {
 					if !sliceutil.ContainsString(requestedPaths, item.RelativePath) {
-						log.Debugf("Want %s:%s from peer %v -> %v", self.ShareName, item.RelativePath, remotePeer, path.Join(self.TargetPath, item.RelativePath),)
+						log.Debugf("Want %s:%s from peer %v -> %v", self.ShareName, item.RelativePath, remotePeer, path.Join(self.TargetPath, item.RelativePath))
 
 						items = append(items, &WantedItem{
-							SessionID: remotePeer.SessionID(),
-							ShareName: self.ShareName,
-							EntryID:   item.ID,
+							SessionID:   remotePeer.SessionID(),
+							ShareName:   self.ShareName,
+							EntryID:     item.ID,
 							Destination: self.TargetPath,
 						})
 
@@ -118,7 +118,6 @@ func (self *Subscription) SyncWait(app *Application) error {
 	if err := self.Sync(app); err != nil {
 		return err
 	}
-
 
 	return nil
 }

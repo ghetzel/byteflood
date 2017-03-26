@@ -5,6 +5,8 @@ import (
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/husobee/vestigo"
+	"github.com/microcosm-cc/bluemonday"
+	"github.com/russross/blackfriday"
 	"io"
 	"net/http"
 	"path"
@@ -205,5 +207,23 @@ func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request) {
 		}
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
+	}
+}
+
+func (self *API) handleShareLandingPage(w http.ResponseWriter, req *http.Request) {
+	share := db.SharesSchema.NewInstance().(*shares.Share)
+
+	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
+		if share.LongDescription != `` {
+			output := blackfriday.MarkdownCommon([]byte(share.LongDescription[:]))
+			output = bluemonday.UGCPolicy().SanitizeBytes(output)
+
+			w.Header().Set(`Content-Type`, `text/html; charset=utf-8`)
+			w.Write(output)
+		} else {
+			w.WriteHeader(http.StatusNoContent)
+		}
+	} else {
+		http.Error(w, ``, http.StatusNotFound)
 	}
 }
