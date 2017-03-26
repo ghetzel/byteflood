@@ -111,7 +111,6 @@ func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request) {
 		}
 
 		fmt.Fprintf(w, strings.Join(db.DefaultManifestFields, "\t")+"%s\n", fieldset)
-		log.Debugf(strings.Join(db.DefaultManifestFields, "\t")+"%s\n", fieldset)
 
 		for _, entry := range entries {
 			if manifest, err := entry.GetManifest(fields, filterString); err == nil {

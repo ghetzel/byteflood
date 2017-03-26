@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/go-stockutil/typeutil"
 	"io"
 	"os"
 	"path/filepath"
@@ -33,12 +34,13 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 	var absPath string
 	var stat os.FileInfo
 
+	log.Debugf("Compare: %v to %v", manifest.Fields, self.Values)
+
 	// perform the local filesystem check.  If the file does not exist, then we don't have it
 	if localAbsPath, err := filepath.Abs(
 		filepath.Join(manifest.BaseDirectory, self.RelativePath),
 	); err == nil {
 		absPath = localAbsPath
-		log.Debugf("Item %s: check existence at %s", self.ID, localAbsPath)
 
 		if fileinfo, err := os.Stat(localAbsPath); os.IsNotExist(err) {
 			return true, nil
@@ -67,9 +69,9 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 
 				switch fieldName {
 				case `checksum`:
-					if sum, err := file.GenerateChecksum(); err == nil {
+					if sum, err := file.GenerateChecksum(true); err == nil {
 						if fmt.Sprintf("%v", value) != sum {
-							log.Debugf("  field %s no match %v", `checksum`, sum)
+							log.Debugf("  field %s no match %v != %v", `checksum`, value, sum)
 							return true, nil
 						}
 					} else {
@@ -99,6 +101,7 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 		}
 	}
 
+	log.Debugf("Item %s: up-to-date at %s", self.ID, absPath)
 	return false, nil
 }
 
@@ -116,68 +119,77 @@ func NewManifest(baseDirectory string, fields ...string) *Manifest {
 	}
 }
 
-func (self *Manifest) LoadTSV(r io.Reader, fields ...string) error {
+func (self *Manifest) LoadTSV(r io.Reader) error {
 	scanner := bufio.NewScanner(r)
 	self.Fields = nil
-	headerSkipped := false
+	allFields := make([]string, 0)
 
-	fields = append(DefaultManifestFields, fields...)
-
+ScanLine:
 	for scanner.Scan() {
 		if err := scanner.Err(); err != nil {
 			return err
 		}
 
-		// skip the first line (header)
-		if !headerSkipped {
-			headerSkipped = true
-			continue
-		}
-
 		line := scanner.Text()
 		values := strings.Split(line, "\t")
 
-		if len(values) != len(fields) {
-			return fmt.Errorf(
-				"Column count does not match given schema (got %d values for %d fields)",
-				len(values),
-				len(fields),
-			)
-		}
+		// parse the header into fields
+		if self.Fields == nil {
+			if len(values) >= len(DefaultManifestFields) {
+				allFields = values
+				self.Fields = values[len(DefaultManifestFields):]
+			} else {
+				return fmt.Errorf(
+					"Not enough columns in header (expected: >= %d, got: %d)",
+					len(DefaultManifestFields),
+					len(values),
+				)
+			}
+		} else {
+			expected := len(values)
+			actual := len(allFields)
 
-		item := ManifestItem{}
+			if expected != actual {
+				return fmt.Errorf(
+					"Column count does not match given schema (got %d values for %d fields)",
+					expected,
+					actual,
+				)
+			}
 
-		for i, value := range values {
-			fieldName := fields[i]
+			item := ManifestItem{}
 
-			switch fieldName {
-			case `id`:
-				item.ID = value
-			case `type`:
-				switch value {
-				case `directory`:
-					item.Type = DirectoryItem
-				case `file`:
-					item.Type = FileItem
+			for i, value := range values {
+				fieldName := allFields[i]
+
+				switch fieldName {
+				case `id`:
+					item.ID = value
+				case `type`:
+					switch value {
+					case `directory`:
+						item.Type = DirectoryItem
+					case `file`:
+						item.Type = FileItem
+					default:
+						return fmt.Errorf("Unrecognized type %q", value)
+					}
+				case `label`:
+					item.Label = value
+				case `relative_path`:
+					item.RelativePath = value
 				default:
-					return fmt.Errorf("Unrecognized type %q", value)
-				}
-			case `label`:
-				item.Label = value
-			case `relative_path`:
-				item.RelativePath = value
-			default:
-				self.Fields = append(self.Fields, fieldName)
+					if typeutil.IsEmpty(value) {
+						log.Warningf("Invalid manifest TSV: field '%s' is empty", fieldName)
+						continue ScanLine
+					}
 
-				if value == `` {
-					item.Values = append(item.Values, nil)
-				} else {
 					item.Values = append(item.Values, stringutil.Autotype(value))
 				}
 			}
-		}
 
-		self.Add(item)
+			self.Add(item)
+		}
 	}
 
 	return nil

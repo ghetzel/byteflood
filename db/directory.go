@@ -22,7 +22,6 @@ type Directory struct {
 	NoRecurseDirectories bool         `json:"no_recurse,omitempty"`
 	FileMinimumSize      int          `json:"min_file_size,omitempty"`
 	DeepScan             bool         `json:"deep_scan,omitempty"`
-	Checksum             bool         `json:"checksum"`
 	Directories          []*Directory `json:"-"`
 	FileCount            int          `json:"file_count"`
 	db                   *Database
@@ -218,8 +217,8 @@ func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 	}
 
 	// calculate checksum for entry
-	if self.Checksum && !entry.IsDirectory {
-		if sum, err := entry.GenerateChecksum(); err == nil {
+	if !entry.IsDirectory {
+		if sum, err := entry.GenerateChecksum(false); err == nil {
 			entry.Checksum = sum
 		} else {
 			return nil, err

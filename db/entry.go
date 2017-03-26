@@ -140,22 +140,24 @@ func (self *Entry) Children(filterString ...string) ([]*Entry, error) {
 	}
 }
 
-func (self *Entry) GenerateChecksum() (string, error) {
+func (self *Entry) GenerateChecksum(forceRecalculate bool) (string, error) {
 	if self.IsDirectory {
 		return ``, fmt.Errorf("Cannot generate checksum on directory")
 	}
 
-	if ckFile, err := os.Open(fmt.Sprintf("%s.sha1", self.InitialPath)); err == nil {
-		scanner := bufio.NewScanner(ckFile)
+	if !forceRecalculate {
+		if ckFile, err := os.Open(fmt.Sprintf("%s.sha1", self.InitialPath)); err == nil {
+			scanner := bufio.NewScanner(ckFile)
 
-		for scanner.Scan() {
-			if scanner.Err() == nil {
-				parts := strings.SplitN(scanner.Text(), ` `, 3)
+			for scanner.Scan() {
+				if scanner.Err() == nil {
+					parts := strings.SplitN(scanner.Text(), ` `, 3)
 
-				// looks for all the world like a SHA-1 sum....
-				if len(parts) == 3 && rxSha1Sum.MatchString(parts[0]) {
-					if parts[2] == path.Base(self.InitialPath) {
-						return parts[0], nil
+					// looks for all the world like a SHA-1 sum....
+					if len(parts) == 3 && rxSha1Sum.MatchString(parts[0]) {
+						if parts[2] == path.Base(self.InitialPath) {
+							return parts[0], nil
+						}
 					}
 				}
 			}
@@ -207,11 +209,11 @@ func (self *Entry) Get(key string, fallback ...interface{}) interface{} {
 func (self *Entry) GetManifest(fields []string, filterString string) (*Manifest, error) {
 	manifest := NewManifest(self.RelativePath)
 
-	if err := self.Walk(func(path string, file *Entry, err error) error {
+	if err := self.Walk(func(path string, entry *Entry, err error) error {
 		if err == nil {
 			var itemType ManifestItemType
 
-			if file.IsDirectory {
+			if entry.IsDirectory {
 				return nil
 			} else {
 				itemType = FileItem
@@ -222,22 +224,22 @@ func (self *Entry) GetManifest(fields []string, filterString string) (*Manifest,
 			for i, field := range fields {
 				switch field {
 				case `name`:
-					fieldValues[i] = file.RelativePath
+					fieldValues[i] = entry.RelativePath
 				case `label`:
-					fieldValues[i] = file.Label
+					fieldValues[i] = entry.Label
 				case `parent`:
-					fieldValues[i] = file.Parent
+					fieldValues[i] = entry.Parent
 				case `checksum`:
-					fieldValues[i] = file.Checksum
+					fieldValues[i] = entry.Checksum
 				default:
-					fieldValues[i] = file.Get(field)
+					fieldValues[i] = entry.Get(field)
 				}
 
 				manifest.Fields = append(manifest.Fields, field)
 			}
 
 			manifest.Add(ManifestItem{
-				ID:           file.ID,
+				ID:           entry.ID,
 				Type:         itemType,
 				RelativePath: path,
 				Values:       fieldValues,

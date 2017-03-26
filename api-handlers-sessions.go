@@ -98,6 +98,8 @@ func (self *API) handleRequestEntryFromShare(w http.ResponseWriter, req *http.Re
 		var entry db.Entry
 
 		if err := self.db.Metadata.Get(vestigo.Param(req, `entry`), &entry); err == nil {
+			entry.SetDatabase(self.db)
+
 			// get the absolute filesystem path to the entry at :id
 			if absPath, err := entry.GetAbsolutePath(); err == nil {
 				// parse the given :transfer UUID

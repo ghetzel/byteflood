@@ -200,7 +200,7 @@ func (self *RemotePeer) GetManifest(share string, fields ...string) (*db.Manifes
 	); err == nil {
 		manifest := db.NewManifest(``)
 
-		if err := manifest.LoadTSV(response.Body, fields...); err == nil {
+		if err := manifest.LoadTSV(response.Body); err == nil {
 			return manifest, nil
 		} else {
 			return nil, err

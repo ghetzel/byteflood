@@ -135,6 +135,8 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 				remotePeer.RemoveInboundTransfer(transfer.ID)
 			}()
 
+			log.Debugf("[%s] Starting transfer", transfer.ID)
+
 			// ask the remote side to start sending data
 			if response, err := remotePeer.ServiceRequest(
 				`POST`,

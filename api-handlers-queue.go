@@ -27,6 +27,7 @@ func (self *API) handleEnqueueEntry(w http.ResponseWriter, req *http.Request) {
 		vestigo.Param(req, `peer`),
 		vestigo.Param(req, `share`),
 		vestigo.Param(req, `entry`),
+		`/dev/null`,
 	); err == nil {
 		http.Error(w, ``, http.StatusNoContent)
 	} else {

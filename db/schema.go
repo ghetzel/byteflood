@@ -226,6 +226,10 @@ var SubscriptionsSchema = &dal.Collection{
 			Type:        dal.StringType,
 			Required:    true,
 		}, {
+			Name:        `sync_interval`,
+			Description: `A cron-like specification for declaring how often (if ever) the subscription should periodically sync.`,
+			Type:        dal.StringType,
+		}, {
 			Name:        `filter`,
 			Description: `A filter used to narrow down which files to monitor from the named share.`,
 			Type:        dal.StringType,
