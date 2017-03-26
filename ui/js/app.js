@@ -128,9 +128,9 @@ $(function(){
             };
 
             $.each(form.serializeArray(), function(i, field) {
-                if(field.value == '' || field.value == '0'){
-                    delete field['value'];
-                }
+                // if(field.value == '' || field.value == '0'){
+                //     delete field['value'];
+                // }
 
                 if(field.name == "id"){
                     if(field.value){

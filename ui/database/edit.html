@@ -63,22 +63,6 @@ bindings:
         </div>
 
         <div class="form-group">
-            <label for="recursive">Recursive Scan</label>
-            <input
-                type="checkbox"
-                class="form-control"
-                name="recursive"
-                aria-describedby="recursiveHelp"
-                value="1"
-                checked="{{ if .bindings.directory.recursive }}checked{{ end }}"
-            >
-
-            <small id="recursiveHelp" class="form-text text-muted">
-                Whether all subdirectories under the given path will be scanned.
-            </small>
-        </div>
-
-        <div class="form-group">
             <label for="min_file_size">Minimum File Size</label>
             <input
                 type="number"
@@ -92,25 +76,6 @@ bindings:
                 If set, only files larger than this value will be included in the scan.
             </small>
         </div>
-
-
-        <div class="form-group">
-            <label for="checksum">Checksum Files</label>
-            <input
-                type="checkbox"
-                class="form-control"
-                name="checksum"
-                aria-describedby="checksumHelp"
-                value="1"
-                checked="{{ if .bindings.directory.checksum }}checked{{ end }}"
-            >
-
-            <small id="checksumHelp" class="form-text text-muted">
-                If true, all scanned files will have a SHA-256 checksum calculated for them.
-                Note: this will significantly increase the time to scan large directories.
-            </small>
-        </div>
-
 
         <button class="btn btn-primary" type="submit">Save</button>
     </form>

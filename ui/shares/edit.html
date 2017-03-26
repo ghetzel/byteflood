@@ -14,7 +14,7 @@ bindings:
                 class="form-control"
                 name="id"
                 aria-describedby="nameHelp"
-                placeholder="Public share name..."
+                placeholder="Public share name"
                 required
                 {{ if eq (or .request.url.query.id "new") "new" }}autofocus{{ else }}readonly{{ end }}
                 value="{{ .bindings.share.id }}"

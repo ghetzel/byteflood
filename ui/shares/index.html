@@ -19,9 +19,8 @@ bindings:
         <li class="nav-item">
           <span class="bf-nav-tree-title">
             <h4>
-              Local
-
-              <a class="btn btn-sm btn-success pull-right" href="/shares/edit"><i class="fa fa-plus"></i> Add</a>
+              <span>Local</span>
+              <a class="btn btn-sm btn-secondary pull-right" href="/shares/edit"><i class="fa fa-plus"></i> Add</a>
             </h4>
           </span>
 
@@ -35,13 +34,7 @@ bindings:
         {{ range .bindings.sessions }}
         <li class="nav-item">
           <span class="bf-nav-tree-title">
-            {{ .name }}
-
-            <a
-              class="pull-right"
-              href="/api/sessions/{{ .session_id }}/proxy/"
-              target="_blank"
-            ><i class="fa fa-external-link-square"></i></a>
+            <h4><span>{{ .name }}</span></h4>
           </span>
 
           <div

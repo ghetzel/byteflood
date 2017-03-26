@@ -17,7 +17,6 @@ import (
 	"math/big"
 	"os"
 	"path"
-	"regexp"
 	"strings"
 )
 
@@ -25,7 +24,6 @@ const FileFingerprintSize = 16777216
 
 var MetadataEncoding = base32.NewEncoding(`abcdefghijklmnopqrstuvwxyz234567`)
 var MaxChildEntries = 10000
-var rxSha1Sum = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 type Entry struct {
 	ID              string                 `json:"id"`
@@ -154,8 +152,8 @@ func (self *Entry) GenerateChecksum(forceRecalculate bool) (string, error) {
 					parts := strings.SplitN(scanner.Text(), ` `, 3)
 
 					// looks for all the world like a SHA-1 sum....
-					if len(parts) == 3 && rxSha1Sum.MatchString(parts[0]) {
-						if parts[2] == path.Base(self.InitialPath) {
+					if len(parts) == 3 && stringutil.IsHexadecimal(parts[0], 40) {
+						if path.Base(parts[2]) == path.Base(self.InitialPath) {
 							return parts[0], nil
 						}
 					}

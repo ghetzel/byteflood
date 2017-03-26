@@ -152,7 +152,7 @@ func (self *API) Serve() error {
 	router.Get(`/api/subscriptions/new`, self.handleGetNewModelInstance)
 	router.Get(`/api/subscriptions/:id`, self.handleGetSubscription)
 	router.Delete(`/api/subscriptions/:id`, self.handleDeleteModel)
-	router.Put(`/api/subscriptions/:id/actions/:sync`, self.handleActionSubscription)
+	router.Post(`/api/subscriptions/:id/actions/:sync`, self.handleActionSubscription)
 
 	mux.Handle(`/api/`, router)
 	mux.Handle(`/`, ui)

@@ -93,6 +93,10 @@
     margin-left: 1.5em;
 }
 
+.bf-nav-tree {
+    margin-top: 20px;
+}
+
 .bf-nav-tree > li {
     margin-left: 0;
 }
@@ -118,6 +122,13 @@
 
 .bf-nav-tree .bf-nav-tree-title {
     font-weight: bold;
+}
+
+.bf-nav-tree .bf-nav-tree-title span {
+    text-transform: uppercase;
+    text-shadow: -1px -1px #dddddd;
+    font-size: large;
+    color: #444;
 }
 
 .bf-nav-tree > .nav-item:not(:first-child) {
