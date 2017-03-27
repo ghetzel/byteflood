@@ -13,14 +13,13 @@ bindings:
 {{ $path := or .request.url.query.path `` }}
 {{ $limit := or .request.url.query.limit `` }}
 {{ $offset := or .request.url.query.offset `` }}
-<div class="col-md-2">
+<div class="col-md-3">
     <ul class="nav bf-nav-tree">
         <!-- Local Shares Management -->
         <li class="nav-item">
           <span class="bf-nav-tree-title">
             <h4>
               <span>Local</span>
-              <a class="btn btn-sm btn-secondary pull-right" href="/shares/edit"><i class="fa fa-plus"></i> Add</a>
             </h4>
           </span>
 
@@ -28,6 +27,10 @@ bindings:
             bf-load="/shares/_peer_shares?share={{ $share }}"
             bf-interval="{{ $.page.local_interval }}"
           ></div>
+
+          <div class="bf-nav-tree-actions">
+            <a class="btn btn-sm btn-secondary pull-right" href="/shares/edit"><i class="fa fa-plus"></i> Add</a>
+          </div>
         </li>
 
         <!-- Remote Share Browser -->
@@ -46,7 +49,7 @@ bindings:
     </ul>
 </div>
 
-<div class="col-md-10">
+<div class="col-md-9">
   <script type="text/javascript" id="share-browser">
     $(function(){
       qs = {
