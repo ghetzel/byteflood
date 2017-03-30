@@ -147,8 +147,8 @@ bindings:
     <thead>
       <tr>
         <th>File Name</th>
-        <th class="hidden-sm-down">Type</th>
-        <th class="hidden-sm-down">Size</th>
+        <th class="hidden-md-down">Type</th>
+        <th class="hidden-md-down">Size</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -177,13 +177,13 @@ bindings:
           {{ .fields.metadata.file.name }}
           {{ end }}
         </td>
-        <td class="hidden-sm-down">
+        <td class="hidden-md-down">
           {{ if .fields.directory }}directory
           {{ else }}
           {{ .fields.metadata.file.extension }}
           {{ end }}
         </td>
-        <td class="hidden-sm-down">
+        <td class="hidden-md-down">
           {{ if .fields.metadata.file.size }}
           {{   autobyte .fields.metadata.file.size "%.f" }}
           {{ else }}

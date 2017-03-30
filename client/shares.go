@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/shares"
+	"github.com/ghetzel/go-stockutil/typeutil"
 	"github.com/ghetzel/pivot/dal"
 	"strings"
 )
@@ -29,6 +30,48 @@ func (self *Client) GetShare(shareID string, peerOrSession string) (output *shar
 
 	err = self.Retrieve(prefix, shareID, &output)
 	return
+}
+
+func (self *Client) CreateShare(id string, config *shares.Share) error {
+	var share *shares.Share
+
+	v := db.SharesSchema.NewInstance()
+
+	if vS, ok := v.(*shares.Share); ok {
+		share = vS
+	} else {
+		return fmt.Errorf("Failed to instantiate share")
+	}
+
+	if !typeutil.IsEmpty(id) {
+		share.ID = id
+	} else {
+		return fmt.Errorf("%q cannot be empty", `id`)
+	}
+
+	if config != nil {
+		if !typeutil.IsEmpty(config.IconName) {
+			share.IconName = config.IconName
+		}
+
+		if !typeutil.IsZero(config.BaseFilter) {
+			share.BaseFilter = config.BaseFilter
+		}
+
+		if !typeutil.IsZero(config.Description) {
+			share.Description = config.Description
+		}
+
+		if !typeutil.IsZero(config.LongDescription) {
+			share.LongDescription = config.LongDescription
+		}
+	}
+
+	return self.Create(`shares`, share)
+}
+
+func (self *Client) RemoveShare(id string) error {
+	return self.Delete(`shares`, id)
 }
 
 func (self *Client) BrowseShare(shareID string, parent string, peerOrSession string) (output *dal.RecordSet, err error) {

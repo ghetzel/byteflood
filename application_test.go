@@ -153,8 +153,7 @@ func TestSingleApplication(t *testing.T) {
 
 	defer func() {
 		os.RemoveAll(app.Database.BaseDirectory)
-		os.RemoveAll(`./tests/files`)
-		os.RemoveAll(`./tests/target`)
+		os.RemoveAll(`./tests`)
 	}()
 
 	// Scan Testing
@@ -223,9 +222,7 @@ func TestApplicationSuperFriends(t *testing.T) {
 	defer func() {
 		os.RemoveAll(local.Database.BaseDirectory)
 		os.RemoveAll(friend.Database.BaseDirectory)
-		// os.RemoveAll(`./tests/files`)
-		// os.RemoveAll(`./tests/target`)
-		os.RemoveAll(`./tests/friend`)
+		os.RemoveAll(`./tests`)
 	}()
 
 	// authorize local->friend

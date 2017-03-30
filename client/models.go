@@ -12,6 +12,7 @@ var objToSchema = map[string]*dal.Collection{
 	`peers`:         db.AuthorizedPeersSchema,
 	`directories`:   db.ScannedDirectoriesSchema,
 	`subscriptions`: db.SubscriptionsSchema,
+	`shares`:        db.SharesSchema,
 }
 
 func (self *Client) Retrieve(objType string, id interface{}, into interface{}) error {

@@ -17,6 +17,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"path"
@@ -603,7 +604,7 @@ func main() {
 							printWithFormat(c.GlobalString(`format`), shares, func() {
 								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
 
-								fmt.Fprintf(tw, "ID\tFILTER\tDESCRIPTION\n")
+								fmt.Fprintf(tw, "ID\tTITLE\tFILTER\tICON\n")
 
 								shareFilter := c.Args()
 								printed := 0
@@ -617,10 +618,11 @@ func main() {
 
 									fmt.Fprintf(
 										tw,
-										"%d\t%s\t%s\t%s\n",
+										"%s\t%s\t%s\t%s\n",
 										share.ID,
-										share.BaseFilter,
 										share.Description,
+										share.BaseFilter,
+										share.IconName,
 									)
 
 									printed += 1
@@ -634,6 +636,67 @@ func main() {
 							})
 						} else {
 							log.Fatal(err)
+						}
+					},
+				}, {
+					Name:      `create`,
+					Usage:     `Create a share to expose files to peers.`,
+					ArgsUsage: `ID`,
+					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name:  `base-filter, F`,
+							Usage: `A custom database query to use for selecting which files are exposed in this share.`,
+						},
+						cli.StringFlag{
+							Name:  `title, t`,
+							Usage: `A human-readable title for the share.`,
+						},
+						cli.StringFlag{
+							Name:  `icon, i`,
+							Usage: `A fontawesome.io icon name (excluding the "fa-" prefix) to represent the share`,
+							Value: `folder`,
+						},
+					},
+					Action: func(c *cli.Context) {
+						id := c.Args().First()
+						var longDesc string
+
+						if stat, _ := os.Stdin.Stat(); (stat.Mode() & os.ModeCharDevice) == 0 {
+							if data, err := ioutil.ReadAll(os.Stdin); err == nil {
+								longDesc = string(data[:])
+							} else {
+								log.Fatal(err)
+							}
+						}
+
+						if err := api.CreateShare(id, &shares.Share{
+							BaseFilter:      c.String(`base-filter`),
+							Description:     c.String(`title`),
+							IconName:        c.String(`icon`),
+							LongDescription: longDesc,
+						}); err == nil {
+							log.Noticef("Share %s created successfully.", id)
+						} else {
+							log.Fatalf("Failed to create share %s: %v", id, err)
+						}
+					},
+				}, {
+					Name:      `remove`,
+					ArgsUsage: `ID`,
+					Usage:     `Remove a share.`,
+					Action: func(c *cli.Context) {
+						id := c.Args().Get(0)
+
+						if id == `` {
+							log.Fatalf("Must specify a share ID to remove.")
+						}
+
+						if err := api.RemoveShare(id); err == nil {
+							log.Noticef("Share ID %q access has been revoked.", id)
+						} else if client.IsNotFound(err) {
+							log.Warningf("Share ID %q does not exist.", id)
+						} else {
+							log.Fatalf("Failed to remove share ID %q: v", id, err)
 						}
 					},
 				},

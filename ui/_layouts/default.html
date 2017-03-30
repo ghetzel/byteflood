@@ -41,65 +41,84 @@
                 <li class="nav-item {{ if eq .request.url.path `/` }}active{{end}}">
                   <a class="nav-link" href="/">
                     <i class="fa fa-fw fa-exchange"></i>
-                    Transfers
-                    {{ if eq .request.url.path `/` }}
-                    <span class="sr-only">(current)</span>
-                    {{ end }}
+                    <span>
+                      Transfers
+                      {{ if eq .request.url.path `/` }}
+                      <span class="sr-only">(current)</span>
+                      {{ end }}
+                    </span>
                   </a>
                 </li>
 
                 <li class="nav-item {{ if hasPrefix .request.url.path `/peers` }}active{{end}}">
                   <a class="nav-link" href="/peers">
                     <i class="fa fa-fw fa-share-alt"></i>
-                    Peers
-                    {{ if hasPrefix .request.url.path `/peers` }}
-                    <span class="sr-only">(current)</span>
-                    {{ end }}
+                    <span>
+                      Peers
+                      {{ if hasPrefix .request.url.path `/peers` }}
+                      <span class="sr-only">(current)</span>
+                      {{ end }}
+                    </span>
                   </a>
                 </li>
+
                 <li class="nav-item {{ if hasPrefix .request.url.path `/shares` }}active{{end}}">
                   <a class="nav-link" href="/shares">
                     <i class="fa fa-fw fa-folder"></i>
-                    Shares
-                    {{ if hasPrefix .request.url.path `/shares` }}
-                    <span class="sr-only">(current)</span>
-                    {{ end }}
+                    <span>
+                      Shares
+                      {{ if hasPrefix .request.url.path `/shares` }}
+                      <span class="sr-only">(current)</span>
+                      {{ end }}
+                    </span>
                   </a>
                 </li>
+
                 <li class="nav-item {{ if hasPrefix .request.url.path `/subscriptions` }}active{{end}}">
                   <a class="nav-link" href="/subscriptions">
                     <i class="fa fa-fw fa-refresh"></i>
-                    Subscriptions
-                    {{ if hasPrefix .request.url.path `/subscriptions` }}
-                    <span class="sr-only">(current)</span>
-                    {{ end }}
+                    <span>
+                      Subscriptions
+                      {{ if hasPrefix .request.url.path `/subscriptions` }}
+                      <span class="sr-only">(current)</span>
+                      {{ end }}
+                    </span>
                   </a>
                 </li>
+
                 <li class="nav-item {{ if hasPrefix .request.url.path `/database` }}active{{end}}">
                   <a class="nav-link" href="/database">
                     <i class="fa fa-fw fa-database"></i>
-                    Database
-                    {{ if hasPrefix .request.url.path `/database` }}
-                    <span class="sr-only">(current)</span>
-                    {{ end }}
+                    <span>
+                      Database
+                      {{ if hasPrefix .request.url.path `/database` }}
+                      <span class="sr-only">(current)</span>
+                      {{ end }}
+                    </span>
                   </a>
                 </li>
+
                 <li class="nav-item {{ if hasPrefix .request.url.path `/config` }}active{{end}}">
                   <a class="nav-link" href="/config">
                     <i class="fa fa-fw fa-gear"></i>
-                    Configuration
-                    {{ if hasPrefix .request.url.path `/config` }}
-                    <span class="sr-only">(current)</span>
-                    {{ end }}
+                    <span class="hidden-md-down">
+                      Configuration
+                      {{ if hasPrefix .request.url.path `/config` }}
+                      <span class="sr-only">(current)</span>
+                      {{ end }}
+                    </span>
                   </a>
                 </li>
+
                 <li class="nav-item {{ if hasPrefix .request.url.path `/about` }}active{{end}}">
                   <a class="nav-link" href="/about">
                     <i class="fa fa-fw fa-question"></i>
-                    About
-                    {{ if hasPrefix .request.url.path `/about` }}
-                    <span class="sr-only">(current)</span>
-                    {{ end }}
+                    <span class="hidden-md-down">
+                      About
+                      {{ if hasPrefix .request.url.path `/about` }}
+                      <span class="sr-only">(current)</span>
+                      {{ end }}
+                    </span>
                   </a>
                 </li>
               </ul>

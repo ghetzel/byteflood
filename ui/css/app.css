@@ -1,5 +1,5 @@
 /* small and below */
-@media (max-width: 1199px) {
+@media (max-width: 1299px) {
     .content-container {
         width: 100%;
         padding-top: 15px;
@@ -11,7 +11,7 @@
 }
 
 /* large and above */
-@media (min-width: 1200px) {
+@media (min-width: 1300px) {
     .navbar.sitewide {
         width: 200px;
         position: fixed;

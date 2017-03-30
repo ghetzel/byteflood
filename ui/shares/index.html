@@ -13,7 +13,7 @@ bindings:
 {{ $path := or .request.url.query.path `` }}
 {{ $limit := or .request.url.query.limit `` }}
 {{ $offset := or .request.url.query.offset `` }}
-<div class="col-md-2">
+<div class="col-lg-3">
     <ul class="nav bf-nav-tree">
         <!-- Local Shares Management -->
         <li class="nav-item">
@@ -46,7 +46,7 @@ bindings:
     </ul>
 </div>
 
-<div class="col-md-10">
+<div class="col-lg-9">
   <script type="text/javascript" id="share-browser">
     $(function(){
       qs = {
