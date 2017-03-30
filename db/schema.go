@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/pivot/dal"
 	"os"
 	"regexp"
@@ -163,6 +164,13 @@ var ScannedDirectoriesSchema = &dal.Collection{
 			Name:        `path`,
 			Description: `A local filesystem path that will be scanned for files.`,
 			Type:        dal.StringType,
+			Formatter: func(value interface{}, op dal.FieldOperation) (interface{}, error) {
+				if expanded, err := pathutil.ExpandUser(fmt.Sprintf("%v", value)); err == nil {
+					return expanded, nil
+				} else {
+					return ``, err
+				}
+			},
 			Validator: func(value interface{}) error {
 				if s, err := os.Stat(fmt.Sprintf("%v", value)); err == nil {
 					if !s.IsDir() {

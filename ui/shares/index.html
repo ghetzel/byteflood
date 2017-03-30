@@ -20,7 +20,6 @@ bindings:
           <span class="bf-nav-tree-title">
             <h4>
               <span>Local</span>
-              <a class="btn btn-sm btn-secondary pull-right" href="/shares/edit"><i class="fa fa-plus"></i> Add</a>
             </h4>
           </span>
 
@@ -28,6 +27,10 @@ bindings:
             bf-load="/shares/_peer_shares?share={{ $share }}"
             bf-interval="{{ $.page.local_interval }}"
           ></div>
+
+          <div class="bf-nav-tree-actions">
+            <a class="btn btn-sm btn-secondary pull-right" href="/shares/edit"><i class="fa fa-plus"></i> Add</a>
+          </div>
         </li>
 
         <!-- Remote Share Browser -->

@@ -131,6 +131,10 @@
     color: #444;
 }
 
+.bf-nav-tree .bf-nav-tree-actions {
+    margin-top: 4px;
+}
+
 .bf-nav-tree > .nav-item:not(:first-child) {
     margin-top: 1em;
 }
