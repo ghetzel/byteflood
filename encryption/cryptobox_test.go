@@ -9,11 +9,10 @@ import (
 	"testing"
 )
 
-func makeTestEncDecPair() (encrypter *Encrypter, decrypter *Decrypter) {
+func makeTestEncDecPair() (Encrypter, Decrypter) {
 	if publicKey, privateKey, err := box.GenerateKey(rand.Reader); err == nil {
-		encrypter = NewEncrypter([]byte(publicKey[:]), []byte(privateKey[:]), nil)
-		decrypter = NewDecrypter([]byte(publicKey[:]), []byte(privateKey[:]), nil)
-		return
+		encdec := NewCryptoboxEncryption([]byte(publicKey[:]), []byte(privateKey[:]), nil, nil)
+		return encdec, encdec
 	} else {
 		panic(err)
 	}

@@ -398,18 +398,11 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 				return nil, err
 			}
 
-			// setup encryption and decryption
-			//
-
-			remotePeer.Encrypter = encryption.NewEncrypter(
+			// setup stream encryption & decryption
+			remotePeer.Encryption = encryption.NewCryptoboxEncryption(
 				remotePeeringRequest.PublicKey[:32],
 				self.PrivateKey[:32],
 				nil,
-			)
-
-			remotePeer.Decrypter = encryption.NewDecrypter(
-				remotePeeringRequest.PublicKey[:32],
-				self.PrivateKey[:32],
 				nil,
 			)
 

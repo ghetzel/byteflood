@@ -35,11 +35,10 @@ type MessageHandler func(*Message)
 //
 type RemotePeer struct {
 	Peer                  `json:"-"`
-	ID                    string                `json:"id"`
-	Name                  string                `json:"name"`
-	Encrypter             *encryption.Encrypter `json:"-"`
-	Decrypter             *encryption.Decrypter `json:"-"`
-	Addresses             string                `json:"addresses,omitempty"`
+	ID                    string                        `json:"id"`
+	Name                  string                        `json:"name"`
+	Encryption            encryption.EncrypterDecrypter `json:"-"`
+	Addresses             string                        `json:"addresses,omitempty"`
 	HeartbeatInterval     time.Duration
 	HeartbeatAckTimeout   time.Duration
 	messageFn             MessageHandler
@@ -217,9 +216,9 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 	reader := self.getReadRateLimiter(self.connection)
 
 	// ensures that the decrypter is using the reader we've specified
-	self.Decrypter.SetSource(reader)
+	self.Encryption.SetSource(reader)
 
-	if cleartext, err := self.Decrypter.ReadPacket(); err == nil {
+	if cleartext, err := self.Encryption.ReadPacket(); err == nil {
 		// decode the decrypted message payload
 		if message, err := DecodeMessage(cleartext); err == nil {
 			return message, nil
@@ -239,11 +238,11 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 
 	// get an exclusive lock on writing to the encrypter
 	// release it once we've encrypted the data
-	self.Encrypter.Lock()
-	defer self.Encrypter.Unlock()
+	self.Encryption.Lock()
+	defer self.Encryption.Unlock()
 
 	// ensures that the encrypter is using the writer we've specified
-	self.Encrypter.SetTarget(writer)
+	self.Encryption.SetTarget(writer)
 
 	// encode the message for transport
 	if encodedMessage, err := message.Encode(); err == nil {
@@ -251,7 +250,7 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 
 		// write encoded message (cleartext) to encrypter, which will in turn write
 		// the ciphertext and protocol data to the writer specified above
-		if n, err := io.Copy(self.Encrypter, encodedMessageR); err == nil {
+		if n, err := io.Copy(self.Encryption, encodedMessageR); err == nil {
 			// log.Debugf("[%s] SEND: [%s] Encrypted %d bytes (%d encoded, %d data)",
 			// 	self.String(),
 			// 	message.Type.String(),
