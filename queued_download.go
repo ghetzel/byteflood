@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+type DownloadFunc func(*QueuedDownload, ...io.Writer) error // {}
+
 // A QueuedDownload represents the transfer if a single file object from an actively-connected
 // RemotePeer (identified by its SessionID.)  Downloads move through several discrete states,
 // starting with "idle", which means it is sitting in a queue waiting to start.
@@ -27,43 +29,43 @@ import (
 // Any errors will be available in the Error field if they occur.
 //
 type QueuedDownload struct {
-	ID              int       `json:"id"`
-	Status          string    `json:"status"`
-	Priority        int64     `json:"priority"`
-	PeerName        string    `json:"peer_name"`
-	SessionID       string    `json:"session_id"`
-	ShareID         string    `json:"share_id"`
-	FileID          string    `json:"file_id"`
-	Name            string    `json:"name"`
-	DestinationPath string    `json:"destination"`
-	Size            uint64    `json:"size"`
-	AddedAt         time.Time `json:"added_at,omitempty"`
-	Error           string    `json:"error,omitempty"`
-	Progress        float64   `json:"progress"`
-	Rate            uint64    `json:"rate"`
-	app             *Application
-	db              *db.Database
-	tempFile        *os.File
-	destinationFile io.Reader
-	lastByteSize    uint64
-	stopChan        chan error
-}
-
-func (self *QueuedDownload) Read(p []byte) (int, error) {
-	if self.destinationFile != nil {
-		return self.destinationFile.Read(p)
-	}
-
-	return 0, fmt.Errorf("file not downloaded")
+	ID               int       `json:"id"`
+	Status           string    `json:"status"`
+	Priority         int64     `json:"priority"`
+	PeerName         string    `json:"peer_name"`
+	SessionID        string    `json:"session_id"`
+	ShareID          string    `json:"share_id"`
+	FileID           string    `json:"file_id"`
+	Name             string    `json:"name"`
+	DestinationPath  string    `json:"destination"`
+	Size             uint64    `json:"size"`
+	AddedAt          time.Time `json:"added_at,omitempty"`
+	Error            string    `json:"error,omitempty"`
+	Progress         float64   `json:"progress"`
+	Rate             uint64    `json:"rate"`
+	customDownloader DownloadFunc
+	app              *Application
+	db               *db.Database
+	tempFile         *os.File
+	destinationFile  io.Reader
+	lastByteSize     uint64
+	stopChan         chan error
 }
 
 func (self *QueuedDownload) Stop(err error) {
+	self.Error = err.Error()
+	self.Status = `failed`
+
 	if self.stopChan != nil {
 		self.stopChan <- err
 	}
 }
 
 func (self *QueuedDownload) Download(writers ...io.Writer) error {
+	if self.customDownloader != nil {
+		return self.customDownloader(self, writers...)
+	}
+
 	// setup ability to stop this thing
 	self.stopChan = make(chan error)
 
@@ -112,7 +114,7 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 			destFile = path.Join(self.DestinationPath, self.Name)
 
 			// expand the destination path to an absolute one and verify that it's valid/safe
-			if d, err := self.VerifyPath(destFile); err == nil {
+			if d, err := self.verifyPath(destFile); err == nil {
 				destFile = d
 			} else {
 				return err
@@ -156,6 +158,8 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 			); err == nil {
 				// if all goes well, block until the download succeeds or fails
 				if response.StatusCode < 400 {
+					lastCalcTime := time.Now()
+
 					// wait for the transfer to complete
 					if err := transfer.Wait(func(id uuid.UUID, bytesReceived uint64, expectedSize uint64) {
 						if expectedSize > 0 {
@@ -169,11 +173,14 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 						self.Status = `downloading`
 						self.Size = bytesReceived
 
-						if self.lastByteSize > 0 {
-							self.Rate = (bytesReceived - self.lastByteSize)
-						}
+						if time.Since(lastCalcTime) >= time.Second {
+							if self.lastByteSize > 0 {
+								self.Rate = (self.Size - self.lastByteSize)
+							}
 
-						self.lastByteSize = bytesReceived
+							self.lastByteSize = self.Size
+							lastCalcTime = time.Now()
+						}
 
 						select {
 						case err := <-self.stopChan:
@@ -220,7 +227,23 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 	}
 }
 
-func (self *QueuedDownload) VerifyPath(name string) (string, error) {
+func (self *QueuedDownload) String() string {
+	return fmt.Sprintf("%d %s/%s:%s", self.ID, self.PeerName, self.ShareID, self.FileID)
+}
+
+func (self *QueuedDownload) SetStatus(status string) {
+	self.Status = status
+}
+
+func (self *QueuedDownload) SetApplication(app *Application) {
+	self.app = app
+}
+
+func (self *QueuedDownload) SetDatabase(conn *db.Database) {
+	self.db = conn
+}
+
+func (self *QueuedDownload) verifyPath(name string) (string, error) {
 	// fully resolve the given path into an absolute path
 	if absPath, err := filepath.Abs(name); err == nil {
 		// the absolute path must fall under the destination directory
@@ -232,8 +255,4 @@ func (self *QueuedDownload) VerifyPath(name string) (string, error) {
 	} else {
 		return ``, err
 	}
-}
-
-func (self *QueuedDownload) SetDatabase(conn *db.Database) {
-	self.db = conn
 }

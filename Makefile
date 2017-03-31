@@ -16,7 +16,7 @@ fmt:
 
 test:
 	go test -race ./encryption
-	go test -race ./peer
+	go test ./peer
 	go test ./db
 	go test .
 

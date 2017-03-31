@@ -7,24 +7,32 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot/dal"
+	"github.com/orcaman/concurrent-map"
 	"io"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
 var EmptyPollInterval = 3 * time.Second
+var ConcurrentDownloads = 3
 
 type DownloadQueue struct {
-	CurrentDownload *QueuedDownload `json:"current_download"`
-	app             *Application
-	waitForEmpty    chan bool
-	clearing        bool
+	ExitOnEmpty      bool               `json:"exit_on_empty,omitempty"`
+	ActiveDownloads  cmap.ConcurrentMap `json:"active_downloads"`
+	app              *Application
+	workerPool       chan *QueuedDownload
+	waitForEmpty     chan bool
+	customDownloader DownloadFunc
+	waitForComplete  sync.WaitGroup
 }
 
 func NewDownloadQueue(app *Application) *DownloadQueue {
 	return &DownloadQueue{
-		app:          app,
-		waitForEmpty: make(chan bool),
+		ActiveDownloads: cmap.New(),
+		app:             app,
+		waitForEmpty:    make(chan bool),
+		workerPool:      make(chan *QueuedDownload, ConcurrentDownloads),
 	}
 }
 
@@ -53,6 +61,11 @@ func (self *DownloadQueue) Add(sessionID string, shareID string, entryID string,
 	} else {
 		return fmt.Errorf("session %s not found", sessionID)
 	}
+}
+
+func (self *DownloadQueue) Enqueue(download *QueuedDownload) error {
+	log.Debugf("Adding %+v", download)
+	return self.app.Database.Downloads.Create(download)
 }
 
 func (self *DownloadQueue) enqueueDirectory(remotePeer *peer.RemotePeer, shareID string, directoryID string, destination string) error {
@@ -114,9 +127,7 @@ func (self *DownloadQueue) enqueueFile(remotePeer *peer.RemotePeer, shareID stri
 		download.Size = size
 		download.AddedAt = now
 
-		log.Debugf("Adding %+v", download)
-
-		return self.app.Database.Downloads.Create(download)
+		return self.Enqueue(download)
 	} else {
 		return fmt.Errorf("Failed to create new download instance")
 	}
@@ -145,43 +156,63 @@ func (self *DownloadQueue) WaitForEmpty() {
 	return
 }
 
+func (self *DownloadQueue) downloadWorker() {
+	for download := range self.workerPool {
+		id := fmt.Sprintf("%v", download.ID)
+
+		if self.customDownloader != nil {
+			download.customDownloader = self.customDownloader
+		}
+
+		log.Debugf("Downloading %v", download)
+		self.ActiveDownloads.Set(id, download)
+
+		if err := download.Download(); err != nil {
+			log.Errorf("Stopping download %v: %v", download, err)
+			download.Stop(err)
+		}
+
+		if err := self.app.Database.Downloads.Update(download); err != nil {
+			log.Warningf("Failed to update queue download: %v", err)
+		}
+
+		self.ActiveDownloads.Remove(id)
+		self.waitForComplete.Done()
+	}
+}
+
 // Downloads all files in the queue.  If no files are currently in the queue,
 // this function will poll the queue on the interval defined in EmptyPollInterval.
 //
 // Completed items will be moved to the CompletedItems slice.
 //
 func (self *DownloadQueue) DownloadAll() {
+	for i := 0; i < ConcurrentDownloads; i++ {
+		log.Debugf("Starting download worker %d", i)
+		go self.downloadWorker()
+	}
+
 	for {
-		if !self.clearing {
-			if item := self.CurrentItem(); item != nil {
-				self.CurrentDownload = item
-				log.Debugf("Downloading %+v", item)
-
-				if err := item.Download(); err != nil {
-					item.Error = err.Error()
-					item.Status = `failed`
-				}
-
-				if err := self.app.Database.Downloads.Update(item); err != nil {
-					log.Warningf("Failed to update queue item %s: %v", item.ID, err)
-				}
-
-				continue
+		if download := self.NextDownload(); download != nil {
+			self.waitForComplete.Add(1)
+			self.workerPool <- download
+		} else {
+			select {
+			case self.waitForEmpty <- true:
+			default:
 			}
-		}
 
-		// send a non-blocking signal that the queue is now empty
-		select {
-		case self.waitForEmpty <- true:
-		default:
-		}
+			if self.ExitOnEmpty {
+				self.waitForComplete.Wait()
+				return
+			}
 
-		self.CurrentDownload = nil
-		time.Sleep(EmptyPollInterval)
+			time.Sleep(EmptyPollInterval)
+		}
 	}
 }
 
-func (self *DownloadQueue) CurrentItem() *QueuedDownload {
+func (self *DownloadQueue) NextDownload() *QueuedDownload {
 	if f, err := db.ParseFilter(map[string]interface{}{
 		`status`: `idle`,
 	}); err == nil {
@@ -193,9 +224,15 @@ func (self *DownloadQueue) CurrentItem() *QueuedDownload {
 		if err := self.app.Database.Downloads.Find(f, &downloads); err == nil {
 			if len(downloads) > 0 {
 				download := downloads[0]
-				download.app = self.app
+				download.SetStatus(`pending`)
 
-				return download
+				if err := self.app.Database.Downloads.Update(download); err == nil {
+					download.SetApplication(self.app)
+
+					return download
+				} else {
+					log.Errorf("Error retrieving current download: %v", err)
+				}
 			}
 		} else {
 			log.Errorf("Error retrieving current download: %v", err)
@@ -208,12 +245,7 @@ func (self *DownloadQueue) CurrentItem() *QueuedDownload {
 }
 
 func (self *DownloadQueue) Clear() error {
-	current := self.CurrentItem()
-	self.clearing = true
-
-	defer func() {
-		self.clearing = false
-	}()
+	current := self.NextDownload()
 
 	if err := self.app.Database.Downloads.Each(QueuedDownload{}, func(i interface{}) {
 		if download, ok := i.(*QueuedDownload); ok {
