@@ -58,6 +58,20 @@ func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (self *API) handleGetShareStats(w http.ResponseWriter, req *http.Request) {
+	share := db.SharesSchema.NewInstance().(*shares.Share)
+
+	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
+		if stats, err := share.GetStats(); err == nil {
+			Respond(w, stats)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	} else {
+		http.Error(w, err.Error(), http.StatusNotFound)
+	}
+}
+
 func (self *API) handleGetShareEntry(w http.ResponseWriter, req *http.Request) {
 	share := db.SharesSchema.NewInstance().(*shares.Share)
 

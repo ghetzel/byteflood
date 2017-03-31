@@ -84,10 +84,12 @@ func (self *API) Serve() error {
 	router.Get(`/api/status`, self.handleStatus)
 	router.Get(`/api/configuration`, self.handleGetConfig)
 	router.Get(`/api/events`, self.wsEventStream)
+	router.Get(`/api/browse/*`, self.handleBrowseLocalDirectories)
 
 	// download queue endpoints
 	router.Get(`/api/downloads`, self.handleGetQueue)
 	router.Get(`/api/downloads/history`, self.handleGetQueuedDownloads)
+	router.Post(`/api/downloads/actions/:action`, self.handleActionQueue)
 	router.Post(`/api/downloads/:peer/:share/:entry`, self.handleEnqueueEntry)
 
 	// metadata database endpoints
@@ -137,6 +139,7 @@ func (self *API) Serve() error {
 
 	router.Get(`/api/shares/:id`, self.handleGetShare)
 	router.Get(`/api/shares/:id/landing`, self.handleShareLandingPage)
+	router.Get(`/api/shares/:id/stats`, self.handleGetShareStats)
 	router.Get(`/api/shares/:id/view/:entry`, self.handleGetShareEntry)
 	router.Get(`/api/shares/:id/parents/:file`, self.handleGetShareFileIdsToRoot)
 	router.Get(`/api/shares/:id/manifest`, self.handleShareManifest)
@@ -152,13 +155,15 @@ func (self *API) Serve() error {
 	router.Get(`/api/subscriptions/new`, self.handleGetNewModelInstance)
 	router.Get(`/api/subscriptions/:id`, self.handleGetSubscription)
 	router.Delete(`/api/subscriptions/:id`, self.handleDeleteModel)
-	router.Post(`/api/subscriptions/:id/actions/:sync`, self.handleActionSubscription)
+	router.Post(`/api/subscriptions/:id/actions/:action`, self.handleActionSubscription)
 
 	mux.Handle(`/api/`, router)
 	mux.Handle(`/`, ui)
 
 	server.UseHandler(mux)
-	server.Use(NewRequestLogger())
+	reqlog := NewRequestLogger()
+	reqlog.Methods = []string{`-get`}
+	server.Use(reqlog)
 
 	log.Debugf("Running API server at %s", self.Address)
 	server.Run(self.Address)
@@ -174,6 +179,7 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 	router.Get(`/shares`, self.handleGetShares)
 	router.Get(`/shares/:id`, self.handleGetShare)
 	router.Get(`/shares/:id/landing`, self.handleShareLandingPage)
+	router.Get(`/shares/:id/stats`, self.handleGetShareStats)
 	router.Get(`/shares/:id/view/:entry`, self.handleGetShareEntry)
 	router.Get(`/shares/:id/parents/:file`, self.handleGetShareFileIdsToRoot)
 	router.Get(`/shares/:id/manifest`, self.handleShareManifest)

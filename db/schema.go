@@ -172,7 +172,9 @@ var ScannedDirectoriesSchema = &dal.Collection{
 				}
 			},
 			Validator: func(value interface{}) error {
-				if s, err := os.Stat(fmt.Sprintf("%v", value)); err == nil {
+				dir := fmt.Sprintf("%v", value)
+
+				if s, err := os.Stat(dir); err == nil {
 					if !s.IsDir() {
 						return fmt.Errorf("Given path must be a directory")
 					}
@@ -233,6 +235,30 @@ var SubscriptionsSchema = &dal.Collection{
 			Description: `The local filesystem path where downloaded data will be stored.`,
 			Type:        dal.StringType,
 			Required:    true,
+			Formatter: func(value interface{}, op dal.FieldOperation) (interface{}, error) {
+				if expanded, err := pathutil.ExpandUser(fmt.Sprintf("%v", value)); err == nil {
+					return expanded, nil
+				} else {
+					return ``, err
+				}
+			},
+			Validator: func(value interface{}) error {
+				dir := fmt.Sprintf("%v", value)
+
+				if s, err := os.Stat(dir); err == nil {
+					if !s.IsDir() {
+						return fmt.Errorf("Given path must be a directory")
+					}
+				} else if os.IsNotExist(err) {
+					if err := os.MkdirAll(dir, 0755); err != nil {
+						return err
+					}
+				} else {
+					return err
+				}
+
+				return nil
+			},
 		}, {
 			Name:        `sync_interval`,
 			Description: `A cron-like specification for declaring how often (if ever) the subscription should periodically sync.`,

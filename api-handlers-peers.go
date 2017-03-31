@@ -7,7 +7,7 @@ import (
 )
 
 func (self *API) handleGetPeers(w http.ResponseWriter, req *http.Request) {
-	var peers []peer.RemotePeer
+	var peers []peer.AuthorizedPeer
 
 	if err := self.db.AuthorizedPeers.All(&peers); err == nil {
 		Respond(w, peers)

@@ -22,6 +22,12 @@ type Share struct {
 	db              *db.Database
 }
 
+type Stats struct {
+	FileCount      int64 `json:"file_count"`
+	DirectoryCount int64 `json:"directory_count"`
+	TotalBytes     int64 `json:"total_bytes"`
+}
+
 func (self *Share) SetDatabase(conn *db.Database) {
 	self.db = conn
 }
@@ -86,6 +92,33 @@ func (self *Share) Get(id string) (*db.Entry, error) {
 		entry.SetDatabase(self.db)
 
 		return entry, nil
+	} else {
+		return nil, err
+	}
+}
+
+func (self *Share) GetStats(filters ...string) (*Stats, error) {
+	if f, err := db.ParseFilter(self.GetQuery(filters...)); err == nil {
+		f.Limit = 0
+		f.Fields = []string{`directory`, `size`}
+		f.Sort = []string{`-directory`, `size`}
+
+		stats := &Stats{}
+
+		if err := self.db.Metadata.FindFunc(f, db.Entry{}, func(result interface{}) {
+			if entry, ok := result.(*db.Entry); ok {
+				if entry.IsDirectory {
+					stats.DirectoryCount += 1
+				} else {
+					stats.FileCount += 1
+					stats.TotalBytes += entry.Size
+				}
+			}
+		}); err == nil {
+			return stats, nil
+		} else {
+			return nil, err
+		}
 	} else {
 		return nil, err
 	}

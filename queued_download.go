@@ -46,6 +46,7 @@ type QueuedDownload struct {
 	tempFile        *os.File
 	destinationFile io.Reader
 	lastByteSize    uint64
+	stopChan        chan error
 }
 
 func (self *QueuedDownload) Read(p []byte) (int, error) {
@@ -56,7 +57,16 @@ func (self *QueuedDownload) Read(p []byte) (int, error) {
 	return 0, fmt.Errorf("file not downloaded")
 }
 
+func (self *QueuedDownload) Stop(err error) {
+	if self.stopChan != nil {
+		self.stopChan <- err
+	}
+}
+
 func (self *QueuedDownload) Download(writers ...io.Writer) error {
+	// setup ability to stop this thing
+	self.stopChan = make(chan error)
+
 	// get peer by session id, fallback to peer name
 	remotePeer, ok := self.app.LocalPeer.GetSession(self.SessionID)
 
@@ -164,6 +174,13 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 						}
 
 						self.lastByteSize = bytesReceived
+
+						select {
+						case err := <-self.stopChan:
+							transfer.Complete(err)
+						default:
+						}
+
 					}); err == nil {
 						self.Progress = 1.0
 						self.Status = `completed`

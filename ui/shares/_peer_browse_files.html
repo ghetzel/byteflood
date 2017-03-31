@@ -20,6 +20,7 @@ bindings:
   optional: true
 ---
 {{ $session := or .request.url.query.session `` }}
+{{ $peer := or .request.url.query.peer `` }}
 {{ $share := or .request.url.query.share `` }}
 {{ $grandparent := or .request.url.query.grandparent `` }}
 {{ $parent := or .request.url.query.parent `` }}
@@ -116,6 +117,19 @@ bindings:
     </ul>
 
     <ul class="nav navbar-nav pull-right">
+      {{ if $session }}
+      <li class="nav-item">
+        <a
+          class="nav-link"
+          href="/subscriptions/edit?id=new&amp;name={{ $share }}&amp;source={{ $peer }}"
+          title="Download this directory and monitor it for changes on an ongoing basis."
+        >
+          <i class="fa fa-fw fa-plus-square"></i>
+          Subscribe
+        </a>
+      </li>
+      {{ end }}
+
       <li class="nav-item">
         <a
           class="nav-link disabled"
@@ -124,17 +138,6 @@ bindings:
         >
           <i class="fa fa-fw fa-cloud-download"></i>
           Fetch
-        </a>
-      </li>
-
-      <li class="nav-item">
-        <a
-          class="nav-link disabled"
-          href="#"
-          title="Download this directory and monitor it for changes on an ongoing basis."
-        >
-          <i class="fa fa-fw fa-plus-square"></i>
-          Subscribe
         </a>
       </li>
     </ul>
@@ -222,6 +225,7 @@ bindings:
 </div>
 {{ end }}
 
+{{ if .bindings.share.long_description }}
 {{ if (.bindings.share.long_description | trim) }}
 <div class="card">
   <div class="card-header">
@@ -240,4 +244,5 @@ bindings:
     </script>
   </div>
 </div>
+{{ end }}
 {{ end }}

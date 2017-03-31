@@ -3,10 +3,12 @@ package byteflood
 import (
 	"github.com/urfave/negroni"
 	"net/http"
+	"strings"
 	"time"
 )
 
 type RequestLogger struct {
+	Methods []string
 }
 
 func NewRequestLogger() *RequestLogger {
@@ -14,6 +16,20 @@ func NewRequestLogger() *RequestLogger {
 }
 
 func (self *RequestLogger) ServeHTTP(rw http.ResponseWriter, req *http.Request, next http.HandlerFunc) {
+	for _, method := range self.Methods {
+		method = strings.ToUpper(method)
+
+		if strings.HasPrefix(method, `-`) {
+			method = strings.TrimPrefix(method, `-`)
+
+			if req.Method == method {
+				return
+			}
+		} else if req.Method == method {
+			break
+		}
+	}
+
 	start := time.Now()
 
 	next(rw, req)

@@ -1,6 +1,7 @@
 package byteflood
 
 import (
+	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/husobee/vestigo"
 	"io"
@@ -33,6 +34,23 @@ func (self *API) handleEnqueueEntry(w http.ResponseWriter, req *http.Request) {
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
+}
+
+func (self *API) handleActionQueue(w http.ResponseWriter, req *http.Request) {
+	action := vestigo.Param(req, `action`)
+
+	switch action {
+	case `clear`:
+		if err := self.application.Queue.Clear(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+	default:
+		http.Error(w, fmt.Sprintf("Unknown action '%s'", action), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {

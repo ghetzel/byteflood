@@ -5,10 +5,14 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
+	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/mapper"
 	"github.com/husobee/vestigo"
 	"net/http"
+	"os"
+	"path"
+	"sort"
 	"strings"
 )
 
@@ -192,8 +196,8 @@ func (self *API) handlePerformAction(w http.ResponseWriter, req *http.Request) {
 
 // Upgrades an image stream connection request and attaches the connection to the requesting client
 //
-func (self *API) wsEventStream(w http.ResponseWriter, request *http.Request) {
-	if conn, err := self.eventUpgrader.Upgrade(w, request, nil); err == nil {
+func (self *API) wsEventStream(w http.ResponseWriter, req *http.Request) {
+	if conn, err := self.eventUpgrader.Upgrade(w, req, nil); err == nil {
 		id := fmt.Sprintf("%v", conn.RemoteAddr())
 
 		conn.SetCloseHandler(func(code int, text string) error {
@@ -205,5 +209,59 @@ func (self *API) wsEventStream(w http.ResponseWriter, request *http.Request) {
 	} else {
 		log.Errorf("Error setting up WebSocket: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (self *API) handleBrowseLocalDirectories(w http.ResponseWriter, req *http.Request) {
+	query := vestigo.Param(req, `_name`)
+	query = strings.TrimPrefix(query, `/`)
+	query = strings.TrimPrefix(query, `browse`)
+
+	if !strings.HasPrefix(query, `~`) {
+		query = `/` + strings.TrimPrefix(query, `/`)
+	} else if query == `~` {
+		query = query + `/`
+	}
+
+	paths := make([]string, 0)
+
+	if v, err := pathutil.ExpandUser(query); err == nil {
+		givenRoot, _ := path.Split(query)
+		browseRoot, dirFilter := path.Split(v)
+
+		if root, err := os.Open(browseRoot); err == nil {
+			if rootStat, err := root.Stat(); err == nil {
+				if rootStat.IsDir() {
+					if entries, err := root.Readdir(-1); err == nil {
+						for _, entry := range entries {
+							name := entry.Name()
+
+							if entry.IsDir() {
+								if !strings.HasPrefix(name, `.`) {
+									if strings.HasPrefix(name, dirFilter) {
+										paths = append(paths, path.Join(givenRoot, entry.Name()))
+									}
+								}
+							}
+						}
+
+						sort.Strings(paths)
+						Respond(w, paths)
+					} else {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+					}
+				} else {
+					Respond(w, paths)
+				}
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		} else if os.IsNotExist(err) {
+			Respond(w, paths)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	} else {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 }

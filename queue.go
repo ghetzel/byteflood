@@ -18,6 +18,7 @@ type DownloadQueue struct {
 	CurrentDownload *QueuedDownload `json:"current_download"`
 	app             *Application
 	waitForEmpty    chan bool
+	clearing        bool
 }
 
 func NewDownloadQueue(app *Application) *DownloadQueue {
@@ -151,30 +152,32 @@ func (self *DownloadQueue) WaitForEmpty() {
 //
 func (self *DownloadQueue) DownloadAll() {
 	for {
-		if item := self.CurrentItem(); item != nil {
-			self.CurrentDownload = item
-			log.Debugf("Downloading %+v", item)
+		if !self.clearing {
+			if item := self.CurrentItem(); item != nil {
+				self.CurrentDownload = item
+				log.Debugf("Downloading %+v", item)
 
-			if err := item.Download(); err != nil {
-				item.Error = err.Error()
-				item.Status = `failed`
+				if err := item.Download(); err != nil {
+					item.Error = err.Error()
+					item.Status = `failed`
+				}
+
+				if err := self.app.Database.Downloads.Update(item); err != nil {
+					log.Warningf("Failed to update queue item %s: %v", item.ID, err)
+				}
+
+				continue
 			}
-
-			if err := self.app.Database.Downloads.Update(item); err != nil {
-				log.Warningf("Failed to update queue item %s: %v", item.ID, err)
-			}
-
-			continue
-		} else {
-			// send a non-blocking signal that the queue is now empty
-			select {
-			case self.waitForEmpty <- true:
-			default:
-			}
-
-			self.CurrentDownload = nil
-			time.Sleep(EmptyPollInterval)
 		}
+
+		// send a non-blocking signal that the queue is now empty
+		select {
+		case self.waitForEmpty <- true:
+		default:
+		}
+
+		self.CurrentDownload = nil
+		time.Sleep(EmptyPollInterval)
 	}
 }
 
@@ -199,6 +202,29 @@ func (self *DownloadQueue) CurrentItem() *QueuedDownload {
 		}
 	} else {
 		log.Errorf("Error retrieving current download: %v", err)
+	}
+
+	return nil
+}
+
+func (self *DownloadQueue) Clear() error {
+	current := self.CurrentItem()
+	self.clearing = true
+
+	defer func() {
+		self.clearing = false
+	}()
+
+	if err := self.app.Database.Downloads.Each(QueuedDownload{}, func(i interface{}) {
+		if download, ok := i.(*QueuedDownload); ok {
+			self.app.Database.Downloads.Delete(download.ID)
+		}
+	}); err != nil {
+		return err
+	}
+
+	if current != nil {
+		current.Stop(fmt.Errorf("queue cleared"))
 	}
 
 	return nil

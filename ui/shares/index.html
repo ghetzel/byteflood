@@ -16,7 +16,7 @@ bindings:
 <div class="col-lg-3">
     <ul class="nav bf-nav-tree">
         <!-- Local Shares Management -->
-        <li class="nav-item">
+        <li class="nav-item mb-3">
           <span class="bf-nav-tree-title">
             <h4>
               <span>Local</span>
@@ -29,21 +29,29 @@ bindings:
           ></div>
 
           <div class="bf-nav-tree-actions">
-            <a class="btn btn-sm btn-secondary pull-right" href="/shares/edit"><i class="fa fa-plus"></i> Add</a>
+            <a class="btn btn-sm btn-success pull-right" href="/shares/edit"><i class="fa fa-plus"></i> Add</a>
           </div>
         </li>
 
         <!-- Remote Share Browser -->
         {{ range .bindings.sessions }}
-        <li class="nav-item">
+        <li class="nav-item mb-3">
           <span class="bf-nav-tree-title">
-            <h4><span>{{ .name }}</span></h4>
+            <h4>
+              <span>{{ .name }}</span>
+            </h4>
           </span>
 
           <div
-            bf-load="/shares/_peer_shares?session={{ .session_id }}&amp;share={{ $share }}"
+            bf-load="/shares/_peer_shares?session={{ .session_id }}&amp;share={{ $share }}&amp;peer={{ .name }}"
             bf-interval="{{ $.page.peer_interval }}"
           ></div>
+
+          <div class="bf-nav-tree-actions">
+            <a class="btn btn-sm btn-secondary pull-right" href="/peers/edit?id={{ .id }}">
+              <i class="fa fa-pencil"></i> Edit
+            </a>
+          </div>
         </li>
         {{ end }}
     </ul>

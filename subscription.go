@@ -25,8 +25,8 @@ type Subscription struct {
 	SyncInterval    string    `json:"sync_interval,omitempty"`
 	BytesDownloaded uint64    `json:"bytes_downloaded"`
 	Quota           uint64    `json:"quota,omitempty"`
-	QuotaResetAt    time.Time `json:"quota_reset_at,omitempty"`
 	QuotaInterval   uint64    `json:"quota_interval,omitempty"`
+	QuotaResetAt    time.Time `json:"quota_reset_at,omitempty"`
 	db              *db.Database
 }
 

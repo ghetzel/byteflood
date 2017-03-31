@@ -6,11 +6,30 @@ bindings:
   resource: :/api/subscriptions/{{ or .request.url.query.id "new" }}
 ---
 <div class="col-sm-12 col-md-6">
-    <form name="subscriptions">
+    <form name="subscriptions" method="POST">
         <input name="id" type="hidden" value="{{ .bindings.subscription.id }}">
 
         <div class="form-group">
-            <label for="name">Share Name</label>
+            <label for="source_group">Source Name or Group</label>
+            <input
+                type="text"
+                class="form-control"
+                name="source_group"
+                aria-describedby="sourceGroupHelp"
+                placeholder="Name or group"
+                required
+                autofocus
+                value="{{ or .request.url.query.source .bindings.subscription.source_group }}"
+            >
+
+            <small id="sourceGroupHelp" class="form-text text-muted">
+                The name of the specific peer or peer group to source files from.<br />
+                Groups are denoted by including an "@" prefix (e.g.: @groupname).
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="share_name">Share Name</label>
             <input
                 type="text"
                 class="form-control"
@@ -18,13 +37,320 @@ bindings:
                 aria-describedby="shareNameHelp"
                 placeholder="Name of share where files will come from"
                 required
-                autofocus
-                value="{{ or .request.url.query.share_name .bindings.subscription.share_name }}"
+                value="{{ or .request.url.query.name .bindings.subscription.share_name }}"
             >
 
-            <small id="nameHelp" class="form-text text-muted">
+            <small id="shareNameHelp" class="form-text text-muted">
                 This is the name of the share that files will come from.
             </small>
+        </div>
+
+        <div class="form-group">
+            <label for="target_path">Destination</label>
+            <div class="w-100">
+                <input
+                    type="text"
+                    class="form-control typeahead"
+                    data-typeahead-url="/api/browse/{}"
+                    name="target_path"
+                    aria-describedby="destinationHelp"
+                    placeholder="Local destination path"
+                    required
+                    autocomplete="off"
+                    value="{{ .bindings.subscription.target_path }}"
+                >
+            </div>
+
+            <small id="destinationHelp" class="form-text text-muted">
+                This is the local destination path where files will be stored and will be kept in sync
+                with the remote share.
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="filter">Filter</label>
+            <input
+                type="text"
+                class="form-control"
+                name="filter"
+                aria-describedby="filterHelp"
+                placeholder="Filter"
+                autocomplete="off"
+                value="{{ .bindings.subscription.filter }}"
+            >
+
+            <small id="filterHelp" class="form-text text-muted">
+                This is an additional filter set that further restricts what data to sync from
+                the remote peer.
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label class="col-form-label" for="sync_interval">Sync Interval</label>
+
+            <input
+                type="text"
+                class="form-control"
+                name="sync_interval"
+                aria-describedby="syncIntervalHelp"
+                placeholder="0 */5 * * * *"
+                value="{{ .bindings.subscription.sync_interval }}"
+            >
+
+            <small id="syncIntervalHelp" class="form-text text-muted">
+                <p>
+                    Subscriptions are periodically synced on the schedule described here.  The format for the schedule is
+                    similar to that of many implementations of the Linux
+                    <a href="https://en.wikipedia.org/wiki/Cron" target="_blank">cron</a> periodic scheduler service. This
+                    format consists of six (6) space-separated fields that represent on what schedule or interval the sync
+                    should occur.  This format is as follows:
+                </p>
+
+                <div class="w-100 mt-1">
+                    <svg
+                       xmlns:dc="http://purl.org/dc/elements/1.1/"
+                       xmlns:cc="http://creativecommons.org/ns#"
+                       xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                       xmlns:svg="http://www.w3.org/2000/svg"
+                       xmlns="http://www.w3.org/2000/svg"
+                       version="1.1"
+                       id="cron"
+                       viewBox="0 0 302.37695 94.145503"
+                       height="26.569954mm"
+                       width="85.337494mm">
+
+                      <g
+                         transform="translate(-111.19141,-347.67471)">
+                        <text
+                           id="text4138"
+                           y="377.36221"
+                           x="110"
+                           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:40px;line-height:125%;font-family:monospace;-inkscape-font-specification:monospace;letter-spacing:0px;word-spacing:0px;fill:#800080;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;letter-spacing:1.15999997px;fill:#800080;fill-opacity:1"
+                             y="377.36221"
+                             x="110"
+                             id="tspan4140">*</tspan></text>
+                        <path
+                           id="path4237"
+                           d="m 190,372.3622 0,10 35,34.99999 85,2e-5"
+                           style="fill:none;fill-rule:evenodd;stroke:#2ca05a;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+                        <path
+                           id="path4237-2"
+                           d="m 225.5,372.36219 0,10 24.5,25.00001 60,0"
+                           style="fill:none;fill-rule:evenodd;stroke:#abc837;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+                        <path
+                           id="path4237-2-2"
+                           d="m 260.5,372.3622 0,10 14.5,14.99999 35,10e-6"
+                           style="fill:none;fill-rule:evenodd;stroke:#c87137;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+                        <path
+                           id="path4237-2-1"
+                           d="m 295.5,372.3622 0,10 4.5,4.99999 10,10e-6"
+                           style="fill:none;fill-rule:evenodd;stroke:#d40000;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+                        <path
+                           id="path4237-1"
+                           d="m 155.5,372.3622 0,10 44.5,45 110,0"
+                           style="fill:none;fill-rule:evenodd;stroke:#000080;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+                        <path
+                           id="path4237-6"
+                           d="m 120,372.36221 0,10 55,55 135,0"
+                           style="fill:none;fill-rule:evenodd;stroke:#800080;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+                        <text
+                           id="text4308"
+                           y="440.50186"
+                           x="313.85645"
+                           style="font-style:normal;font-weight:normal;font-size:40px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#800080;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-size:10px;fill:#800080;fill-opacity:1"
+                             y="440.50186"
+                             x="313.85645"
+                             id="tspan4310">seconds (0-59)</tspan></text>
+                        <text
+                           id="text4308-0"
+                           y="430.50186"
+                           x="313.49023"
+                           style="font-style:normal;font-weight:normal;font-size:40px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000080;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-size:10px;fill:#000080;fill-opacity:1"
+                             y="430.50186"
+                             x="313.49023"
+                             id="tspan4310-7">minutes (0-59)</tspan></text>
+                        <text
+                           id="text4308-0-7"
+                           y="420.50186"
+                           x="313.49023"
+                           style="font-style:normal;font-weight:normal;font-size:40px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#2ca05a;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-size:10px;fill:#2ca05a;fill-opacity:1"
+                             y="420.50186"
+                             x="313.49023"
+                             id="tspan4310-7-7">hours (0-23)</tspan></text>
+                        <text
+                           id="text4308-0-7-6"
+                           y="410.121"
+                           x="313.84668"
+                           style="font-style:normal;font-weight:normal;font-size:40px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#abc837;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-size:10px;fill:#abc837;fill-opacity:1"
+                             y="410.121"
+                             x="313.84668"
+                             id="tspan4310-7-7-9">day of month (1-31)</tspan></text>
+                        <text
+                           id="text4308-0-7-6-1"
+                           y="400.50186"
+                           x="313.49023"
+                           style="font-style:normal;font-weight:normal;font-size:40px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#c87137;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-size:10px;fill:#c87137;fill-opacity:1"
+                             y="400.50186"
+                             x="313.49023"
+                             id="tspan4310-7-7-9-1">month (1-12)</tspan></text>
+                        <text
+                           id="text4308-0-7-6-1-9"
+                           y="390.121"
+                           x="313.84668"
+                           style="font-style:normal;font-weight:normal;font-size:40px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#d40000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-size:10px;fill:#d40000;fill-opacity:1"
+                             y="390.121"
+                             x="313.84668"
+                             id="tspan4310-7-7-9-1-0">day of week (0-6)</tspan></text>
+                        <text
+                           id="text4138-9"
+                           y="377.92862"
+                           x="145"
+                           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:40px;line-height:125%;font-family:monospace;-inkscape-font-specification:monospace;letter-spacing:0px;word-spacing:0px;fill:#000080;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;letter-spacing:1.15999997px;fill:#000080;fill-opacity:1"
+                             y="377.92862"
+                             x="145"
+                             id="tspan4140-9">*</tspan></text>
+                        <text
+                           id="text4138-4"
+                           y="377.92862"
+                           x="180"
+                           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:40px;line-height:125%;font-family:monospace;-inkscape-font-specification:monospace;letter-spacing:0px;word-spacing:0px;fill:#2ca05b;fill-opacity:0.63921569;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;letter-spacing:1.15999997px;fill:#2ca05b;fill-opacity:0.63921569"
+                             y="377.92862"
+                             x="180"
+                             id="tspan4140-98">*</tspan></text>
+                        <text
+                           id="text4138-1"
+                           y="377.92862"
+                           x="215"
+                           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:40px;line-height:125%;font-family:monospace;-inkscape-font-specification:monospace;letter-spacing:0px;word-spacing:0px;fill:#abc837;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;letter-spacing:1.15999997px;fill:#abc837;fill-opacity:1"
+                             y="377.92862"
+                             x="215"
+                             id="tspan4140-6">*</tspan></text>
+                        <text
+                           id="text4138-3"
+                           y="377.92862"
+                           x="250"
+                           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:40px;line-height:125%;font-family:monospace;-inkscape-font-specification:monospace;letter-spacing:0px;word-spacing:0px;fill:#c87137;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;letter-spacing:1.15999997px;fill:#c87137;fill-opacity:1"
+                             y="377.92862"
+                             x="250"
+                             id="tspan4140-93">*</tspan></text>
+                        <text
+                           id="text4138-34"
+                           y="377.92862"
+                           x="285"
+                           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:40px;line-height:125%;font-family:monospace;-inkscape-font-specification:monospace;letter-spacing:0px;word-spacing:0px;fill:#d40000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+                           xml:space="preserve"><tspan
+                             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;letter-spacing:1.15999997px;fill:#d40000;fill-opacity:1"
+                             y="377.92862"
+                             x="285"
+                             id="tspan4140-61">*</tspan></text>
+                      </g>
+                    </svg>
+                </div>
+
+                <p class="mt-1">
+                    For each field, you can specify discrete values, value groups, ranges, and intervals. To illustrate this, here
+                    are several annotated schedules:
+
+<pre>
+  0 * * * * *                      # sync every 60 seconds (on 0th second of every minute/hour/day/month)
+  0 */5 * * * *                    # sync every five minutes
+  0 */5 * * * 2,4                  # sync every five minutes only on Tuesdays and Thursdays
+  * */5 * * * *                    # sync every second on minutes evenly divisible by five
+  0 */5 * * * TUE,THU              # same as above, but using named days
+  0 */5 * * * MON-FRI              # sync every five minutes only on weekdays
+  0 22 4 1 * SAT,SUN               # sync at 4:22am on the 1st of the month, only if it falls on a weekend
+  0 0 9 25 12 *                    # sync at 9:00am on Christmas morning
+  */30 * 3-4 21 MAR,JUN,SEP,DEC *  # sync every 30 seconds between 3-4am on or about the solstices
+</pre>
+                </p>
+
+            </small>
+        </div>
+
+        <div class="form-group row mt-3">
+            <label class="col-sm-2 col-form-label" for="filter">Quota</label>
+            <div class="col-sm-5">
+                <div class="input-group">
+                    <input
+                        type="number"
+                        class="form-control"
+                        name="quota"
+                        aria-describedby="quotaHelp"
+                        value="{{ .bindings.subscription.quota }}"
+                    >
+                    <div class="input-group-btn">
+                        <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            KiB
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-right" role="menu">
+                            <a class="dropdown-item" href="#">KiB</a>
+                            <a class="dropdown-item" href="#">MiB</a>
+                            <a class="dropdown-item" href="#">GiB</a>
+                            <a class="dropdown-item" href="#">TiB</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-5">
+                <small id="quotaHelp" class="form-text text-muted">
+                    This is an additional filter set that further restricts what data to sync from
+                    the remote peer.
+                </small>
+            </div>
+        </div>
+
+        <div class="form-group row">
+            <label class="col-sm-2 col-form-label" for="filter">Quota Reset</label>
+            <div class="col-sm-5">
+                <div class="input-group">
+                    <span class="input-group-addon">Every</span>
+                    <input
+                        type="number"
+                        class="form-control"
+                        name="quota_interval"
+                        aria-describedby="quotaIntervalHelp"
+                        value="{{ .bindings.subscription.quota_interval }}"
+                    >
+                    <div class="input-group-btn">
+                        <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            days
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-right">
+                            <a class="dropdown-item" href="#">minutes</a>
+                            <a class="dropdown-item" href="#">hours</a>
+                            <a class="dropdown-item" href="#">days</a>
+                            <a class="dropdown-item" href="#">months</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-5">
+                <small id="quotaIntervalHelp" class="form-text text-muted">
+                    Quotas are periodically reset to zero after this interval of time elapses.
+                </small>
+            </div>
         </div>
 
         <button class="btn btn-primary" type="submit">Save</button>

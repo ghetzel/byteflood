@@ -50,6 +50,7 @@ func TestMain(m *testing.M) {
 	// turn down aggressively-verbose logging
 	logging.SetLevel(logging.ERROR, `diecast`)
 	logging.SetLevel(logging.CRITICAL, `pivot/querylog`)
+	os.RemoveAll(`./tests`)
 
 	os.Exit(m.Run())
 }
@@ -206,6 +207,12 @@ func TestSingleApplication(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(4, int(recordset.ResultCount))
 	assert.Len(recordset.Records, 4)
+
+	musicShareStats, err := musicShare.GetStats()
+	assert.NoError(err)
+	assert.Equal(int64(24), musicShareStats.FileCount)
+	assert.Equal(int64(4), musicShareStats.DirectoryCount)
+	assert.Equal(int64(12594), musicShareStats.TotalBytes)
 }
 
 func TestApplicationSuperFriends(t *testing.T) {
