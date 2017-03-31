@@ -99,14 +99,15 @@ func (self *CryptoboxEncryption) SetSource(r io.Reader) {
 }
 
 func (self *CryptoboxEncryption) Read(p []byte) (int, error) {
-	if data, err := self.ReadPacket(); err == nil {
+	if data, err := self.ReadNext(); err == nil {
 		return copy(p, data), nil
 	} else {
 		return 0, err
 	}
 }
 
-func (self *CryptoboxEncryption) ReadPacket() ([]byte, error) {
+// read a secure message from the source Reader and return it
+func (self *CryptoboxEncryption) ReadNextMessage() (*SecureMessage, error) {
 	if self.source == nil {
 		return nil, io.EOF
 	}
@@ -116,7 +117,7 @@ func (self *CryptoboxEncryption) ReadPacket() ([]byte, error) {
 	// read the length prefix
 	if _, err := self.source.Read(lengthPrefix); err == nil {
 		// decode the length prefix into a number
-		if length, err := decodeLengthPrefix(lengthPrefix); err == nil {
+		if length, err := DecodeLengthPrefix(lengthPrefix); err == nil {
 			dataToDecrypt := bytes.NewBuffer(nil)
 
 			// read the next <length> bytes, which should be our secure message
@@ -126,17 +127,8 @@ func (self *CryptoboxEncryption) ReadPacket() ([]byte, error) {
 				}
 
 				// decode and decrypt the secure message
-				if secureMessage, err := decodeSecureMessage(dataToDecrypt.Bytes()); err == nil {
-					if decryptedPayload, ok := box.OpenAfterPrecomputation(
-						nil,
-						secureMessage.Payload,
-						&secureMessage.Nonce,
-						&self.sharedKey,
-					); ok {
-						return decryptedPayload, nil
-					} else {
-						return nil, fmt.Errorf("failed to decrypt message")
-					}
+				if secureMessage, err := DecodeSecureMessage(dataToDecrypt.Bytes()); err == nil {
+					return secureMessage, nil
 				} else {
 					return nil, err
 				}
@@ -145,6 +137,24 @@ func (self *CryptoboxEncryption) ReadPacket() ([]byte, error) {
 			}
 		} else {
 			return nil, err
+		}
+	} else {
+		return nil, err
+	}
+}
+
+// read a secure message from the source Reader and return the decrypted contents
+func (self *CryptoboxEncryption) ReadNext() ([]byte, error) {
+	if secureMessage, err := self.ReadNextMessage(); err == nil {
+		if decryptedPayload, ok := box.OpenAfterPrecomputation(
+			nil,
+			secureMessage.Payload,
+			&secureMessage.Nonce,
+			&self.sharedKey,
+		); ok {
+			return decryptedPayload, nil
+		} else {
+			return nil, fmt.Errorf("failed to decrypt message")
 		}
 	} else {
 		return nil, err

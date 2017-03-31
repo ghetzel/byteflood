@@ -50,7 +50,6 @@ func TestMain(m *testing.M) {
 	// turn down aggressively-verbose logging
 	logging.SetLevel(logging.ERROR, `diecast`)
 	logging.SetLevel(logging.CRITICAL, `pivot/querylog`)
-	os.RemoveAll(`./tests`)
 
 	os.Exit(m.Run())
 }
@@ -148,6 +147,7 @@ func setupApplication(assert *require.Assertions, source string, dest string) *A
 }
 
 func TestSingleApplication(t *testing.T) {
+	os.RemoveAll(`./tests`)
 	assert := require.New(t)
 	assert.NoError(generateTestDirectory())
 	app := setupApplication(assert, `./tests/files`, `./tests/target`)
@@ -216,6 +216,7 @@ func TestSingleApplication(t *testing.T) {
 }
 
 func TestApplicationSuperFriends(t *testing.T) {
+	os.RemoveAll(`./tests`)
 	assert := require.New(t)
 	assert.NoError(generateTestDirectory())
 
@@ -266,7 +267,7 @@ func TestApplicationSuperFriends(t *testing.T) {
 	assert.NoError(err)
 	assert.Len(wanted, 24)
 
-	// copy three files in outside of byteflood
+	// copy 3 files into the target directory to simulate already having them
 	assert.NoError(os.MkdirAll(`./tests/target/music/ABBA/Arrival`, 0755))
 	assert.NoError(copyFile(
 		`./tests/files/music/ABBA/Arrival/01 When I Kissed the Teacher.mp3`,

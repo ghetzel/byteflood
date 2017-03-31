@@ -14,7 +14,8 @@ type Encrypter interface {
 type Decrypter interface {
 	SetSource(r io.Reader)
 	Read(p []byte) (int, error)
-	ReadPacket() ([]byte, error)
+	ReadNextMessage() (*SecureMessage, error)
+	ReadNext() ([]byte, error)
 }
 
 type EncrypterDecrypter interface {

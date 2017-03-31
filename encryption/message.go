@@ -20,7 +20,7 @@ type SecureMessage struct {
 	Payload []byte
 }
 
-func decodeLengthPrefix(data []byte) (int, error) {
+func DecodeLengthPrefix(data []byte) (int, error) {
 	if len(data) >= lengthPrefixByteSize {
 		return int(binary.LittleEndian.Uint32(data[0:lengthPrefixByteSize])), nil
 	} else {
@@ -28,7 +28,7 @@ func decodeLengthPrefix(data []byte) (int, error) {
 	}
 }
 
-func decodeSecureMessage(data []byte) (*SecureMessage, error) {
+func DecodeSecureMessage(data []byte) (*SecureMessage, error) {
 	message := new(SecureMessage)
 	nonceLen := len(message.Nonce)
 

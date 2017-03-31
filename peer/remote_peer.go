@@ -218,7 +218,7 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 	// ensures that the decrypter is using the reader we've specified
 	self.Encryption.SetSource(reader)
 
-	if cleartext, err := self.Encryption.ReadPacket(); err == nil {
+	if cleartext, err := self.Encryption.ReadNext(); err == nil {
 		// decode the decrypted message payload
 		if message, err := DecodeMessage(cleartext); err == nil {
 			return message, nil
