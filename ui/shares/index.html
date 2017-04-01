@@ -14,7 +14,7 @@ bindings:
 {{ $limit := or .request.url.query.limit `` }}
 {{ $offset := or .request.url.query.offset `` }}
 <div class="col-lg-3">
-    <ul class="nav bf-nav-tree">
+    <ul class="nav flex-column bf-nav-tree">
         <!-- Local Shares Management -->
         <li class="nav-item mb-3">
           <span class="bf-nav-tree-title">

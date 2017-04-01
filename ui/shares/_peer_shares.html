@@ -15,11 +15,26 @@ bindings:
     {{ range .bindings.shares }}
     <button
         type="button"
-        class="list-group-item list-group-item-action{{ if eq .id $share }} active{{ end }}"
+        class="list-group-item list-group-item-action{{ if eq .id $share }} active{{ end }} justify-content-between"
         onclick="location.href='/shares/?share={{ .id }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}'"
     >
-        <i class="fa fa-fw fa-{{ or .icon_name `folder-o` }}"></i>
-        <span class="align-self-start">{{ or .description .id }}</span>
+        <span class="align-items-start">
+            <i class="fa fa-fw fa-{{ or .icon_name `folder-o` }} mr-1"></i>
+            {{ or .description .id }}
+        </span>
+        <span class="badge badge-default badge-pill">
+            <script type="text/javascript" id="share_{{ or $session `local` }}_{{ .id }}">
+                $(function(){
+                    $.ajax({
+                        url: '/api{{ if $session }}/sessions/{{ $session }}/proxy{{ end }}/shares/{{ .id }}/stats',
+                        success: function(data){
+                            console.log(data)
+                            $('#share_{{ or $session `local` }}_{{ .id }}').replaceWith(data.total_bytes);
+                        },
+                    });
+                });
+            </script>
+        </span>
     </button>
     {{ end }}
     {{ else }}

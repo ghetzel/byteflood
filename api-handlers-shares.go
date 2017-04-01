@@ -11,7 +11,16 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 )
+
+type shareStatsCacheItem struct {
+	Stats     *shares.Stats
+	Timestamp time.Time
+}
+
+var shareStatsCache = make(map[string]shareStatsCacheItem)
+var shareStatsCacheTimeout = time.Duration(30) * time.Minute
 
 type EntryParent struct {
 	ID     string `json:"id"`
@@ -62,11 +71,31 @@ func (self *API) handleGetShareStats(w http.ResponseWriter, req *http.Request) {
 	share := db.SharesSchema.NewInstance().(*shares.Share)
 
 	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
-		if stats, err := share.GetStats(); err == nil {
-			Respond(w, stats)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		var stats *shares.Stats
+
+		if cacheItem, ok := shareStatsCache[share.ID]; ok {
+			if time.Since(cacheItem.Timestamp) <= shareStatsCacheTimeout {
+				stats = cacheItem.Stats
+			} else {
+				delete(shareStatsCache, share.ID)
+			}
 		}
+
+		if stats == nil {
+			if s, err := share.GetStats(); err == nil {
+				stats = s
+
+				shareStatsCache[share.ID] = shareStatsCacheItem{
+					Stats:     s,
+					Timestamp: time.Now(),
+				}
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		Respond(w, stats)
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
 	}

@@ -16,6 +16,8 @@
         width: 200px;
         position: fixed;
         height: 100%;
+        flex-direction: column;
+        padding: 0;
     }
 
     .navbar.sitewide.site-main {
@@ -40,14 +42,29 @@
         top: 0;
     }
 
-    .navbar.sitewide .navbar-brand,
-    .navbar.sitewide .nav-item {
+    .navbar.sitewide .navbar-nav {
+        flex-direction: column;
         width: 100%;
-        margin-left: 0 !important;
+        margin-right: 0 !important;
     }
 
-    .navbar.sitewide .navbar-brand {
+    .navbar.sitewide .navbar-brand,
+    .navbar.sitewide .navbar-item {
+        width: 100%;
         text-align: center;
+        margin-right: 0 !important;
+        padding: .5rem 1rem;
+    }
+
+    .navbar.sitewide .navbar-nav .nav-link {
+        padding: .5rem 1.5rem;
+    }
+
+    .navbar.sitewide .navbar-nav .nav-item.active {
+        background: #101F38;
+        -webkit-box-shadow: inset 0px 0px 10px 2px rgba(0,0,0,0.5);
+        -moz-box-shadow: inset 0px 0px 10px 2px rgba(0,0,0,0.5);
+        box-shadow: inset 0px 0px 10px 2px rgba(0,0,0,0.5);
     }
 
     .content-container {
