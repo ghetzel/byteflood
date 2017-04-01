@@ -73,21 +73,34 @@ func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
 		var entry db.Entry
 
 		if err := self.db.Metadata.Get(entryId, &entry); err == nil {
+			entry.SetDatabase(self.db)
+
 			if absPath, err := entry.GetAbsolutePath(); err == nil {
 				if osFile, err := os.Open(absPath); err == nil {
-					if n, err := io.Copy(w, osFile); err == nil {
-						log.Debugf("Transferred %d bytes", n)
-					} else {
-						log.Error(err)
-						w.WriteHeader(http.StatusInternalServerError)
+					if !self.writeHttpHeadersForEntry(w, req, &entry) {
+						return
+					}
+
+					switch req.Method {
+					case `GET`:
+						log.Debugf("User-Agent: %v", req.Header.Get(`User-Agent`))
+
+						// actually write the data to the response
+						if _, err := io.Copy(w, osFile); err != nil {
+							log.Error(err)
+							w.WriteHeader(http.StatusInternalServerError)
+						}
+
+					default:
+						w.WriteHeader(http.StatusNoContent)
 					}
 				} else {
 					log.Error(err)
-					w.WriteHeader(http.StatusInternalServerError)
+					w.WriteHeader(http.StatusNotFound)
 				}
 			} else {
 				log.Error(err)
-				w.WriteHeader(http.StatusInternalServerError)
+				w.WriteHeader(http.StatusNotFound)
 			}
 		} else {
 			log.Error(err)

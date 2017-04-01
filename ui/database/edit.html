@@ -31,15 +31,19 @@ bindings:
 
         <div class="form-group">
             <label for="path"><b>Local Path</b> <small><i>(required)</i></small></label>
-            <input
-                type="text"
-                class="form-control"
-                name="path"
-                aria-describedby="pathHelp"
-                required
-                {{ if ne (or .request.url.query.id "new") "new" }}autofocus{{ end }}
-                value="{{ .bindings.directory.path }}"
-            >
+            <div class="w-100">
+                <input
+                    type="text"
+                    class="form-control typeahead"
+                    data-typeahead-url="/api/browse/{}"
+                    autocomplete="off"
+                    name="path"
+                    aria-describedby="pathHelp"
+                    required
+                    {{ if ne (or .request.url.query.id "new") "new" }}autofocus{{ end }}
+                    value="{{ .bindings.directory.path }}"
+                >
+            </div>
 
             <small id="pathHelp" class="form-text text-muted">
                 This is the local filesystem path that should be scanned into the database.

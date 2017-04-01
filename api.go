@@ -12,6 +12,7 @@ import (
 	"github.com/orcaman/concurrent-map"
 	"github.com/urfave/negroni"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 )
@@ -108,6 +109,7 @@ func (self *API) Serve() error {
 	router.Put(`/api/directories`, self.handleSaveModel)
 	router.Delete(`/api/directories/:id`, self.handleDeleteModel)
 	router.Get(`/api/directories/new`, self.handleGetNewModelInstance)
+	router.Add(http.MethodHead, `/api/files/:file`, self.handleDownloadFile)
 	router.Get(`/api/files/:file`, self.handleDownloadFile)
 
 	// actions
@@ -124,6 +126,7 @@ func (self *API) Serve() error {
 	// active session management endpoints
 	router.Get(`/api/sessions`, self.handleGetSessions)
 	router.Get(`/api/sessions/:session`, self.handleGetSession)
+	router.Add(http.MethodHead, `/api/sessions/:session/files/:file`, self.handleDownloadFile)
 	router.Get(`/api/sessions/:session/files/:file`, self.handleDownloadFile)
 
 	for _, method := range []string{`GET`, `POST`, `PUT`, `DELETE`, `HEAD`} {
@@ -266,4 +269,45 @@ func (self *API) startEventDispatcher() {
 			}
 		})
 	}
+}
+
+// Takes a Request, ResponseWriter, and db.Entry and writes out the appropriate HTTP response headers
+// for the entry.  These include Content-Length and -Disposition, modification/cache control headers,
+// and modification timestamps.  The function will return whether the actual content should be written to
+// the client (true) or not.  If the function returns false, the calling handler should return immediately.
+//
+func (self *API) writeHttpHeadersForEntry(w http.ResponseWriter, req *http.Request, entry *db.Entry) bool {
+	ifNoneMatch := strings.Trim(
+		strings.TrimPrefix(req.Header.Get(`If-None-Match`), `W/`),
+		`"`,
+	)
+
+	if entry.Size > 0 {
+		w.Header().Set(`Content-Length`, fmt.Sprintf("%d", entry.Size))
+	}
+
+	if v := w.Header().Get(`Content-Disposition`); v == `` {
+		w.Header().Set(`Content-Disposition`, fmt.Sprintf(
+			"attachment; filename=%q",
+			path.Base(entry.RelativePath),
+		))
+	}
+
+	// if the content-type hasn't already been set, use the mimetype associated with the given entry
+	if v := w.Header().Get(`Content-Type`); v == `` {
+		w.Header().Set(`Content-Type`, fmt.Sprintf("%v", entry.Get(`file.mime.type`, `application/octet-stream`)))
+	}
+
+	if entry.Checksum != `` {
+		w.Header().Set(`ETag`, fmt.Sprintf("%q", entry.Checksum))
+
+		// short circuit if the If-None-Match header was specified and the checksum
+		// the client gave us matches this one
+		if entry.Checksum == ifNoneMatch {
+			w.WriteHeader(http.StatusNotModified)
+			return false
+		}
+	}
+
+	return true
 }
