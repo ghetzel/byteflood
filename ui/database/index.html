@@ -16,8 +16,8 @@ bindings:
     Scanned Directories
   </div>
 
-  <nav class="navbar navbar-full navbar-light bg-faded">
-    <ul class="nav navbar-nav">
+  <nav class="navbar navbar-light bg-faded flex-row justify-content-between">
+    <ul class="navbar-nav flex-row ">
       <li class="nav-item">
         <a
           class="nav-link"
@@ -30,7 +30,7 @@ bindings:
       </li>
     </ul>
 
-    <ul class="nav navbar-nav pull-right">
+    <ul class="navbar-nav flex-row">
       {{ if $scanning }}
       <li class="nav-item">
         <a class="nav-link">Scanning...</a>
