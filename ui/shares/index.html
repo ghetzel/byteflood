@@ -1,8 +1,8 @@
 ---
 page:
   title: Shares
-  local_interval: 50000
-  peer_interval: 30000
+  local_interval: 30000
+  peer_interval: 60000
 bindings:
 - name: sessions
   resource: :/api/sessions
@@ -18,41 +18,39 @@ bindings:
       <ul class="nav flex-column bf-nav-tree">
           <!-- Local Shares Management -->
           <li class="nav-item mb-3">
-            <span class="bf-nav-tree-title">
-              <h4>
-                <span>Local</span>
-              </h4>
-            </span>
+            <div class="d-flex justify-content-between">
+              <h4 class="bf-nav-tree-title">Local</h4>
+
+              <div>
+                <a class="btn btn-sm btn-success pull-right" href="/shares/edit">
+                  <i class="fa fa-plus"></i> Add
+                </a>
+              </div>
+            </div>
 
             <div
               bf-load="/shares/_peer_shares?share={{ $share }}"
               bf-interval="{{ $.page.local_interval }}"
             ></div>
-
-            <div class="bf-nav-tree-actions">
-              <a class="btn btn-sm btn-success pull-right" href="/shares/edit"><i class="fa fa-plus"></i> Add</a>
-            </div>
           </li>
 
           <!-- Remote Share Browser -->
           {{ range .bindings.sessions }}
           <li class="nav-item mb-3">
-            <span class="bf-nav-tree-title">
-              <h4>
-                <span>{{ .name }}</span>
-              </h4>
-            </span>
+            <div class="d-flex justify-content-between">
+              <h4 class="bf-nav-tree-title">{{ .name }}</h4>
+
+              <div>
+                <a class="btn btn-sm btn-secondary" href="/peers/edit?id={{ .id }}">
+                  <i class="fa fa-pencil"></i> Edit
+                </a>
+              </div>
+            </div>
 
             <div
               bf-load="/shares/_peer_shares?session={{ .session_id }}&amp;share={{ $share }}&amp;peer={{ .name }}"
               bf-interval="{{ $.page.peer_interval }}"
             ></div>
-
-            <div class="bf-nav-tree-actions">
-              <a class="btn btn-sm btn-secondary pull-right" href="/peers/edit?id={{ .id }}">
-                <i class="fa fa-pencil"></i> Edit
-              </a>
-            </div>
           </li>
           {{ end }}
       </ul>
@@ -62,7 +60,7 @@ bindings:
     <script type="text/javascript" id="share-browser">
       $(function(){
         qs = {
-          'limit': 15,
+          'limit': 25,
         };
 
         location.search.slice(1).split('&').map(function(i){

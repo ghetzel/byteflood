@@ -5,9 +5,13 @@ bindings:
 ---
 <div class="flex-column bf-share-stats">
     {{ if .bindings.stats.total_bytes }}
-    <div class="text-right">{{ autobyte .bindings.stats.total_bytes "%.3g " }}</div>
+    <div data-share-bytes="{{ .bindings.stats.total_bytes }}" class="text-right">
+        {{ autobyte .bindings.stats.total_bytes "%.3g " }}
+    </div>
     {{ end }}
     {{ if .bindings.stats.file_count }}
-    <div class="text-right">{{ .bindings.stats.file_count | thousandify }} files</div>
+    <div data-share-files="{{ .bindings.stats.file_count }}" class="text-right">
+        {{ .bindings.stats.file_count | thousandify }} files
+    </div>
     {{ end }}
 </div>

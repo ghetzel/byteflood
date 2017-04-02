@@ -110,8 +110,13 @@
     margin-left: 1.5em;
 }
 
+.navbar-nav .nav-link {
+    padding-right: 1em;
+    padding-left: 0;
+}
+
 .bf-nav-tree {
-    margin-top: 20px;
+    margin-top: 25px;
 }
 
 .bf-nav-tree > li {
@@ -138,18 +143,11 @@
 }
 
 .bf-nav-tree .bf-nav-tree-title {
-    font-weight: bold;
-}
-
-.bf-nav-tree .bf-nav-tree-title span {
     text-transform: uppercase;
     text-shadow: -1px -1px #dddddd;
     font-size: large;
     color: #444;
-}
-
-.bf-nav-tree .bf-nav-tree-actions {
-    margin-top: 4px;
+    margin-top: 0.20em;
 }
 
 .bf-nav-tree > .nav-item:not(:first-child) {
@@ -207,4 +205,8 @@
 
 .bf-share-stats {
     font-size: smaller;
+}
+
+.card {
+    margin-bottom: 1em;
 }

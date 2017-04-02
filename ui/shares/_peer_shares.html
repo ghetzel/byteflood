@@ -3,7 +3,7 @@ bindings:
 - name: shares
   resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares
   params:
-    limit:  '{{ or .request.url.query.limit 15 }}'
+    limit:  '{{ .request.url.query.limit }}'
     offset: '{{ or .request.url.query.offset 0 }}'
     sort:   '{{ .request.url.query.sort }}'
 ---

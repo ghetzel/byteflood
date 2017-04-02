@@ -14,21 +14,21 @@ bindings:
 - name: results
   resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}/browse/{{ .request.url.query.parent }}
   params:
-    limit: '{{ or .request.url.query.limit 15 }}'
-    offset: '{{ or .request.url.query.offset 0 }}'
+    limit: '{{ .request.url.query.limit }}'
+    offset: '{{ multiply (subtract (asFloat (or .request.url.query.page 1)) 1) (asFloat .request.url.query.limit) }}'
     sort:   '{{ .request.url.query.sort }}'
-  optional: true
 ---
+{{ $page := asFloat (or .request.url.query.page 1) }}
 {{ $session := or .request.url.query.session `` }}
 {{ $peer := or .request.url.query.peer `` }}
-{{ $share := or .request.url.query.share `` }}
+{{ $share := or .bindings.share.id `` }}
 {{ $grandparent := or .request.url.query.grandparent `` }}
 {{ $parent := or .request.url.query.parent `` }}
 {{ $offset := or .request.url.query.offset 0 }}
 
 
-<nav class="navbar navbar-full navbar-light">
-  <ul class="nav navbar-nav">
+<nav class="navbar navbar-light flex-row justify-content-between">
+  <ul class="navbar-nav flex-row">
     <li class="nav-item">
       <a
         class="nav-link"
@@ -42,7 +42,7 @@ bindings:
   </ul>
 
   {{ if not $session }}
-  <ul class="nav navbar-nav pull-right">
+  <ul class="navbar-nav flex-row">
     <li class="nav-item">
       <a
           class="nav-link"
@@ -65,29 +65,28 @@ bindings:
         Delete
       </a>
     </li>
-  </ul>
   {{ end }}
+  </ul>
 </nav>
-
 
 {{ if .bindings.results }}
 <div class="card">
   <div class="card-header">
     <b>
-      Browsing: <a href="/shares/?share={{ $share }}&amp;session={{ $session }}&amp;parent=">{{ .bindings.share.name }}</a>
+      Browsing: <a href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}{{ end }}">{{ or .bindings.share.description .bindings.share.id }}</a>
       {{ if $parent }}
         {{ range .bindings.ancestors }}
           /
           {{ if .last }}
             {{ .name }}
           {{ else }}
-            <a href="/shares/?share={{ $share }}&amp;session={{ $session }}&amp;parent={{ .id }}">{{ .name }}</a>
+            <a href="/shares/?share={{ $share }}&amp;{{ if $session }}session={{ $session }}&amp;{{ end }}parent={{ .id }}">{{ .name }}</a>
           {{end }}
         {{ end }}
       {{ end }}
     </b>
 
-    <form class="form-inline pull-right">
+<!--     <form class="form-inline pull-right">
       <div class="form-group">
         <label for="browseAs">Browse As: </label>
         <select name="browseAs" class="form-control form-control-sm">
@@ -97,16 +96,16 @@ bindings:
           <option>Music</option>
         </select>
       </div>
-    </form>
+    </form> -->
   </div>
 
-  <nav class="navbar navbar-full navbar-light bg-faded">
-    <ul class="nav navbar-nav">
+  <nav class="navbar navbar-light bg-faded flex-row justify-content-between">
+    <ul class="navbar-nav flex-row">
       {{ if $parent }}
       <li class="nav-item">
         <a
           class="nav-link"
-          href="/shares/?share={{ $share }}&amp;parent={{ $grandparent }}&amp;session={{ $session }}"
+          href="/shares/?share={{ $share }}{{ if $grandparent }}&amp;parent={{ $grandparent }}{{ end }}{{ if $session }}&amp;session={{ $session }}{{ end }}"
           title="Navigate to the directory above this one."
         >
           <i class="fa fa-fw fa-level-up"></i>
@@ -116,7 +115,7 @@ bindings:
       {{ end }}
     </ul>
 
-    <ul class="nav navbar-nav pull-right">
+    <ul class="navbar-nav flex-row">
       {{ if $session }}
       <li class="nav-item">
         <a
@@ -212,10 +211,51 @@ bindings:
     </tbody>
   </table>
 
-  <div class="card-footer">
-    <span class="pull-right">
+  <div class="card-footer d-flex justify-content-between">
+    {{ if gt (asInt .bindings.results.total_pages) 1 }}
+    <nav aria-label="Share page navigation">
+      <ul class="pagination pagination-sm">
+        <li class="page-item{{ if eqx $page 1 }} disabled{{ end }}">
+          <a
+            class="page-link"
+            aria-label="Previous"
+            href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ subtract $page 1 }}"
+            tabindex="-1"
+          >
+            &laquo;
+          </a>
+        </li>
+        {{ range $index, $i := sequence .bindings.results.total_pages }}
+        <li class="page-item{{ if eqx $page (add $index 1) }} active{{ end }}">
+          <a
+            class="page-link"
+            href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $index 1 }}"
+          >
+            {{ if eqx $page (add $index 1) }}
+            <span class="sr-only">(current)</span>
+            {{ end }}
+            {{ add $index 1 }}
+          </a>
+        </li>
+        {{ end }}
+
+        <li class="page-item{{ if eqx (add $page 1) (add .bindings.results.total_pages 1) }} disabled{{ end }}">
+          <a
+            class="page-link"
+            aria-label="Next"
+            href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $page 1 }}"
+            tabindex="-1"
+          >
+            &raquo;
+          </a>
+        </li>
+      </ul>
+    </nav>
+    {{ end }}
+
+    <div class="ml-auto">
       Showing {{ len .bindings.results.records }}{{ if gt (asInt .bindings.results.total_pages) 1 }} of {{ .bindings.results.result_count }}{{ end }} results
-    </span>
+    </div>
   </div>
   {{ else }}
   <div class="card-block">
