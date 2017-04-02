@@ -27,47 +27,94 @@ bindings:
 {{ $offset := or .request.url.query.offset 0 }}
 
 
-<nav class="navbar navbar-light flex-row justify-content-between">
-  <ul class="navbar-nav flex-row">
-    <li class="nav-item">
-      <a
-        class="nav-link"
-        href="/shares/edit?id={{ $share }}"
-        title="Edit this share."
-      >
-        <i class="fa fa-pencil"></i>
-        Edit
-      </a>
-    </li>
-  </ul>
+<div class="w-100 d-flex align-items-baseline justify-content-between">
+  <nav class="d-flex align-items-baseline">
+    {{ if gt (asInt .bindings.results.total_pages) 1 }}
+    <ul class="pagination pagination-sm" aria-label="Share page navigation">
+      <li class="page-item{{ if eqx $page 1 }} disabled{{ end }}">
+        <a
+          class="page-link"
+          aria-label="Previous"
+          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ subtract $page 1 }}&amp;parent={{ $parent }}&amp;grandparent={{ $grandparent }}"
+          tabindex="-1"
+        >
+          &laquo;
+        </a>
+      </li>
+      {{ range $index, $i := sequence .bindings.results.total_pages }}
+      <li class="page-item{{ if eqx $page (add $index 1) }} active{{ end }}">
+        <a
+          class="page-link"
+          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $index 1 }}&amp;parent={{ $parent }}&amp;grandparent={{ $grandparent }}"
+        >
+          {{ if eqx $page (add $index 1) }}
+          <span class="sr-only">(current)</span>
+          {{ end }}
+          {{ add $index 1 }}
+        </a>
+      </li>
+      {{ end }}
 
-  {{ if not $session }}
-  <ul class="navbar-nav flex-row">
-    <li class="nav-item">
-      <a
+      <li class="page-item{{ if eqx (add $page 1) (add .bindings.results.total_pages 1) }} disabled{{ end }}">
+        <a
+          class="page-link"
+          aria-label="Next"
+          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $page 1 }}&amp;parent={{ $parent }}&amp;grandparent={{ $grandparent }}"
+          tabindex="-1"
+        >
+          &raquo;
+        </a>
+      </li>
+    </ul>
+    {{ end }}
+
+    <ul class="navbar">
+      <li class="navbar-text">
+        Showing {{ len .bindings.results.records }}{{ if gt (asInt .bindings.results.total_pages) 1 }} of {{ .bindings.results.result_count }}{{ end }} results
+      </li>
+    </ul>
+  </nav>
+
+  <nav class="navbar navbar-light">
+    <ul class="navbar-nav flex-row">
+      <li class="nav-item">
+        <a
           class="nav-link"
-          href="/api{{ if $session }}/sessions/{{ $session }}/proxy{{ end }}/shares/{{ $share }}/browse/"
-          target="_blank"
-      >
-        <i class="fa fa-external-link-square"></i>
-        API Link
-      </a>
-    </li>
+          href="/shares/edit?id={{ $share }}"
+          title="Edit this share."
+        >
+          <i class="fa fa-pencil"></i>
+          Edit
+        </a>
+      </li>
 
-    <li class="nav-item">
-      <a
-        class="nav-link"
-        href="#"
-        onclick="byteflood.delete('shares', '{{ $share }}')"
-        title="Delete this share."
-      >
-        <i class="fa fa-remove"></i>
-        Delete
-      </a>
-    </li>
-  {{ end }}
-  </ul>
-</nav>
+      {{ if not $session }}
+      <li class="nav-item">
+        <a
+            class="nav-link"
+            href="/api{{ if $session }}/sessions/{{ $session }}/proxy{{ end }}/shares/{{ $share }}/browse/"
+            target="_blank"
+        >
+          <i class="fa fa-external-link-square"></i>
+          API Link
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a
+          class="nav-link"
+          href="#"
+          onclick="byteflood.delete('shares', '{{ $share }}')"
+          title="Delete this share."
+        >
+          <i class="fa fa-remove"></i>
+          Delete
+        </a>
+      </li>
+      {{ end }}
+    </ul>
+  </nav>
+</div>
 
 {{ if .bindings.results }}
 <div class="card">
@@ -212,50 +259,6 @@ bindings:
   </table>
 
   <div class="card-footer d-flex justify-content-between">
-    {{ if gt (asInt .bindings.results.total_pages) 1 }}
-    <nav aria-label="Share page navigation">
-      <ul class="pagination pagination-sm">
-        <li class="page-item{{ if eqx $page 1 }} disabled{{ end }}">
-          <a
-            class="page-link"
-            aria-label="Previous"
-            href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ subtract $page 1 }}"
-            tabindex="-1"
-          >
-            &laquo;
-          </a>
-        </li>
-        {{ range $index, $i := sequence .bindings.results.total_pages }}
-        <li class="page-item{{ if eqx $page (add $index 1) }} active{{ end }}">
-          <a
-            class="page-link"
-            href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $index 1 }}"
-          >
-            {{ if eqx $page (add $index 1) }}
-            <span class="sr-only">(current)</span>
-            {{ end }}
-            {{ add $index 1 }}
-          </a>
-        </li>
-        {{ end }}
-
-        <li class="page-item{{ if eqx (add $page 1) (add .bindings.results.total_pages 1) }} disabled{{ end }}">
-          <a
-            class="page-link"
-            aria-label="Next"
-            href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $page 1 }}"
-            tabindex="-1"
-          >
-            &raquo;
-          </a>
-        </li>
-      </ul>
-    </nav>
-    {{ end }}
-
-    <div class="ml-auto">
-      Showing {{ len .bindings.results.records }}{{ if gt (asInt .bindings.results.total_pages) 1 }} of {{ .bindings.results.result_count }}{{ end }} results
-    </div>
   </div>
   {{ else }}
   <div class="card-block">
