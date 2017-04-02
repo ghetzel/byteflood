@@ -22,19 +22,17 @@ bindings:
             <i class="fa fa-fw fa-{{ or .icon_name `folder-o` }} mr-1"></i>
             {{ or .description .id }}
         </span>
-        <span class="badge badge-default badge-pill">
-            <script type="text/javascript" id="share_{{ or $session `local` }}_{{ .id }}">
-                $(function(){
-                    $.ajax({
-                        url: '/api{{ if $session }}/sessions/{{ $session }}/proxy{{ end }}/shares/{{ .id }}/stats',
-                        success: function(data){
-                            console.log(data)
-                            $('#share_{{ or $session `local` }}_{{ .id }}').replaceWith(data.total_bytes);
-                        },
-                    });
+
+        <script type="text/javascript" id="share_{{ or $session `local` }}_{{ .id }}">
+            $(function(){
+                $.ajax({
+                    url: '/shares/_peer_share_stats?share={{ .id }}{{ if $session }}&session={{ $session }}{{ end }}',
+                    success: function(data){
+                        $('#share_{{ or $session `local` }}_{{ .id }}').replaceWith(data);
+                    },
                 });
-            </script>
-        </span>
+            });
+        </script>
     </button>
     {{ end }}
     {{ else }}

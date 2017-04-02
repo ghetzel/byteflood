@@ -204,3 +204,7 @@
 .children-display-block > * {
     display: block;
 }
+
+.bf-share-stats {
+    font-size: smaller;
+}

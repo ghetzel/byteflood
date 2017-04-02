@@ -23,9 +23,9 @@ type Share struct {
 }
 
 type Stats struct {
-	FileCount      int64 `json:"file_count"`
-	DirectoryCount int64 `json:"directory_count"`
-	TotalBytes     int64 `json:"total_bytes"`
+	FileCount      uint64 `json:"file_count"`
+	DirectoryCount uint64 `json:"directory_count"`
+	TotalBytes     uint64 `json:"total_bytes"`
 }
 
 func (self *Share) SetDatabase(conn *db.Database) {
@@ -99,26 +99,45 @@ func (self *Share) Get(id string) (*db.Entry, error) {
 
 func (self *Share) GetStats(filters ...string) (*Stats, error) {
 	if f, err := db.ParseFilter(self.GetQuery(filters...)); err == nil {
-		f.Limit = 0
+		f.Limit = -1
 		f.Fields = []string{`directory`, `size`}
 		f.Sort = []string{`-directory`, `size`}
 
 		stats := &Stats{}
 
-		if err := self.db.Metadata.FindFunc(f, db.Entry{}, func(result interface{}) {
-			if entry, ok := result.(*db.Entry); ok {
-				if entry.IsDirectory {
-					stats.DirectoryCount += 1
-				} else {
-					stats.FileCount += 1
-					stats.TotalBytes += entry.Size
-				}
-			}
+		// file stats
+		if filesFilter, err := f.NewFromMap(map[string]interface{}{
+			`bool:directory`: `false`,
 		}); err == nil {
-			return stats, nil
+			if v, err := self.db.Metadata.Sum(`size`, filesFilter); err == nil {
+				stats.TotalBytes = uint64(v)
+			} else {
+				return nil, err
+			}
+
+			if v, err := self.db.Metadata.Count(filesFilter); err == nil {
+				stats.FileCount = uint64(v)
+			} else {
+				return nil, err
+			}
 		} else {
 			return nil, err
 		}
+
+		// directory stats
+		if dirFilter, err := f.NewFromMap(map[string]interface{}{
+			`bool:directory`: `true`,
+		}); err == nil {
+			if v, err := self.db.Metadata.Count(dirFilter); err == nil {
+				stats.DirectoryCount = uint64(v)
+			} else {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+
+		return stats, nil
 	} else {
 		return nil, err
 	}
