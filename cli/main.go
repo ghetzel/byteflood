@@ -187,7 +187,7 @@ func main() {
 			Name:  `id`,
 			Usage: `Print your local peer ID that is shared with other peers.`,
 			Action: func(c *cli.Context) {
-				fmt.Printf("%v\n", application.LocalPeer.ID())
+				fmt.Printf("%v\n", application.LocalPeer.GetID())
 			},
 		}, {
 			Name:      `genkeypair`,

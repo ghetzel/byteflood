@@ -81,10 +81,10 @@ func (self *API) handleGetSessionStatus(w http.ResponseWriter, req *http.Request
 	if remotePeer, ok := self.application.LocalPeer.GetSession(req.Header.Get(`X-Byteflood-Session`)); ok {
 		Respond(w, map[string]interface{}{
 			`peer`: map[string]interface{}{
-				`id`: self.application.LocalPeer.ID(),
+				`id`: self.application.LocalPeer.GetID(),
 			},
 			`requested_by`: map[string]interface{}{
-				`id`: remotePeer.ID,
+				`id`: remotePeer.GetID(),
 			},
 		})
 	} else {

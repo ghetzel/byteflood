@@ -9,11 +9,13 @@ import (
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/mapper"
 	"github.com/husobee/vestigo"
+	"math/rand"
 	"net/http"
 	"os"
 	"path"
 	"sort"
 	"strings"
+	"time"
 )
 
 // populated in API.Initialize()
@@ -28,6 +30,8 @@ var endpointInstanceMap = map[string]*dal.Collection{
 	`system`:        db.SystemSchema,
 }
 
+type AuthenticatedHandlerFunc func(http.ResponseWriter, *http.Request, peer.Peer) // {}
+
 type ActionPeerConnect struct {
 	ID      string `json:"id,omitempty"`
 	Address string `json:"address,omitempty"`
@@ -40,7 +44,7 @@ type ActionPeerDisconnect struct {
 func (self *API) handleStatus(w http.ResponseWriter, req *http.Request) {
 	Respond(w, map[string]interface{}{
 		`version`:       Version,
-		`local_peer_id`: self.application.LocalPeer.ID(),
+		`local_peer_id`: self.application.LocalPeer.GetID(),
 	})
 }
 
@@ -263,5 +267,30 @@ func (self *API) handleBrowseLocalDirectories(w http.ResponseWriter, req *http.R
 		}
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+}
+
+func (self *API) wrapHandlerWithLocalPeer(handler AuthenticatedHandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		handler(w, req, self.application.LocalPeer)
+	}
+}
+
+func (self *API) wrapHandlerWithRemotePeer(handler AuthenticatedHandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		if requestSession := req.Header.Get(`X-Byteflood-Session`); requestSession != `` {
+			if remotePeer, ok := self.application.LocalPeer.GetSession(requestSession); ok {
+				handler(w, req, remotePeer)
+				return
+			}
+		}
+
+		// perform a random sleep to slow down the fail retry rate and also make timing
+		// attacks more difficult
+		time.Sleep(time.Duration(rand.Intn(300)) * time.Millisecond)
+
+		// send a 404 in response to a non-existent session so that this handler can't be used
+		// as an oracle to determine which sessions are valid or not
+		w.WriteHeader(http.StatusNotFound)
 	}
 }

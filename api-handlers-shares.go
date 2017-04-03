@@ -3,6 +3,7 @@ package byteflood
 import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/husobee/vestigo"
 	"github.com/microcosm-cc/bluemonday"
@@ -47,30 +48,25 @@ func writeTsvFileLine(w io.Writer, share *shares.Share, item db.ManifestItem) {
 	log.Debugf("%s\t%s\t%s%v\n", item.ID, item.RelativePath, item.Type, fieldset)
 }
 
-func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request) {
-	var shares []shares.Share
-
-	if err := self.db.Shares.All(&shares); err == nil {
-		Respond(w, shares)
+func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, client peer.Peer) {
+	if s, err := shares.GetShares(self.db, client); err == nil {
+		Respond(w, s)
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 }
 
-func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request) {
-	share := db.SharesSchema.NewInstance().(*shares.Share)
-
-	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
-		Respond(w, share)
+func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
+	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+		Respond(w, s[0])
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
 	}
 }
 
-func (self *API) handleGetShareStats(w http.ResponseWriter, req *http.Request) {
-	share := db.SharesSchema.NewInstance().(*shares.Share)
-
-	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
+func (self *API) handleGetShareStats(w http.ResponseWriter, req *http.Request, client peer.Peer) {
+	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+		share := s[0]
 		var stats *shares.Stats
 
 		if cacheItem, ok := shareStatsCache[share.ID]; ok {
@@ -101,10 +97,10 @@ func (self *API) handleGetShareStats(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (self *API) handleGetShareEntry(w http.ResponseWriter, req *http.Request) {
-	share := db.SharesSchema.NewInstance().(*shares.Share)
+func (self *API) handleGetShareEntry(w http.ResponseWriter, req *http.Request, client peer.Peer) {
+	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+		share := s[0]
 
-	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		if entry, err := share.Get(vestigo.Param(req, `entry`)); err == nil {
 			Respond(w, entry)
 		} else {
@@ -115,10 +111,10 @@ func (self *API) handleGetShareEntry(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request) {
-	share := db.SharesSchema.NewInstance().(*shares.Share)
+func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request, client peer.Peer) {
+	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+		share := s[0]
 
-	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		entryId := vestigo.Param(req, `entry`)
 		var entries []*db.Entry
 
@@ -160,7 +156,7 @@ func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request) {
 		for _, entry := range entries {
 			if manifest, err := entry.GetManifest(fields, filterString); err == nil {
 				for _, item := range manifest.Items {
-					writeTsvFileLine(w, share, item)
+					writeTsvFileLine(w, &share, item)
 				}
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -172,10 +168,10 @@ func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (self *API) handleGetShareFileIdsToRoot(w http.ResponseWriter, req *http.Request) {
-	share := db.SharesSchema.NewInstance().(*shares.Share)
+func (self *API) handleGetShareFileIdsToRoot(w http.ResponseWriter, req *http.Request, client peer.Peer) {
+	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+		share := s[0]
 
-	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		parents := make([]EntryParent, 0)
 		current := vestigo.Param(req, `file`)
 		last := true
@@ -209,10 +205,10 @@ func (self *API) handleGetShareFileIdsToRoot(w http.ResponseWriter, req *http.Re
 	}
 }
 
-func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request) {
-	share := db.SharesSchema.NewInstance().(*shares.Share)
+func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
+	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+		share := s[0]
 
-	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
 			var fields []string
 
@@ -233,10 +229,10 @@ func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request) {
-	share := db.SharesSchema.NewInstance().(*shares.Share)
+func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
+	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+		share := s[0]
 
-	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
 			var fields []string
 			query := ``
@@ -264,10 +260,10 @@ func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (self *API) handleShareLandingPage(w http.ResponseWriter, req *http.Request) {
-	share := db.SharesSchema.NewInstance().(*shares.Share)
+func (self *API) handleShareLandingPage(w http.ResponseWriter, req *http.Request, client peer.Peer) {
+	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+		share := s[0]
 
-	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		if share.LongDescription != `` {
 			output := blackfriday.MarkdownCommon([]byte(share.LongDescription[:]))
 			output = bluemonday.UGCPolicy().SanitizeBytes(output)

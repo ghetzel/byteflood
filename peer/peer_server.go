@@ -65,6 +65,10 @@ func (self *PeerServer) HandleRequest(remotePeer *RemotePeer, w io.Writer, data 
 				request.URL = url
 				request.RequestURI = `` // client complains if this isn't blank
 
+				// this is safe to use as an authoritative peer identifier in request handlers
+				// that are implementing authentication/authorization becase we're setting it
+				// here, which is on the receiving end of the request (as opposed to this header coming)
+				// from the client and us trusting it implicitly as correct and not forged)
 				request.Header.Set(`X-Byteflood-Session`, remotePeer.SessionID())
 
 				if response, err := http.DefaultClient.Do(request); err == nil {

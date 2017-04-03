@@ -80,7 +80,7 @@ func TestSingleApplication(t *testing.T) {
 	assert.Equal(`/ABBA/Arrival/02 Dancing Queen.mp3`, file.RelativePath)
 	assert.Equal(`Dancing Queen`, file.Get(`media.title`))
 
-	recordset, err := musicShare.Find(`metadata.media.title=contains:love`, 50, 0, nil)
+	recordset, err := musicShare.Find(`metadata.media.title=contains:love`, 50, 0, nil, nil)
 	assert.NoError(err)
 	assert.Equal(4, int(recordset.ResultCount))
 	assert.Len(recordset.Records, 4)
@@ -112,13 +112,13 @@ func TestApplicationSuperFriends(t *testing.T) {
 
 	// authorize local->friend
 	assert.NoError(local.Database.AuthorizedPeers.Create(&peer.AuthorizedPeer{
-		ID:       friend.LocalPeer.ID(),
+		ID:       friend.LocalPeer.GetID(),
 		PeerName: `friend`,
 	}))
 
 	// authorize friend->local
 	assert.NoError(friend.Database.AuthorizedPeers.Create(&peer.AuthorizedPeer{
-		ID:       local.LocalPeer.ID(),
+		ID:       local.LocalPeer.GetID(),
 		PeerName: `local`,
 	}))
 

@@ -32,7 +32,7 @@ var PeerMonitorRetryMultiplierMax = 512
 var PeerMonitorRetryMax = -1
 
 type Peer interface {
-	ID() string
+	GetID() string
 	String() string
 	GetPublicKey() []byte
 }
@@ -104,12 +104,12 @@ func (self *LocalPeer) Initialize() error {
 	return nil
 }
 
-func (self *LocalPeer) ID() string {
+func (self *LocalPeer) GetID() string {
 	return base58.Encode(self.PublicKey[:])
 }
 
 func (self *LocalPeer) String() string {
-	return self.ID()
+	return self.GetID()
 }
 
 func (self *LocalPeer) GetPublicKey() []byte {
@@ -138,7 +138,7 @@ func (self *LocalPeer) AddAuthorizedPeer(peerID string, name string) error {
 }
 
 func (self *LocalPeer) Run() error {
-	log.Infof("Local Peer ID: %s", self.ID())
+	log.Infof("Local Peer ID: %s", self.GetID())
 
 	errchan := make(chan error)
 

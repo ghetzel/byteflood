@@ -3,6 +3,7 @@ package shares
 import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot/dal"
@@ -28,6 +29,29 @@ type Stats struct {
 	TotalBytes     uint64 `json:"total_bytes"`
 }
 
+func GetShares(conn *db.Database, requestingPeer peer.Peer, ids ...string) ([]Share, error) {
+	var shares []Share
+	var output []Share
+
+	if err := conn.Shares.All(&shares); err == nil {
+		for _, share := range shares {
+			if sliceutil.ContainsString(ids, share.ID) {
+				if share.IsPeerPermitted(requestingPeer) {
+					output = append(output, share)
+				}
+			}
+		}
+
+		if len(ids) > 0 && len(output) != len(ids) {
+			return nil, fmt.Errorf("Incorrecto number of shares retrieved")
+		}
+
+		return output, nil
+	} else {
+		return nil, err
+	}
+}
+
 func (self *Share) SetDatabase(conn *db.Database) {
 	self.db = conn
 }
@@ -46,6 +70,10 @@ func (self *Share) GetQuery(filters ...string) string {
 	}, filters...)
 
 	return strings.Join(sliceutil.CompactString(filters), filter.CriteriaSeparator)
+}
+
+func (self *Share) IsPeerPermitted(p peer.Peer) bool {
+	return true
 }
 
 func (self *Share) Length() int {

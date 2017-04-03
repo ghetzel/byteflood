@@ -65,8 +65,8 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	}
 
 	// make peer2 known to peer1 (peer2 may initiate connections to peer1)
-	peer1.AddAuthorizedPeer(peer2.ID(), `peer2`)
-	peer2.AddAuthorizedPeer(peer1.ID(), `peer1`)
+	peer1.AddAuthorizedPeer(peer2.GetID(), `peer2`)
+	peer2.AddAuthorizedPeer(peer1.GetID(), `peer1`)
 
 	go func() {
 		if err := peer1.Run(); err != nil {

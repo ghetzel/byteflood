@@ -80,6 +80,10 @@ func (self *RemotePeer) GetPublicKey() []byte {
 	return self.publicKey
 }
 
+func (self *RemotePeer) GetID() string {
+	return self.ID
+}
+
 func (self *RemotePeer) SessionID() string {
 	return self.originalRequest.String()
 }
