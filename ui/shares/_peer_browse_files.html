@@ -239,10 +239,14 @@ bindings:
           {{ end }}
         </td>
         <td class="hidden-md-down">
-          {{ if .fields.metadata.file.size }}
-          {{   autobyte .fields.metadata.file.size "%.f" }}
+          {{ if .directory }}
+            &ndash;
           {{ else }}
-          &ndash;
+            {{ if .fields.size }}
+              {{ autobyte .fields.size "%.f" }}
+            {{ else }}
+            &ndash;
+            {{ end }}
           {{ end }}
         </td>
         <td>

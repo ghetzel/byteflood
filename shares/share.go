@@ -62,7 +62,7 @@ func (self *Share) Length() int {
 	}
 }
 
-func (self *Share) Find(filterString string, limit int, offset int, sort []string) (*dal.RecordSet, error) {
+func (self *Share) Find(filterString string, limit int, offset int, sort []string, fields []string) (*dal.RecordSet, error) {
 	if f, err := db.ParseFilter(self.GetQuery(filterString)); err == nil {
 		f.Limit = limit
 		f.Offset = offset
@@ -71,6 +71,10 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 			f.Sort = []string{`-directory`, `name`}
 		} else {
 			f.Sort = sort
+		}
+
+		if len(fields) > 0 {
+			f.Fields = fields
 		}
 
 		var recordset dal.RecordSet

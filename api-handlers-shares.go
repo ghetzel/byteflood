@@ -214,7 +214,13 @@ func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request) {
 
 	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
-			if results, err := share.Find(vestigo.Param(req, `_name`), limit, offset, sort); err == nil {
+			var fields []string
+
+			if v := req.URL.Query().Get(`fields`); v != `` {
+				fields = strings.Split(v, `,`)
+			}
+
+			if results, err := share.Find(vestigo.Param(req, `_name`), limit, offset, sort, fields); err == nil {
 				Respond(w, results)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -232,6 +238,7 @@ func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request) {
 
 	if err := self.db.Shares.Get(vestigo.Param(req, `id`), share); err == nil {
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
+			var fields []string
 			query := ``
 
 			if parent := vestigo.Param(req, `parent`); parent == `` {
@@ -240,7 +247,11 @@ func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request) {
 				query = fmt.Sprintf("parent=%s", strings.TrimPrefix(parent, `/`))
 			}
 
-			if results, err := share.Find(query, limit, offset, sort); err == nil {
+			if v := req.URL.Query().Get(`fields`); v != `` {
+				fields = strings.Split(v, `,`)
+			}
+
+			if results, err := share.Find(query, limit, offset, sort, fields); err == nil {
 				Respond(w, results)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
