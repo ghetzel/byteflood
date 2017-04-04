@@ -5,7 +5,8 @@ bindings:
 - name: share
   resource: :/api/shares/{{ or .request.url.query.id "new" }}
 ---
-{{ $isNew := eq .request.url.query.id "new" }}
+{{ $id := or .request.url.query.id "new" }}
+{{ $isNew := eq $id "new" }}
 <div class="col-sm-12 col-md-6">
     <form name="shares" method="{{ if $isNew }}POST{{ else }}PUT{{ end }}" data-redirect-to="/shares/?share={{ .bindings.share.id }}">
         <div class="form-group">
