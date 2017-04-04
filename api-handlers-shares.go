@@ -49,7 +49,7 @@ func writeTsvFileLine(w io.Writer, share *shares.Share, item db.ManifestItem) {
 }
 
 func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client); err == nil {
+	if s, err := shares.GetShares(self.db, client, true); err == nil {
 		Respond(w, s)
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -57,7 +57,7 @@ func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, clien
 }
 
 func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(self.db, client, true, vestigo.Param(req, `id`)); err == nil {
 		Respond(w, s[0])
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -65,7 +65,7 @@ func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, client
 }
 
 func (self *API) handleGetShareStats(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 		var stats *shares.Stats
 
@@ -98,7 +98,7 @@ func (self *API) handleGetShareStats(w http.ResponseWriter, req *http.Request, c
 }
 
 func (self *API) handleGetShareEntry(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		if entry, err := share.Get(vestigo.Param(req, `entry`)); err == nil {
@@ -112,7 +112,7 @@ func (self *API) handleGetShareEntry(w http.ResponseWriter, req *http.Request, c
 }
 
 func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		entryId := vestigo.Param(req, `entry`)
@@ -169,7 +169,7 @@ func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request, c
 }
 
 func (self *API) handleGetShareFileIdsToRoot(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		parents := make([]EntryParent, 0)
@@ -206,7 +206,7 @@ func (self *API) handleGetShareFileIdsToRoot(w http.ResponseWriter, req *http.Re
 }
 
 func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
@@ -230,7 +230,7 @@ func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, clie
 }
 
 func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		if limit, offset, sort, err := self.getSearchParams(req); err == nil {
@@ -261,7 +261,7 @@ func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, cli
 }
 
 func (self *API) handleShareLandingPage(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		if share.LongDescription != `` {

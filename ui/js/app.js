@@ -78,6 +78,17 @@ $(function(){
             }.bind(this));
         },
 
+        loadInto: function(selector, url, payload) {
+            $.ajax(url, {
+                method: 'GET',
+                data: payload,
+                success: function(data){
+                    $(selector).replaceWith(data);
+                }.bind(this),
+                error: this.showResponseError.bind(this),
+            });
+        },
+
         notify: function(message, type, details, config){
             $.notify($.extend(details, {
                 'message': message,

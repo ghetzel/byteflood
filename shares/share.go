@@ -15,6 +15,12 @@ import (
 
 var log = logging.MustGetLogger(`byteflood/shares`)
 
+type Stats struct {
+	FileCount      uint64 `json:"file_count"`
+	DirectoryCount uint64 `json:"directory_count"`
+	TotalBytes     uint64 `json:"total_bytes"`
+}
+
 type Share struct {
 	ID              string `json:"id"`
 	IconName        string `json:"icon_name"`
@@ -23,16 +29,11 @@ type Share struct {
 	LongDescription string `json:"long_description,omitempty"`
 	Blocklist       string `json:"blocklist,omitempty"`
 	Allowlist       string `json:"allowlist,omitempty"`
+	Stats           *Stats `json:"stats,omitempty"`
 	db              *db.Database
 }
 
-type Stats struct {
-	FileCount      uint64 `json:"file_count"`
-	DirectoryCount uint64 `json:"directory_count"`
-	TotalBytes     uint64 `json:"total_bytes"`
-}
-
-func GetShares(conn *db.Database, requestingPeer peer.Peer, ids ...string) ([]Share, error) {
+func GetShares(conn *db.Database, requestingPeer peer.Peer, stats bool, ids ...string) ([]Share, error) {
 	var shares []Share
 	output := make([]Share, 0)
 
@@ -40,6 +41,14 @@ func GetShares(conn *db.Database, requestingPeer peer.Peer, ids ...string) ([]Sh
 		for _, share := range shares {
 			if len(ids) == 0 || sliceutil.ContainsString(ids, share.ID) {
 				if share.IsPeerPermitted(requestingPeer) {
+					if stats {
+						if s, err := share.GetStats(); err == nil {
+							share.Stats = s
+						} else {
+							return nil, err
+						}
+					}
+
 					output = append(output, share)
 				}
 			}

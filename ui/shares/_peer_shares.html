@@ -1,7 +1,7 @@
 ---
 bindings:
 - name: shares
-  resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares
+  resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares?stats=true
   params:
     limit:  '{{ .request.url.query.limit }}'
     offset: '{{ or .request.url.query.offset 0 }}'
@@ -15,6 +15,10 @@ bindings:
     {{ range .bindings.shares }}
     <button
         type="button"
+        {{ if not .stats.file_count }}
+        disabled="disabled"
+        title="There are no files available in this share."
+        {{ end }}
         class="list-group-item list-group-item-action{{ if eq .id $share }} active{{ end }} justify-content-between"
         onclick="location.href='/shares/?share={{ .id }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}'"
     >
@@ -23,16 +27,23 @@ bindings:
             {{ or .description .id }}
         </span>
 
-        <script type="text/javascript" id="share_{{ or $session `local` }}_{{ .id }}">
-            $(function(){
-                $.ajax({
-                    url: '/shares/_peer_share_stats?share={{ .id }}{{ if $session }}&session={{ $session }}{{ end }}',
-                    success: function(data){
-                        $('#share_{{ or $session `local` }}_{{ .id }}').replaceWith(data);
-                    },
-                });
-            });
-        </script>
+        <div class="flex-column bf-share-stats">
+            {{ if .stats.file_count }}
+                {{ if .stats.total_bytes }}
+                <div data-share-bytes="{{ .stats.total_bytes }}" class="text-right">
+                    {{ autobyte .stats.total_bytes "%.3g " }}
+                </div>
+                {{ end }}
+
+                <div data-share-files="{{ .stats.file_count }}" class="text-right">
+                    {{ .stats.file_count | thousandify }} files
+                </div>
+            {{ else }}
+                <div data-share-files="0" class="text-right font-italic">
+                    Empty
+                </div>
+            {{ end }}
+        </div>
     </button>
     {{ end }}
     {{ else }}

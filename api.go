@@ -181,6 +181,7 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 
 	// TODO: this needs to go through share to enforce authz
 	router.Post(`/transfers/:transfer/:entry`, self.handleRequestEntryFromShare)
+
 	router.Get(`/shares`, self.wrapHandlerWithRemotePeer(self.handleGetShares))
 	router.Get(`/shares/:id`, self.wrapHandlerWithRemotePeer(self.handleGetShare))
 	router.Get(`/shares/:id/landing`, self.wrapHandlerWithRemotePeer(self.handleShareLandingPage))

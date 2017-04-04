@@ -49,11 +49,31 @@
 
       <div class="collapse navbar-collapse" id="navbar-header">
         <ul class="navbar-nav mr-auto">
-          <li class="nav-item {{ if eq .request.url.path `/` }}active{{end}}">
-            <a class="nav-link" href="/">
-              <i class="fa fa-fw fa-exchange"></i>
-              Transfers
-              {{ if eq .request.url.path `/` }}
+          <li class="nav-item {{ if hasPrefix .request.url.path `/shares` }}active{{end}}">
+            <a class="nav-link" href="/shares">
+              <i class="fa fa-fw fa-arrow-circle-up"></i>
+              Shares
+              {{ if hasPrefix .request.url.path `/shares` }}
+              <span class="sr-only">(current)</span>
+              {{ end }}
+            </a>
+          </li>
+
+          <li class="nav-item {{ if hasPrefix .request.url.path `/subscriptions` }}active{{end}}">
+            <a class="nav-link" href="/subscriptions">
+              <i class="fa fa-fw fa-arrow-circle-down"></i>
+              Subscriptions
+              {{ if hasPrefix .request.url.path `/subscriptions` }}
+              <span class="sr-only">(current)</span>
+              {{ end }}
+            </a>
+          </li>
+
+          <li class="nav-item {{ if hasPrefix .request.url.path `/database` }}active{{end}}">
+            <a class="nav-link" href="/database">
+              <i class="fa fa-fw fa-folder"></i>
+              Folders
+              {{ if hasPrefix .request.url.path `/database` }}
               <span class="sr-only">(current)</span>
               {{ end }}
             </a>
@@ -69,31 +89,11 @@
             </a>
           </li>
 
-          <li class="nav-item {{ if hasPrefix .request.url.path `/shares` }}active{{end}}">
-            <a class="nav-link" href="/shares">
-              <i class="fa fa-fw fa-folder"></i>
-              Shares
-              {{ if hasPrefix .request.url.path `/shares` }}
-              <span class="sr-only">(current)</span>
-              {{ end }}
-            </a>
-          </li>
-
-          <li class="nav-item {{ if hasPrefix .request.url.path `/subscriptions` }}active{{end}}">
-            <a class="nav-link" href="/subscriptions">
-              <i class="fa fa-fw fa-refresh"></i>
-              Subscriptions
-              {{ if hasPrefix .request.url.path `/subscriptions` }}
-              <span class="sr-only">(current)</span>
-              {{ end }}
-            </a>
-          </li>
-
-          <li class="nav-item {{ if hasPrefix .request.url.path `/database` }}active{{end}}">
-            <a class="nav-link" href="/database">
-              <i class="fa fa-fw fa-database"></i>
-              Database
-              {{ if hasPrefix .request.url.path `/database` }}
+          <li class="nav-item {{ if eq .request.url.path `/` }}active{{end}}">
+            <a class="nav-link" href="/">
+              <i class="fa fa-fw fa-exchange"></i>
+              Transfers
+              {{ if eq .request.url.path `/` }}
               <span class="sr-only">(current)</span>
               {{ end }}
             </a>
