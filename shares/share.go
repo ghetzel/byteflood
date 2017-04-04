@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
+	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot/dal"
@@ -20,6 +21,8 @@ type Share struct {
 	BaseFilter      string `json:"filter,omitempty"`
 	Description     string `json:"description,omitempty"`
 	LongDescription string `json:"long_description,omitempty"`
+	Blocklist       string `json:"blocklist,omitempty"`
+	Allowlist       string `json:"allowlist,omitempty"`
 	db              *db.Database
 }
 
@@ -31,11 +34,11 @@ type Stats struct {
 
 func GetShares(conn *db.Database, requestingPeer peer.Peer, ids ...string) ([]Share, error) {
 	var shares []Share
-	var output []Share
+	output := make([]Share, 0)
 
 	if err := conn.Shares.All(&shares); err == nil {
 		for _, share := range shares {
-			if sliceutil.ContainsString(ids, share.ID) {
+			if len(ids) == 0 || sliceutil.ContainsString(ids, share.ID) {
 				if share.IsPeerPermitted(requestingPeer) {
 					output = append(output, share)
 				}
@@ -73,7 +76,49 @@ func (self *Share) GetQuery(filters ...string) string {
 }
 
 func (self *Share) IsPeerPermitted(p peer.Peer) bool {
-	return true
+	// we're always allowed to see our own shares
+	if p.IsLocal() {
+		return true
+	}
+
+	blocks := util.SplitMulti.Split(self.Blocklist, -1)
+	allows := util.SplitMulti.Split(self.Allowlist, -1)
+
+	if ap, err := peer.GetAuthorizedPeer(self.db, p.GetID()); err == nil {
+		permit := true
+
+		for _, block := range blocks {
+			switch block {
+			case `*`:
+				// if a wildcard block is given, peers or peer groups explicitly named in
+				// the allowlist can still override
+				permit = false
+				break
+
+			default:
+				// if a peer or peer group is explicitly named in the blocklist, then
+				// that takes precedence and we return false immediately
+				if ap.IsMemberOf(block) {
+					return false
+				}
+			}
+		}
+
+		// only check the allow list if we're not already permitted
+		if !permit {
+			for _, allow := range allows {
+				if ap.IsMemberOf(allow) {
+					permit = true
+					break
+				}
+			}
+		}
+
+		return permit
+	} else {
+		// if we can't find an authorized peer for the given ID, then deny by default
+		return false
+	}
 }
 
 func (self *Share) Length() int {

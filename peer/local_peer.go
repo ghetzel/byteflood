@@ -35,6 +35,7 @@ type Peer interface {
 	GetID() string
 	String() string
 	GetPublicKey() []byte
+	IsLocal() bool
 }
 
 type LocalPeer struct {
@@ -110,6 +111,10 @@ func (self *LocalPeer) GetID() string {
 
 func (self *LocalPeer) String() string {
 	return self.GetID()
+}
+
+func (self *LocalPeer) IsLocal() bool {
+	return true
 }
 
 func (self *LocalPeer) GetPublicKey() []byte {

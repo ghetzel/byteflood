@@ -88,7 +88,7 @@ func (self *API) handleSaveModel(w http.ResponseWriter, req *http.Request) {
 
 			for _, record := range recordset.Records {
 				if req.Method == `POST` {
-					err = model.CreateOrUpdate(record.ID, record)
+					err = model.Create(record)
 				} else {
 					err = model.Update(record)
 				}

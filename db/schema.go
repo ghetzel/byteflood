@@ -56,6 +56,12 @@ var SharesSchema = &dal.Collection{
 	IdentityFieldType: dal.StringType,
 	Fields: []dal.Field{
 		{
+			Name:         `icon_name`,
+			Type:         dal.StringType,
+			Required:     true,
+			DefaultValue: `folder`,
+		},
+		{
 			Name: `filter`,
 			Type: dal.StringType,
 		}, {
@@ -68,10 +74,11 @@ var SharesSchema = &dal.Collection{
 			Name: `filter_templates`,
 			Type: dal.StringType,
 		}, {
-			Name:         `icon_name`,
-			Type:         dal.StringType,
-			Required:     true,
-			DefaultValue: `folder`,
+			Name: `blocklist`,
+			Type: dal.StringType,
+		}, {
+			Name: `allowlist`,
+			Type: dal.StringType,
 		},
 	},
 }

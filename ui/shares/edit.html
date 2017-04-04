@@ -5,8 +5,9 @@ bindings:
 - name: share
   resource: :/api/shares/{{ or .request.url.query.id "new" }}
 ---
+{{ $isNew := eq .request.url.query.id "new" }}
 <div class="col-sm-12 col-md-6">
-    <form name="shares" method="POST" data-redirect-to="/shares/?share={{ .bindings.share.id }}">
+    <form name="shares" method="{{ if $isNew }}POST{{ else }}PUT{{ end }}" data-redirect-to="/shares/?share={{ .bindings.share.id }}">
         <div class="form-group">
             <label for="id">Share ID</label>
             <input
@@ -16,7 +17,7 @@ bindings:
                 aria-describedby="nameHelp"
                 placeholder="Public share name"
                 required
-                {{ if eq (or .request.url.query.id "new") "new" }}autofocus{{ else }}readonly{{ end }}
+                {{ if $isNew }}autofocus{{ else }}readonly{{ end }}
                 value="{{ .bindings.share.id }}"
             >
 
@@ -32,7 +33,7 @@ bindings:
                 class="form-control"
                 name="description"
                 aria-describedby="descriptionHelp"
-                value="{{ .bindings.share.description }}"
+                value="{{ or .request.url.query.description .bindings.share.description }}"
             >
 
             <small id="descriptionHelp" class="form-text text-muted">
@@ -848,22 +849,47 @@ bindings:
             </small>
         </div>
 
-        <div class="form-group">
-            <label for="filter">Content Filter</label>
-            <input
-                type="text"
-                class="form-control"
-                name="filter"
-                aria-describedby="filterHelp"
-                placeholder="label=music;media.artist=John Williams"
-                value="{{ .bindings.share.filter }}"
-            >
+        <div class="form-group row">
+            <label class="col-sm-3 col-form-label" for="filter">Access Control</label>
+            <div class="col-sm-9">
+                <div class="input-group">
+                    <span class="input-group-addon">Block</span>
+                    <input
+                        type="text"
+                        class="form-control"
+                        name="blocklist"
+                        aria-describedby="aclHelp"
+                        value="{{ .bindings.share.blocklist }}"
+                    >
+                </div>
+            </div>
+        </div>
 
-            <small id="filterHelp" class="form-text text-muted">
-                A database query that can be used to fine-tune which content appears in this share.
-                If left blank, the share's name will be used to search for content with a matching label.
-                (e.g.: name "Movies" becomes a <i>label=movies</i> database query.)
-            </small>
+        <div class="form-group row">
+            <div class="offset-sm-3 col-sm-9">
+                <div class="input-group">
+                    <span class="input-group-addon">Allow</span>
+                    <input
+                        type="text"
+                        class="form-control"
+                        name="allowlist"
+                        aria-describedby="aclHelp"
+                        value="{{ .bindings.share.allowlist }}"
+                    >
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group row">
+            <div class="offset-sm-3 col-sm-9">
+                <small id="aclHelp" class="form-text text-muted">
+                    This is a whitespace-separated list of peers and/or peer groups to explicitly deny access to this share.
+                    Peers are specified by the name you've given, them.  Peer groups are prefixed with an <code>@</code> symbol.
+                    <br />
+                    If the wildcard value <code>*</code> appears in the block list, then everyone will be blocked by default.
+                    In this case, peers or peer groups in the allow list will override the wildecard.
+                </small>
+            </div>
         </div>
 
         <div class="form-group">
@@ -878,6 +904,24 @@ bindings:
             <small id="longDescriptionHelp" class="form-text text-muted">
                 This is a Markdown-formatted section that will appear on the landing page when users are
                 browsing this share.
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="filter">Content Filter</label>
+            <input
+                type="text"
+                class="form-control"
+                name="filter"
+                aria-describedby="filterHelp"
+                placeholder="Custom filter"
+                value="{{ or .request.url.query.filter .bindings.share.filter }}"
+            >
+
+            <small id="filterHelp" class="form-text text-muted">
+                A database query that can be used to fine-tune which content appears in this share.
+                If left blank, the share's name will be used to search for content with a matching label.
+                (e.g.: name "Movies" becomes a <i>label=movies</i> database query.)
             </small>
         </div>
 

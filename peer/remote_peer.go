@@ -101,6 +101,10 @@ func (self *RemotePeer) String() string {
 	)
 }
 
+func (self *RemotePeer) IsLocal() bool {
+	return false
+}
+
 func (self *RemotePeer) ToMap() map[string]interface{} {
 	return map[string]interface{}{
 		`id`:           self.ID,
