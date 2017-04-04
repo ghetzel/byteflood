@@ -78,14 +78,22 @@ $(function(){
             }.bind(this));
         },
 
-        loadInto: function(selector, url, payload) {
+        loadInto: function(selector, url, payload, onerror) {
             $.ajax(url, {
                 method: 'GET',
                 data: payload,
                 success: function(data){
-                    $(selector).replaceWith(data);
+                    $(selector).html(data);
                 }.bind(this),
-                error: this.showResponseError.bind(this),
+                error: function(response){
+                    if(onerror === false){
+                        return;
+                    }else if($.isFunction(onerror)){
+                        return onerror.bind(this)(response);
+                    }else{
+                        return this.showResponseError.bind(this)(response);
+                    }
+                }.bind(this),
             });
         },
 

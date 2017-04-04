@@ -14,8 +14,8 @@ bindings:
 - name: results
   resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}/browse/{{ .request.url.query.parent }}
   params:
-    limit: '{{ .request.url.query.limit }}'
-    offset: '{{ multiply (subtract (asFloat (or .request.url.query.page 1)) 1) (asFloat .request.url.query.limit) }}'
+    limit: '{{ or .request.url.query.limit 25 }}'
+    offset: '{{ multiply (subtract (asFloat (or .request.url.query.page 1)) 1) (asFloat (or .request.url.query.limit 25)) }}'
     sort:   '{{ .request.url.query.sort }}'
 ---
 {{ $page := asFloat (or .request.url.query.page 1) }}
@@ -83,6 +83,7 @@ bindings:
 
   <nav class="navbar navbar-light">
     <ul class="navbar-nav flex-row">
+      {{ if not $session }}
       <li class="nav-item">
         <a
           class="nav-link"
@@ -94,7 +95,6 @@ bindings:
         </a>
       </li>
 
-      {{ if not $session }}
       <li class="nav-item">
         <a
             class="nav-link"
@@ -138,18 +138,6 @@ bindings:
         {{ end }}
       {{ end }}
     </b>
-
-<!--     <form class="form-inline pull-right">
-      <div class="form-group">
-        <label for="browseAs">Browse As: </label>
-        <select name="browseAs" class="form-control form-control-sm">
-          <option>Files</option>
-          <option>TV Shows</option>
-          <option>Movies</option>
-          <option>Music</option>
-        </select>
-      </div>
-    </form> -->
   </div>
 
   <nav class="navbar navbar-light bg-faded flex-row justify-content-between">

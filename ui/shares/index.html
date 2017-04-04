@@ -56,8 +56,9 @@ bindings:
       </ul>
   </div>
 
-  <div class="col-lg-9">
-    <script type="text/javascript" id="share-browser">
+  <div class="col-lg-9" id="share-browser">
+    {{ if $share }}
+    <script type="text/javascript">
       $(function(){
         qs = {
           'limit': 25,
@@ -69,8 +70,9 @@ bindings:
           return [x[0], x.splice(1).join('=')];
         });
 
-        byteflood.loadInto('#share-browser', '/shares/_peer_browse_{{ $view }}', qs);
+        byteflood.loadInto('#share-browser', '/shares/_peer_browse_{{ $view }}', qs, false);
       })
     </script>
+    {{ end }}
   </div>
 </div>
