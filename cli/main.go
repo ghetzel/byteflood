@@ -8,6 +8,7 @@ import (
 	"github.com/ghetzel/byteflood/client"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
+	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/maputil"
@@ -51,8 +52,13 @@ func main() {
 			EnvVar: `LOGLEVEL`,
 		},
 		cli.StringFlag{
-			Name:  `address, a`,
-			Usage: `The address the client should listen on`,
+			Name:  `peer-address, a`,
+			Usage: `This is the public-facing address that should be exposed to peers.`,
+			Value: peer.DEFAULT_PEER_SERVER_ADDRESS,
+		},
+		cli.StringFlag{
+			Name:  `api-address, A`,
+			Usage: `This is the private internal administrative API address.`,
 			Value: byteflood.DefaultApiAddress,
 		},
 		cli.BoolFlag{
@@ -112,8 +118,8 @@ func main() {
 		logging.SetLevel(logging.ERROR, `diecast`)
 
 		api.Timeout = c.Duration(`timeout`)
-		api.Address = c.String(`address`)
-		log.Debugf("Client address is %s", api.Address)
+		api.Address = c.String(`api-address`)
+		log.Debugf("API address is %s", api.Address)
 
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
 
@@ -123,6 +129,7 @@ func main() {
 			if a, err := createApplication(c); err == nil {
 				application = a
 				database = a.Database
+				application.LocalPeer.Address = c.String(`peer-address`)
 			} else {
 				return err
 			}
