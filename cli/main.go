@@ -8,6 +8,7 @@ import (
 	"github.com/ghetzel/byteflood/client"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
+	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/maputil"
@@ -51,8 +52,13 @@ func main() {
 			EnvVar: `LOGLEVEL`,
 		},
 		cli.StringFlag{
-			Name:  `address, a`,
-			Usage: `The address the client should listen on`,
+			Name:  `peer-address, a`,
+			Usage: `This is the public-facing address that should be exposed to peers.`,
+			Value: peer.DEFAULT_PEER_SERVER_ADDRESS,
+		},
+		cli.StringFlag{
+			Name:  `api-address, A`,
+			Usage: `This is the private internal administrative API address.`,
 			Value: byteflood.DefaultApiAddress,
 		},
 		cli.BoolFlag{
@@ -112,16 +118,21 @@ func main() {
 		logging.SetLevel(logging.ERROR, `diecast`)
 
 		api.Timeout = c.Duration(`timeout`)
-		api.Address = c.String(`address`)
-		log.Debugf("Client address is %s", api.Address)
+		api.Address = c.String(`api-address`)
+		log.Debugf("API address is %s", api.Address)
 
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
 
-		if a, err := createApplication(c); err == nil {
-			application = a
-			database = a.Database
-		} else {
-			return err
+		if !sliceutil.ContainsString([]string{
+			`genkeypair`,
+		}, c.Args().First()) {
+			if a, err := createApplication(c); err == nil {
+				application = a
+				database = a.Database
+				application.LocalPeer.Address = c.String(`peer-address`)
+			} else {
+				return err
+			}
 		}
 
 		return nil
@@ -137,16 +148,6 @@ func main() {
 					Usage: `The path to the UI directory.`,
 					Value: byteflood.DefaultUiDirectory,
 				},
-				cli.StringFlag{
-					Name:  `api-address`,
-					Usage: `The address the local API should listen on`,
-					Value: ``,
-				},
-				cli.IntFlag{
-					Name:  `api-port`,
-					Usage: `The port the local API should listen on`,
-					Value: 10451,
-				},
 				cli.BoolFlag{
 					Name:  `upnp, u`,
 					Usage: `Automatically forward this port using UPnP`,
@@ -161,7 +162,6 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				application.API.Address = c.GlobalString(`address`)
 				application.API.UiDirectory = c.String(`ui-dir`)
 
 				if err := application.Run(); err != nil {
