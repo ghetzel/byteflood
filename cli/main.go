@@ -148,16 +148,6 @@ func main() {
 					Usage: `The path to the UI directory.`,
 					Value: byteflood.DefaultUiDirectory,
 				},
-				cli.StringFlag{
-					Name:  `api-address`,
-					Usage: `The address the local API should listen on`,
-					Value: ``,
-				},
-				cli.IntFlag{
-					Name:  `api-port`,
-					Usage: `The port the local API should listen on`,
-					Value: 10451,
-				},
 				cli.BoolFlag{
 					Name:  `upnp, u`,
 					Usage: `Automatically forward this port using UPnP`,
@@ -172,7 +162,6 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				application.API.Address = c.GlobalString(`address`)
 				application.API.UiDirectory = c.String(`ui-dir`)
 
 				if err := application.Run(); err != nil {
