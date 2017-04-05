@@ -117,11 +117,15 @@ func main() {
 
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
 
-		if a, err := createApplication(c); err == nil {
-			application = a
-			database = a.Database
-		} else {
-			return err
+		if !sliceutil.ContainsString([]string{
+			`genkeypair`,
+		}, c.Args().First()) {
+			if a, err := createApplication(c); err == nil {
+				application = a
+				database = a.Database
+			} else {
+				return err
+			}
 		}
 
 		return nil
