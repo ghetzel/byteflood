@@ -109,6 +109,40 @@ $(function(){
             });
         },
 
+        handleMultiClick: function(event, actions) {
+            console.log(event, actions, actionName)
+
+            if($.isPlainObject(actions)) {
+                var actionName = '';
+
+                switch(event.button){
+                case 0:
+                    actionName = 'left';
+                    break;;
+                case 1:
+                    actionName = 'middle';
+                    break;;
+                case 2:
+                    actionName = 'right';
+                    break;;
+                case 3:
+                    actionName = 'back';
+                    break;;
+                case 4:
+                    actionName = 'right';
+                    break;;
+                }
+
+                if($.isFunction(actions[actionName])){
+                    actions[actionName](event, actionName);
+                    event.preventDefault();
+                }else if($.isFunction(actions['default'])){
+                    actions['default'](event, 'default');
+                    event.preventDefault();
+                }
+            }
+        },
+
         notify: function(message, type, details, config){
             $.notify($.extend(details, {
                 'message': message,
@@ -171,6 +205,12 @@ $(function(){
                     }.bind(this),
                     error: this.showResponseError.bind(this),
                 });
+            }
+        },
+
+        updateIfEmpty: function(target_field, value) {
+            if(target_field.value.length == 0){
+                target_field.value = value;
             }
         },
 

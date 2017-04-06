@@ -12,16 +12,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
-	"time"
 )
-
-type shareStatsCacheItem struct {
-	Stats     *shares.Stats
-	Timestamp time.Time
-}
-
-var shareStatsCache = make(map[string]shareStatsCacheItem)
-var shareStatsCacheTimeout = time.Duration(30) * time.Minute
 
 type EntryParent struct {
 	ID     string `json:"id"`
@@ -75,37 +66,18 @@ func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, client
 func (self *API) handleGetShareStats(w http.ResponseWriter, req *http.Request, client peer.Peer) {
 	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
-		var stats *shares.Stats
 
-		if cacheItem, ok := shareStatsCache[share.ID]; ok {
-			if time.Since(cacheItem.Timestamp) <= shareStatsCacheTimeout {
-				stats = cacheItem.Stats
+		if stats, err := share.GetStats(); err == nil {
+			if client.IsLocal() {
+				writeCacheHeaders(w, 60)
 			} else {
-				delete(shareStatsCache, share.ID)
+				writeCacheHeaders(w, 600)
 			}
-		}
 
-		if stats == nil {
-			if s, err := share.GetStats(); err == nil {
-				stats = s
-
-				shareStatsCache[share.ID] = shareStatsCacheItem{
-					Stats:     s,
-					Timestamp: time.Now(),
-				}
-			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-
-		if client.IsLocal() {
-			writeCacheHeaders(w, 60)
+			Respond(w, stats)
 		} else {
-			writeCacheHeaders(w, 600)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-
-		Respond(w, stats)
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
 	}
