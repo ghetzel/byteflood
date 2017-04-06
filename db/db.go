@@ -229,10 +229,9 @@ func (self *Database) Cleanup() error {
 
 		log.Infof("Database cleanup finished, processed %d entries.", len(entriesToDelete))
 
-		return nil
-	} else {
-		return err
 	}
+
+	return nil
 }
 
 func (self *Database) setupSchemata() error {

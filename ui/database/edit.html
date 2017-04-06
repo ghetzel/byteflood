@@ -73,12 +73,56 @@ bindings:
                 class="form-control"
                 name="min_file_size"
                 aria-describedby="minFileSizeHelp"
-                checked="{{ if .bindings.directory.min_file_size }}checked{{ end }}"
             >
 
             <small id="minFileSizeHelp" class="form-text text-muted">
                 If set, only files larger than this value will be included in the scan.
             </small>
+        </div>
+
+        <div class="form-group row">
+            <div class="col-sm-3">
+                <label class="custom-control custom-checkbox">
+                    <span class="custom-control-description">Follow Symlinks</span>
+                    <input
+                        type="checkbox"
+                        name="follow_symlinks"
+                        autocomplete="off"
+                        class="custom-control-input"
+                        {{ if .bindings.directory.follow_symlinks }}checked{{ end }}
+                    >
+                    <span class="custom-control-indicator"></span>
+                </label>
+            </div>
+
+            <div class="col-sm-9">
+                <small id="followSymlinksHelp" class="form-text text-muted">
+                    If set, symbolic links that appear under this directory will be followed, and their contents
+                    will appear as if they were under this directory.
+                </small>
+            </div>
+        </div>
+
+        <div class="form-group row">
+            <div class="col-sm-3">
+                <label class="custom-control custom-checkbox">
+                    <span class="custom-control-description">Shallow Scan</span>
+                    <input
+                        type="checkbox"
+                        name="no_recurse"
+                        autocomplete="off"
+                        class="custom-control-input"
+                        {{ if .bindings.directory.no_recurse }}checked{{ end }}
+                    >
+                    <span class="custom-control-indicator"></span>
+                </label>
+            </div>
+
+            <div class="col-sm-9">
+                <small id="noRecurseHelp" class="form-text text-muted">
+                    If set, only in the immediate directory will be scanned, and any subdirectories will be omitted.
+                </small>
+            </div>
         </div>
 
         <button class="btn btn-primary" type="submit">Save</button>

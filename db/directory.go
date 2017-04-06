@@ -21,7 +21,8 @@ type Directory struct {
 	Parent               string       `json:"parent"`
 	RootPath             string       `json:"-"`
 	FilePattern          string       `json:"file_pattern,omitempty"`
-	NoRecurseDirectories bool         `json:"no_recurse,omitempty"`
+	NoRecurseDirectories bool         `json:"no_recurse"`
+	FollowSymlinks       bool         `json:"follow_symlinks"`
 	FileMinimumSize      int          `json:"min_file_size,omitempty"`
 	DeepScan             bool         `json:"deep_scan,omitempty"`
 	Directories          []*Directory `json:"-"`
@@ -72,6 +73,31 @@ func (self *Directory) Scan() error {
 		for _, entry := range entries {
 			absPath := path.Join(self.Path, entry.Name())
 
+			if pathutil.IsSymlink(entry.Mode()) {
+				if self.FollowSymlinks {
+					if realpath, err := os.Readlink(absPath); err == nil {
+						if realAbsPath, err := filepath.Abs(path.Join(self.Path, realpath)); err == nil {
+							if realstat, err := os.Stat(realAbsPath); err == nil {
+								log.Infof("[%s] Following symbolic link %s -> %s", self.ID, absPath, realAbsPath)
+								entry = realstat
+							} else {
+								log.Warningf("[%s] Error reading target of symbolic link %s: %v", self.ID, realAbsPath, err)
+								continue
+							}
+						} else {
+							log.Warningf("[%s] Error following symbolic link %s: %v", self.ID, realpath, err)
+							continue
+						}
+					} else {
+						log.Warningf("[%s] Error reading symbolic link %s: %v", self.ID, entry.Name(), err)
+						continue
+					}
+				} else {
+					log.Infof("[%s] Skipping symbolic link %s", self.ID, absPath)
+					continue
+				}
+			}
+
 			// recursive directory handling
 			if entry.IsDir() {
 				if !self.NoRecurseDirectories {
@@ -85,6 +111,7 @@ func (self *Directory) Scan() error {
 						subdirectory.FilePattern = self.FilePattern
 						subdirectory.NoRecurseDirectories = self.NoRecurseDirectories
 						subdirectory.FileMinimumSize = self.FileMinimumSize
+						subdirectory.FollowSymlinks = self.FollowSymlinks
 						subdirectory.DeepScan = self.DeepScan
 
 						log.Infof("[%s] %s: Scanning subdirectory %s", self.ID, subdirectory.Parent, subdirectory.Path)

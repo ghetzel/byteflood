@@ -53,51 +53,48 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 		return false, err
 	}
 
-	switch self.Type {
-	case DirectoryItem:
-		if stat.IsDir() {
-			return false, nil
-		}
-	default:
-		// perform field checks
-		file := NewEntry(nil, self.Label, manifest.BaseDirectory, absPath)
+	if stat.IsDir() {
+		return false, nil
+	}
 
-		for i, value := range self.Values {
-			if i < len(manifest.Fields) {
-				fieldName := manifest.Fields[i]
-				log.Debugf("Item %s: check field %q", self.ID, fieldName)
+	// perform field checks
+	file := NewEntry(nil, self.Label, manifest.BaseDirectory, absPath)
 
-				switch fieldName {
-				case `checksum`:
-					if sum, err := file.GenerateChecksum(true); err == nil {
-						if fmt.Sprintf("%v", value) != sum {
-							log.Debugf("  field %s no match %v != %v", `checksum`, value, sum)
-							return true, nil
-						}
-					} else {
-						return false, err
-					}
+	for i, value := range self.Values {
+		if i < len(manifest.Fields) {
+			fieldName := manifest.Fields[i]
+			log.Debugf("Item %s: check field %q", self.ID, fieldName)
 
-				default:
-					// lazy load file metadata
-					if !file.metadataLoaded {
-						if err := file.LoadMetadata(); err != nil {
-							return false, err
-						}
-					}
-
-					// perform metadata comparison
-					if !policy.Compare(fieldName, file.Get(fieldName), value) {
-						log.Debugf("  field %s no match %v", fieldName, value)
+			switch fieldName {
+			case `checksum`:
+				if sum, err := file.GenerateChecksum(true); err == nil {
+					if fmt.Sprintf("%v", value) != sum {
+						log.Debugf("  field %s no match %v != %v", `checksum`, value, sum)
 						return true, nil
 					}
+				} else {
+					return false, err
 				}
-			} else {
-				return false, fmt.Errorf(
-					"Manifest item %s contains fewer fields than the given policy requires",
-					self.ID,
-				)
+
+			default:
+				// lazy load file metadata
+				if !file.metadataLoaded {
+					if err := file.LoadMetadata(); err != nil {
+						return false, err
+					}
+				}
+
+				// perform metadata comparison
+				if !policy.Compare(fieldName, file.Get(fieldName), value) {
+					log.Debugf("  field %s no match %v", fieldName, value)
+					return true, nil
+				}
 			}
+		} else {
+			return false, fmt.Errorf(
+				"Manifest item %s contains fewer fields than the given policy requires",
+				self.ID,
+			)
 		}
 	}
 
@@ -202,6 +199,8 @@ func (self *Manifest) Add(items ...ManifestItem) {
 func (self *Manifest) GetUpdateManifest(policy SyncPolicy) (*Manifest, error) {
 	diff := NewManifest(self.BaseDirectory)
 	copy(diff.Fields, self.Fields)
+
+	log.Debugf("Got %d items from remote peer", len(self.Items))
 
 	for _, item := range self.Items {
 		if update, err := item.NeedsUpdate(self, &policy); err == nil {

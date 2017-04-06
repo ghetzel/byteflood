@@ -214,9 +214,9 @@ var ScannedDirectoriesSchema = &dal.Collection{
 			Description: `If set, files smaller than this value will be skipped.`,
 			Type:        dal.IntType,
 		}, {
-			Name: `checksum`,
-			Description: `If true, all scanned files will have a SHA-1 checksum calculated for them. ` +
-				`Note: this will significantly increase the time to scan large directories.`,
+			Name: `follow_symlinks`,
+			Description: `If true, symbolic links in this directory will be followed when scanning, and the files ` +
+				`therein will be imported as though they were in this directory.`,
 			Type:         dal.BooleanType,
 			Required:     true,
 			DefaultValue: false,
