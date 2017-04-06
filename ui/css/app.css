@@ -207,6 +207,32 @@
     font-size: smaller;
 }
 
+.bf-share-actions {
+    width: 32px;
+    height: 100%;
+    margin-right: -20px;
+    margin-top: -10px;
+    color: transparent;
+}
+
+.bf-share-actions > i {
+    margin-top: 0.2em;
+    margin-bottom: 0.1em;
+    opacity: 0.8;
+}
+
+.bf-share-actions > i:hover {
+    opacity: 1.0;
+}
+
+.bf-share-actions > i.action-remove:hover {
+    color: #d9534f;
+}
+
+.list-group-item:hover .bf-share-actions {
+    color: inherit;
+}
+
 .card {
     margin-bottom: 1em;
 }

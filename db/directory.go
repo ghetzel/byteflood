@@ -8,7 +8,9 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
+	"time"
 )
 
 var stats, _ = statsd.New()
@@ -28,6 +30,8 @@ type Directory struct {
 }
 
 var RootDirectoryName = `root`
+
+type WalkEntryFunc func(entry *Entry) error // {}
 
 func (self *Directory) SetDatabase(conn *Database) {
 	self.db = conn
@@ -160,6 +164,16 @@ func (self *Directory) Scan() error {
 	return nil
 }
 
+func (self *Directory) WalkModifiedSince(lastModifiedAt time.Time, entryFn WalkEntryFunc) error {
+	return filepath.Walk(self.Path, func(name string, info os.FileInfo, err error) error {
+		if info.ModTime().After(lastModifiedAt) {
+			return entryFn(NewEntry(self.db, self.ID, self.RootPath, name))
+		}
+
+		return nil
+	})
+}
+
 func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 	defer stats.NewTiming().Send(`byteflood.db.entry_scan_time`)
 	stats.Increment(`byteflood.db.entry`)
@@ -258,7 +272,7 @@ func (self *Directory) cleanupMissingEntries(query interface{}) error {
 			}
 
 			if l := len(entriesToDelete); l > 0 {
-				if err := self.db.Metadata.Delete(entriesToDelete...); err == nil {
+				if err := self.cleanup(entriesToDelete...); err == nil {
 					log.Infof("[%s] Cleaned up %d missing entries", self.ID, l)
 				} else {
 					log.Warningf("[%s] Failed to cleanup missing entries: %v", self.ID, err)
@@ -269,6 +283,14 @@ func (self *Directory) cleanupMissingEntries(query interface{}) error {
 		} else {
 			return err
 		}
+	} else {
+		return err
+	}
+}
+
+func (self *Directory) cleanup(entries ...interface{}) error {
+	if err := self.db.Metadata.Delete(entries...); err == nil {
+		return nil
 	} else {
 		return err
 	}

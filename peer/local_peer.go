@@ -171,54 +171,57 @@ func (self *LocalPeer) Run() error {
 }
 
 func (self *LocalPeer) RunPeerListener() error {
-	if self.EnableUpnp {
-		if _, p, err := net.SplitHostPort(self.Address); err == nil {
-			if v, err := stringutil.ConvertToInteger(p); err == nil {
-				port := int(v)
+	if addr, err := net.ResolveTCPAddr(`tcp`, self.Address); err == nil {
+		if listener, err := net.ListenTCP(`tcp`, addr); err == nil {
+			defer listener.Close()
 
-				if port > 0 {
-					log.Infof("Setting up UPnP port mapping...")
+			self.Address = listener.Addr().String()
+			log.Infof("Listening on %s", self.Address)
 
-					if devices, err := DiscoverGateways(self.UpnpDiscoveryTimeout); err == nil {
-						// search for Internet Gateway Devices, and talk to the first one
-						// (this is the 99% case for home gamers)
-						//
-						for _, device := range devices {
-							// add TCP port mapping
-							if mapping, err := device.AddPortMapping(`tcp`, port, port, BF_UPNP_SERVICE_NAME, self.UpnpMappingDuration); err == nil {
-								log.Debugf("Adding port mapping: %s", mapping.String())
+			if self.EnableUpnp {
+				if _, p, err := net.SplitHostPort(self.Address); err == nil {
+					if v, err := stringutil.ConvertToInteger(p); err == nil {
+						port := int(v)
 
-								// and we shall call this gateway our default gateway
-								self.upnpPortMapping = mapping
-								break
+						if port > 0 {
+							log.Infof("Setting up UPnP port mapping...")
+
+							if devices, err := DiscoverGateways(self.UpnpDiscoveryTimeout); err == nil {
+								// search for Internet Gateway Devices, and talk to the first one
+								// (this is the 99% case for home gamers)
+								//
+								for _, device := range devices {
+									// add TCP port mapping
+									if mapping, err := device.AddPortMapping(`tcp`, port, port, BF_UPNP_SERVICE_NAME, self.UpnpMappingDuration); err == nil {
+										log.Debugf("Adding port mapping: %s", mapping.String())
+
+										// and we shall call this gateway our default gateway
+										self.upnpPortMapping = mapping
+										break
+									} else {
+										log.Errorf("Failed to add UPnP port mapping for %d/tcp", port)
+									}
+
+								}
+
+								if self.upnpPortMapping == nil {
+									if len(devices) == 0 {
+										return fmt.Errorf("Failed to map port %d/tcp: no UPnP gateways discovered", port)
+									} else {
+										return fmt.Errorf("Failed to map port %d/tcp via any discovered gateway", port)
+									}
+								}
 							} else {
-								log.Errorf("Failed to add UPnP port mapping for %d/tcp", port)
-							}
-
-						}
-
-						if self.upnpPortMapping == nil {
-							if len(devices) == 0 {
-								return fmt.Errorf("Failed to map port %d/tcp: no UPnP gateways discovered", port)
-							} else {
-								return fmt.Errorf("Failed to map port %d/tcp via any discovered gateway", port)
+								return err
 							}
 						}
 					} else {
 						return err
 					}
+				} else {
+					return err
 				}
-			} else {
-				return err
 			}
-		} else {
-			return err
-		}
-	}
-
-	if addr, err := net.ResolveTCPAddr(`tcp`, self.Address); err == nil {
-		if listener, err := net.ListenTCP(`tcp`, addr); err == nil {
-			log.Infof("Listening on %s", self.Address)
 
 			// tell anyone who cares that we're ready to start accepting connections now
 			select {
@@ -551,15 +554,18 @@ func (self *LocalPeer) ConnectToAndMonitor(address string) {
 			// heartbeat failed, disconnect from peer
 			remotePeer.Disconnect()
 
-		} else if IsUnknownPeerErr(err) {
+		} else {
 			log.Warning(err)
-			return
-		} else if IsAlreadyConnectedErr(err) {
-			log.Warning(err)
-			return
-		} else if IsLoopbackConnectionErr(err) {
-			log.Warning(err)
-			return
+
+			if IsUnknownPeerErr(err) {
+				return
+			} else if IsAlreadyConnectedErr(err) {
+				return
+			} else if IsLoopbackConnectionErr(err) {
+				return
+			} else if strings.HasSuffix(err.Error(), `connection refused`) {
+				return
+			}
 		}
 
 		time.Sleep(time.Duration(retryWaitSec) * time.Second)

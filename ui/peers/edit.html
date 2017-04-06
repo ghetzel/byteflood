@@ -33,6 +33,9 @@ bindings:
                 aria-describedby="idHelp"
                 required
                 autofocus
+                {{ if .bindings.peer.id }}
+                readonly
+                {{ end }}
                 value="{{ .bindings.peer.id }}"
             >
 

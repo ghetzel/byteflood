@@ -27,7 +27,18 @@ bindings:
             {{ or .description .id }}
         </span>
 
-        <div class="flex-column bf-share-stats">
+        <div class="d-flex align-items-end">
+            {{ if .blocklist }}
+            <span
+                class="badge badge-danger mr-2"
+                title="Access to this share is restricted by a blocklist."
+            >
+                <i class="fa fa-lock"></i>
+                <span class="sr-only">Restricted</span>
+            </span>
+            {{ end }}
+
+            <div class="flex-column bf-share-stats">
             {{ if .stats.file_count }}
                 {{ if .stats.total_bytes }}
                 <div data-share-bytes="{{ .stats.total_bytes }}" class="text-right">
@@ -43,6 +54,17 @@ bindings:
                     Empty
                 </div>
             {{ end }}
+            </div>
+
+            <div class="bf-share-actions d-flex flex-column align-self-start justify-content-start">
+                {{ if not $session }}
+                <i
+                    class="align-self-center action-remove fa fa-fw fa-remove"
+                    title="Delete"
+                    onclick="byteflood.delete('shares', '{{ .id }}')"
+                ></i>
+                {{ end }}
+            </div>
         </div>
     </button>
     {{ end }}

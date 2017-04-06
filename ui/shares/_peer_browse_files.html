@@ -87,7 +87,7 @@ bindings:
       <li class="nav-item">
         <a
           class="nav-link"
-          href="/shares/edit?id={{ $share }}"
+          href=""
           title="Edit this share."
         >
           <i class="fa fa-pencil"></i>
@@ -97,20 +97,9 @@ bindings:
 
       <li class="nav-item">
         <a
-            class="nav-link"
-            href="/api{{ if $session }}/sessions/{{ $session }}/proxy{{ end }}/shares/{{ $share }}/browse/"
-            target="_blank"
-        >
-          <i class="fa fa-external-link-square"></i>
-          API Link
-        </a>
-      </li>
-
-      <li class="nav-item">
-        <a
           class="nav-link"
           href="#"
-          onclick="byteflood.delete('shares', '{{ $share }}')"
+
           title="Delete this share."
         >
           <i class="fa fa-remove"></i>
