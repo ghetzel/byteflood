@@ -8,11 +8,12 @@ bindings:
   resource: :/api/sessions
 ---
 {{ $session := or .request.url.query.session `` }}
-{{ $view := or .request.url.query.view `files` }}
 {{ $share := or .request.url.query.share `` }}
+{{ $view := or .request.url.query.view `files` }}
 {{ $path := or .request.url.query.path `` }}
 {{ $limit := or .request.url.query.limit `` }}
 {{ $offset := or .request.url.query.offset `` }}
+{{ $active := print (or $session `local`) `_` $share }}
 <div class="row">
   <div class="col-lg-3">
       <ul class="nav flex-column bf-nav-tree">
@@ -29,7 +30,7 @@ bindings:
             </div>
 
             <div
-              bf-load="/shares/_peer_shares?share={{ $share }}"
+              bf-load="/shares/_peer_shares?share={{ $share }}&amp;active={{ $active }}"
               bf-interval="{{ $.page.local_interval }}"
             ></div>
           </li>
@@ -48,7 +49,7 @@ bindings:
             </div>
 
             <div
-              bf-load="/shares/_peer_shares?session={{ .session_id }}&amp;share={{ $share }}&amp;peer={{ .name }}"
+              bf-load="/shares/_peer_shares?session={{ .session_id }}&amp;share={{ $share }}&amp;peer={{ .name }}&amp;active={{ $active }}"
               bf-interval="{{ $.page.peer_interval }}"
             ></div>
           </li>

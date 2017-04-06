@@ -49,6 +49,12 @@ func GetShares(conn *db.Database, requestingPeer peer.Peer, stats bool, ids ...s
 						}
 					}
 
+					// remote peers should not be able to see the Allow/Blocklists
+					if !requestingPeer.IsLocal() {
+						share.Allowlist = ``
+						share.Blocklist = ``
+					}
+
 					output = append(output, share)
 				}
 			}

@@ -10,16 +10,17 @@ bindings:
 {{ $share := or .request.url.query.share `` }}
 {{ $session := or .request.url.query.session `` }}
 {{ $peer := or .request.url.query.peer `` }}
+{{ $active := or .request.url.query.active `` }}
 <div class="list-group">
     {{ if .bindings.shares }}
     {{ range .bindings.shares }}
+        {{ $current := print (or $session `local`) `_` .id }}
     <button
         type="button"
         {{ if not .stats.file_count }}
-        disabled="disabled"
         title="There are no files available in this share."
         {{ end }}
-        class="list-group-item list-group-item-action{{ if eq .id $share }} active{{ end }} justify-content-between"
+        class="list-group-item list-group-item-action{{ if eq $current $active }} active{{ end }} justify-content-between{{ if not .stats.file_count }} disabled{{ end }}"
         onclick="location.href='/shares/?share={{ .id }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}'"
     >
         <span class="align-items-start">
@@ -39,13 +40,13 @@ bindings:
             {{ end }}
 
             <div class="flex-column bf-share-stats">
-            {{ if .stats.file_count }}
-                {{ if .stats.total_bytes }}
+            {{ if .stats.total_bytes }}
                 <div data-share-bytes="{{ .stats.total_bytes }}" class="text-right">
                     {{ autobyte .stats.total_bytes "%.3g " }}
                 </div>
-                {{ end }}
+            {{ end }}
 
+            {{ if .stats.file_count }}
                 <div data-share-files="{{ .stats.file_count }}" class="text-right">
                     {{ .stats.file_count | thousandify }} files
                 </div>
