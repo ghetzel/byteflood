@@ -30,13 +30,13 @@ func (self *API) handleGetDatabaseItem(w http.ResponseWriter, req *http.Request)
 }
 
 func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request) {
-	if limit, offset, sort, err := self.getSearchParams(req); err == nil {
+	if limit, offset, sort, err := getSearchParams(req); err == nil {
 		if f, err := db.ParseFilter(vestigo.Param(req, `_name`)); err == nil {
 			f.Limit = limit
 			f.Offset = offset
 			f.Sort = sort
 
-			if v := self.qs(req, `fields`); v != `` {
+			if v := qs(req, `fields`); v != `` {
 				f.Fields = strings.Split(v, `,`)
 			}
 
@@ -56,7 +56,7 @@ func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request) {
 }
 
 func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request) {
-	if limit, offset, sort, err := self.getSearchParams(req); err == nil {
+	if limit, offset, sort, err := getSearchParams(req); err == nil {
 		query := ``
 
 		if parent := vestigo.Param(req, `parent`); parent == `` {
@@ -70,7 +70,7 @@ func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request) 
 			f.Offset = offset
 			f.Sort = sort
 
-			if v := self.qs(req, `fields`); v != `` {
+			if v := qs(req, `fields`); v != `` {
 				f.Fields = strings.Split(v, `,`)
 			}
 
@@ -99,7 +99,7 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 
 	fields := strings.Split(fV, `/`)
 
-	if v := self.qs(req, `q`); v == `` {
+	if v := qs(req, `q`); v == `` {
 		if rs, err := self.db.Metadata.List(fields); err == nil {
 			Respond(w, rs)
 			return
@@ -127,7 +127,7 @@ func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request) 
 	switch vestigo.Param(req, `action`) {
 	case `scan`:
 		payload := DatabaseScanRequest{
-			DeepScan: self.qsBool(req, `deep`),
+			DeepScan: qsBool(req, `deep`),
 		}
 
 		if req.ContentLength > 0 {

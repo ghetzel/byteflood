@@ -77,7 +77,7 @@ func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
 
 			if absPath, err := entry.GetAbsolutePath(); err == nil {
 				if osFile, err := os.Open(absPath); err == nil {
-					if !self.writeHttpHeadersForEntry(w, req, &entry) {
+					if !writeHttpHeadersForEntry(w, req, &entry) {
 						return
 					}
 

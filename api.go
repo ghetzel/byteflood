@@ -8,6 +8,7 @@ import (
 	"github.com/ghetzel/diecast"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/gorilla/websocket"
+	"github.com/gregjones/httpcache"
 	"github.com/husobee/vestigo"
 	"github.com/orcaman/concurrent-map"
 	"github.com/urfave/negroni"
@@ -74,8 +75,14 @@ func (self *API) Serve() error {
 	mux := http.NewServeMux()
 	ui := diecast.NewServer(uiDir, `*.html`)
 
+	// handle serving UI from an embedded FileSystem
 	if self.UiDirectory == `embedded` {
 		ui.SetFileSystem(FS(false))
+	}
+
+	// provide a cache-aware http.Client to diecast
+	diecast.BindingClient = &http.Client{
+		Transport: httpcache.NewMemoryCacheTransport(),
 	}
 
 	if err := ui.Initialize(); err != nil {
@@ -212,36 +219,12 @@ func (self *API) SendMessage(message string) {
 	})
 }
 
-func (self *API) qsInt(req *http.Request, key string) (int64, error) {
-	if v := req.URL.Query().Get(key); v != `` {
-		if i, err := stringutil.ConvertToInteger(v); err == nil {
-			return i, nil
-		} else {
-			return 0, fmt.Errorf("%s: %v", key, err)
-		}
-	}
-
-	return 0, nil
-}
-
-func (self *API) qsBool(req *http.Request, key string) bool {
-	if v := req.URL.Query().Get(key); v == `true` {
-		return true
-	}
-
-	return false
-}
-
-func (self *API) qs(req *http.Request, key string) string {
-	return req.URL.Query().Get(key)
-}
-
-func (self *API) getSearchParams(req *http.Request) (int, int, []string, error) {
+func getSearchParams(req *http.Request) (int, int, []string, error) {
 	limit := 0
 	offset := 0
 	var sort []string
 
-	if i, err := self.qsInt(req, `limit`); err == nil {
+	if i, err := qsInt(req, `limit`); err == nil {
 		if i > 0 {
 			limit = int(i)
 		} else {
@@ -251,7 +234,7 @@ func (self *API) getSearchParams(req *http.Request) (int, int, []string, error) 
 		return 0, 0, nil, err
 	}
 
-	if i, err := self.qsInt(req, `offset`); err == nil {
+	if i, err := qsInt(req, `offset`); err == nil {
 		offset = int(i)
 	} else {
 		return 0, 0, nil, err
@@ -279,7 +262,7 @@ func (self *API) startEventDispatcher() {
 // and modification timestamps.  The function will return whether the actual content should be written to
 // the client (true) or not.  If the function returns false, the calling handler should return immediately.
 //
-func (self *API) writeHttpHeadersForEntry(w http.ResponseWriter, req *http.Request, entry *db.Entry) bool {
+func writeHttpHeadersForEntry(w http.ResponseWriter, req *http.Request, entry *db.Entry) bool {
 	ifNoneMatch := strings.Trim(
 		strings.TrimPrefix(req.Header.Get(`If-None-Match`), `W/`),
 		`"`,
@@ -313,4 +296,36 @@ func (self *API) writeHttpHeadersForEntry(w http.ResponseWriter, req *http.Reque
 	}
 
 	return true
+}
+
+func writeCacheHeaders(w http.ResponseWriter, maxAge int) {
+	if maxAge < 0 {
+		w.Header().Del(`Cache-Control`)
+	} else {
+		w.Header().Set(`Cache-Control`, fmt.Sprintf("max-age=%d", maxAge))
+	}
+}
+
+func qsInt(req *http.Request, key string) (int64, error) {
+	if v := req.URL.Query().Get(key); v != `` {
+		if i, err := stringutil.ConvertToInteger(v); err == nil {
+			return i, nil
+		} else {
+			return 0, fmt.Errorf("%s: %v", key, err)
+		}
+	}
+
+	return 0, nil
+}
+
+func qsBool(req *http.Request, key string) bool {
+	if v := req.URL.Query().Get(key); v == `true` {
+		return true
+	}
+
+	return false
+}
+
+func qs(req *http.Request, key string) string {
+	return req.URL.Query().Get(key)
 }

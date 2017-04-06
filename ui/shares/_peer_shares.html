@@ -1,7 +1,7 @@
 ---
 bindings:
 - name: shares
-  resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares?stats=true
+  resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares
   params:
     limit:  '{{ .request.url.query.limit }}'
     offset: '{{ or .request.url.query.offset 0 }}'
@@ -39,23 +39,12 @@ bindings:
             </span>
             {{ end }}
 
-            <div class="flex-column bf-share-stats">
-            {{ if .stats.total_bytes }}
-                <div data-share-bytes="{{ .stats.total_bytes }}" class="text-right">
-                    {{ autobyte .stats.total_bytes "%.3g " }}
-                </div>
-            {{ end }}
-
-            {{ if .stats.file_count }}
-                <div data-share-files="{{ .stats.file_count }}" class="text-right">
-                    {{ .stats.file_count | thousandify }} files
-                </div>
-            {{ else }}
-                <div data-share-files="0" class="text-right font-italic">
-                    Empty
-                </div>
-            {{ end }}
-            </div>
+            <script type="text/javascript" id="share_{{ $current }}_stats">
+                byteflood.replaceWith(
+                    '#share_{{ $current }}_stats',
+                    '/shares/_peer_share_stats?session={{ $session }}&share={{ .id }}'
+                );
+            </script>
 
             <div class="bf-share-actions d-flex flex-column align-self-start justify-content-start">
                 {{ if not $session }}

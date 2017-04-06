@@ -78,18 +78,30 @@ $(function(){
             }.bind(this));
         },
 
-        loadInto: function(selector, url, payload, onerror) {
+        loadInto: function(selector, url, payload, onError) {
+            return this.loadElement(selector, url, payload, onError, false);
+        },
+
+        replaceWith: function(selector, url, payload, onError) {
+            return this.loadElement(selector, url, payload, onError, true);
+        },
+
+        loadElement: function(selector, url, payload, onError, replace) {
             $.ajax(url, {
                 method: 'GET',
                 data: payload,
                 success: function(data){
-                    $(selector).html(data);
+                    if(replace === true){
+                        $(selector).replaceWith(data);
+                    }else{
+                        $(selector).html(data);
+                    }
                 }.bind(this),
                 error: function(response){
-                    if(onerror === false){
+                    if(onError === false){
                         return;
-                    }else if($.isFunction(onerror)){
-                        return onerror.bind(this)(response);
+                    }else if($.isFunction(onError)){
+                        return onError.bind(this)(response);
                     }else{
                         return this.showResponseError.bind(this)(response);
                     }

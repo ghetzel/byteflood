@@ -1,0 +1,24 @@
+---
+bindings:
+- name: stats
+  resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}/stats
+---
+{{ $share := or .request.url.query.share `` }}
+{{ $session := or .request.url.query.session `` }}
+<div class="flex-column bf-share-stats">
+    {{ if .bindings.stats.total_bytes }}
+        <div data-share-bytes="{{ .bindings.stats.total_bytes }}" class="text-right">
+            {{ autobyte .bindings.stats.total_bytes "%.3g " }}
+        </div>
+    {{ end }}
+
+    {{ if .bindings.stats.file_count }}
+        <div data-share-files="{{ .bindings.stats.file_count }}" class="text-right">
+            {{ .bindings.stats.file_count | thousandify }} files
+        </div>
+    {{ else }}
+        <div data-share-files="0" class="text-right font-italic">
+            Empty
+        </div>
+    {{ end }}
+</div>
