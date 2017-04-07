@@ -5,11 +5,12 @@ import (
 	"github.com/alexcesaro/statsd"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
+	"github.com/sabhiram/go-gitignore"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
+	"strings"
 	"time"
 )
 
@@ -28,6 +29,17 @@ type Directory struct {
 	Directories          []*Directory `json:"-"`
 	FileCount            int          `json:"file_count"`
 	db                   *Database
+	compiledIgnoreList   *ignore.GitIgnore
+}
+
+func GetScannedDirectories(conn *Database) ([]*Directory, error) {
+	var dirs []*Directory
+
+	if err := conn.ScannedDirectories.All(&dirs); err == nil {
+		return dirs, nil
+	} else {
+		return nil, err
+	}
 }
 
 var RootDirectoryName = `root`
@@ -61,8 +73,19 @@ func (self *Directory) Initialize() error {
 		self.RootPath = self.Path
 	}
 
+	self.RootPath = strings.TrimSuffix(self.RootPath, `/`)
+
 	if self.Parent == `` {
 		self.Parent = RootDirectoryName
+	}
+
+	// file pattern matching
+	if self.FilePattern != `` {
+		if ig, err := ignore.CompileIgnoreLines(strings.Split(self.FilePattern, "\n")...); err == nil {
+			self.compiledIgnoreList = ig
+		} else {
+			return err
+		}
 	}
 
 	return nil
@@ -72,6 +95,7 @@ func (self *Directory) Scan() error {
 	if entries, err := ioutil.ReadDir(self.Path); err == nil {
 		for _, entry := range entries {
 			absPath := path.Join(self.Path, entry.Name())
+			relPath := strings.TrimPrefix(absPath, self.RootPath)
 
 			if pathutil.IsSymlink(entry.Mode()) {
 				if self.FollowSymlinks {
@@ -98,6 +122,14 @@ func (self *Directory) Scan() error {
 				}
 			}
 
+			// if an ignore list is in effect for this directory
+			if self.compiledIgnoreList != nil {
+				if self.compiledIgnoreList.MatchesPath(absPath) {
+					log.Debugf("[%s] Ignoring entry %s", self.ID, relPath)
+					continue
+				}
+			}
+
 			// recursive directory handling
 			if entry.IsDir() {
 				if !self.NoRecurseDirectories {
@@ -113,12 +145,17 @@ func (self *Directory) Scan() error {
 						subdirectory.FileMinimumSize = self.FileMinimumSize
 						subdirectory.FollowSymlinks = self.FollowSymlinks
 						subdirectory.DeepScan = self.DeepScan
+						subdirectory.compiledIgnoreList = self.compiledIgnoreList
 
-						log.Infof("[%s] %s: Scanning subdirectory %s", self.ID, subdirectory.Parent, subdirectory.Path)
+						if err := subdirectory.Initialize(); err == nil {
+							log.Infof("[%s] %16s: Scanning subdirectory %s", self.ID, subdirectory.Parent, relPath)
 
-						if err := subdirectory.Scan(); err == nil {
-							self.FileCount = subdirectory.FileCount
-							self.Directories = append(self.Directories, subdirectory)
+							if err := subdirectory.Scan(); err == nil {
+								self.FileCount = subdirectory.FileCount
+								self.Directories = append(self.Directories, subdirectory)
+							} else {
+								return err
+							}
 						} else {
 							return err
 						}
@@ -163,17 +200,6 @@ func (self *Directory) Scan() error {
 				// then skip it
 				if self.FileMinimumSize > 0 && entry.Size() < int64(self.FileMinimumSize) {
 					continue
-				}
-
-				// file pattern matching
-				if self.FilePattern != `` {
-					if rx, err := regexp.Compile(self.FilePattern); err == nil {
-						if !rx.MatchString(absPath) {
-							continue
-						}
-					} else {
-						return err
-					}
 				}
 
 				// scan the entry as a sharable asset
@@ -240,7 +266,7 @@ func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 
 	// Deep Scan only from here on...
 	// --------------------------------------------------------------------------------------------
-	log.Infof("[%s] %s: Scanning entry %s", self.ID, self.Parent, name)
+	log.Infof("[%s] %16s: Scanning entry %s", self.ID, self.Parent, name)
 
 	entry.Parent = self.Parent
 	entry.Label = self.ID
@@ -288,6 +314,13 @@ func (self *Directory) cleanupMissingEntries(query interface{}) error {
 
 			for _, entry := range entries {
 				entry.SetDatabase(self.db)
+
+				if self.compiledIgnoreList != nil {
+					if self.compiledIgnoreList.MatchesPath(entry.RelativePath) {
+						entriesToDelete = append(entriesToDelete, entry.ID)
+						continue
+					}
+				}
 
 				if absPath, err := entry.GetAbsolutePath(); err == nil {
 					if _, err := os.Stat(absPath); os.IsNotExist(err) {

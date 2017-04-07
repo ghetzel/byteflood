@@ -17,11 +17,9 @@ bindings:
         {{ $current := print (or $session `local`) `_` .id }}
     <button
         type="button"
-        {{ if not .stats.file_count }}
-        title="There are no files available in this share."
-        {{ end }}
         class="list-group-item list-group-item-action{{ if eq $current $active }} active{{ end }} justify-content-between"
         {{ if not $session }}
+        title="Right-click to edit"
         oncontextmenu="event.preventDefault(); location.href='/shares/edit?id={{ .id }}'"
         {{ end }}
         onclick="location.href='/shares/?share={{ .id }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}'"

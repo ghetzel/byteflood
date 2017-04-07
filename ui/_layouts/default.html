@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="/css/font-awesome.min.css" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous" type="text/css">
     <link rel="stylesheet" href="/css/typeahead.css" integrity="sha384-+CKKZCCG/eFPcGV13i1VpzLA0nH/btEWvpMcmmgGfnjyAxWcI49yL0sa2OWcUFrh" crossorigin="anonymous" type="text/css">
     <link rel="stylesheet" href="/css/simplemde.min.css" integrity="sha384-rQdIropf4eQBEB9SkNB4xxukYHlkyXJfKYkpVNUQOLizz+d2q0wo7zjVA2XcYSij" crossorigin="anonymous" type="text/css">
+    <link rel="stylesheet" href="/fonts/lato-v13/font.css" integrity="sha384-0Hb8dLxXiXxMUffewqknJy643MOnArS8kJbwa0Coj6ZmOhfBe0mmfLm4Rm97W06F" crossorigin="anonymous" type="text/css">
     <link rel="stylesheet" href="/css/app.css" type="text/css">
 
     <meta name="theme-color" content="#162d50">
@@ -128,16 +129,7 @@
       </div>
     </nav>
 
-    <div class="content-container">
-      {{ if .page.title }}
-      {{ if not .page.hide_title }}
-      <div class="page-title">
-        <h1>{{ .page.title }}</h1>
-      </div>
-      {{ end }}
-      {{ end }}
-      {{ template "content" . }}
-    </div>
+    <div class="content-container">{{ template "content" . }}</div>
 
     <nav class="navbar navbar-dark bg-inverse sitewide site-secondary">
         <div class="container-fluid">

@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/pivot/dal"
+	"github.com/sabhiram/go-gitignore"
 	"os"
-	"regexp"
+	"strings"
 )
 
 var MetadataSchema = &dal.Collection{
@@ -192,16 +193,15 @@ var ScannedDirectoriesSchema = &dal.Collection{
 				return nil
 			},
 		}, {
-			Name: `file_pattern`,
-			Description: `An optional regular expression used to whitelist filenames. ` +
-				`If set, only absolute paths matching this query will be scanned.`,
-			Type: dal.StringType,
+			Name:        `file_pattern`,
+			Description: `A gitignore-style set of rules that specifies which files to exclude from scans.`,
+			Type:        dal.StringType,
+			Formatter: func(value interface{}, op dal.FieldOperation) (interface{}, error) {
+				return strings.TrimSpace(fmt.Sprintf("%v", value)), nil
+			},
 			Validator: func(value interface{}) error {
-				if _, err := regexp.Compile(fmt.Sprintf("%v", value)); err != nil {
-					return err
-				}
-
-				return nil
+				_, err := ignore.CompileIgnoreLines(strings.Split(fmt.Sprintf("%v", value), "\n")...)
+				return err
 			},
 		}, {
 			Name:         `recursive`,

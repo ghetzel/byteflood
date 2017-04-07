@@ -13,7 +13,7 @@ bindings:
 <div class="col-sm-12 col-md-6">
     <form name="shares" method="{{ if $isNew }}POST{{ else }}PUT{{ end }}" data-redirect-to="/shares/?share={{ .bindings.share.id }}">
         <div class="form-group">
-            <label for="id">Share ID</label>
+            <label for="id" class="required">Share ID</label>
             <input
                 type="text"
                 class="form-control"
@@ -31,12 +31,13 @@ bindings:
         </div>
 
         <div class="form-group">
-            <label for="description">Title</label>
+            <label for="description" class="required">Title</label>
             <input
                 type="text"
                 class="form-control"
                 name="description"
                 aria-describedby="descriptionHelp"
+                required
                 value="{{ or .request.url.query.description .bindings.share.description }}"
             >
 
@@ -72,7 +73,7 @@ bindings:
         </div>
 
         <div class="form-group row">
-            <label class="col-sm-3 col-form-label" for="filter">Content Filter</label>
+            <label class="col-sm-3 col-form-label required" for="filter">Content Filter</label>
 
             <div class="col-sm-9">
                 <div class="input-group">
@@ -102,7 +103,7 @@ bindings:
         </div>
 
         <div class="form-group row">
-            <label class="col-sm-3 col-form-label" for="icon_name">Icon</label>
+            <label class="col-sm-3 col-form-label required" for="icon_name">Icon</label>
 
             <div class="col-sm-9">
                 <div class="input-group">
@@ -984,6 +985,7 @@ bindings:
 <script type="text/javascript">
 $(function(){
     window._shares_filter_update = function(){
+        var directories = document.forms['shares'].elements['_directory'];
         var directory = $(document.forms['shares'].elements['_directory']);
         var query = document.forms['shares'].elements['filter'].value;
 
@@ -994,7 +996,21 @@ $(function(){
         });
 
         if(query && query != directory.val()) {
-            directory.attr('disabled', 'disabled');
+            var foundAnotherOption = false;
+
+            $.each(directories.options, function(i, option){
+                if(!foundAnotherOption){
+                    if(query == option.value){
+                        directories.selectedIndex = i;
+                        foundAnotherOption = true;
+                        directory.removeAttr('disabled');
+                    }
+                }
+            });
+
+            if(!foundAnotherOption){
+                directory.attr('disabled', 'disabled');
+            }
         }else{
             directory.removeAttr('disabled');
         }

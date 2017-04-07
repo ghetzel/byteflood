@@ -8,10 +8,7 @@ bindings:
 <div class="col-sm-12 col-md-6">
     <form name="directories" method="POST" data-redirect-to="/database">
         <div class="form-group">
-            <label for="id">
-                <b>Label</b>
-                <small><i>(required)</i></small>
-            </label>
+            <label for="id" class="required">Label</label>
             <input
                 type="text"
                 class="form-control"
@@ -30,7 +27,7 @@ bindings:
         </div>
 
         <div class="form-group">
-            <label for="path"><b>Local Path</b> <small><i>(required)</i></small></label>
+            <label for="path" class="required">Local Path</label>
             <div class="w-100">
                 <input
                     type="text"
@@ -47,22 +44,6 @@ bindings:
 
             <small id="pathHelp" class="form-text text-muted">
                 This is the local filesystem path that should be scanned into the database.
-            </small>
-        </div>
-
-        <div class="form-group">
-            <label for="file_pattern">File Pattern</label>
-            <input
-                type="text"
-                class="form-control"
-                name="file_pattern"
-                aria-describedby="filePatternHelp"
-                value="{{ .bindings.directory.file_pattern }}"
-            >
-
-            <small id="filePatternHelp" class="form-text text-muted">
-                If specified, this regular expression will restrict which files under the given
-                path are included in the scan.
             </small>
         </div>
 
@@ -123,6 +104,22 @@ bindings:
                     If set, only in the immediate directory will be scanned, and any subdirectories will be omitted.
                 </small>
             </div>
+        </div>
+
+        <div class="form-group">
+            <label for="file_pattern">Ignore Patterns</label>
+            <textarea
+                class="form-control"
+                name="file_pattern"
+                aria-describedby="filePatternHelp"
+                rows="10"
+            >{{ .bindings.directory.file_pattern }}</textarea>
+
+            <small id="filePatternHelp" class="form-text text-muted">
+                If specified, the patterns listed here will be ignored when scanning this folder.  The syntax for
+                these patterns is consistent with <a href="https://git-scm.com/docs/gitignore#_pattern_format" target="_blank">
+                <code>.gitignore</code></a> filters commonly used with Git projects.
+            </small>
         </div>
 
         <button class="btn btn-primary" type="submit">Save</button>

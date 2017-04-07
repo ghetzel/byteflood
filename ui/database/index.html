@@ -28,9 +28,7 @@ bindings:
           Add Directory
         </a>
       </li>
-    </ul>
 
-    <ul class="navbar-nav flex-row">
       {{ if $scanning }}
       <li class="nav-item">
         <a class="nav-link">Scanning...</a>
@@ -38,6 +36,7 @@ bindings:
       {{ else }}
       <li class="nav-item">
         <a
+          href=""
           class="nav-link {{ if $scanning }}disabled{{ end }}"
           onclick="byteflood.scan()"
         >
@@ -50,11 +49,12 @@ bindings:
   </nav>
 
   {{ if .bindings.directories }}
-  <table class="table table-sm table-striped table-hover ">
+  <table class="table table-sm table-striped table-hover">
     <thead>
       <tr>
         <th>ID</th>
         <th>Path</th>
+        <th>Options</th>
         <th></th>
       </tr>
     </thead>
@@ -63,6 +63,11 @@ bindings:
       <tr>
         <td>{{ .id }}</td>
         <td>{{ .path }}</td>
+        <td>
+          <i class="fa fa-fw{{ if .follow_symlinks }} fa-link{{ end }}"{{ if .follow_symlinks }} title="Follow symlinks while scanning"{{ end }}></i>
+          <i class="fa fa-fw{{ if .file_pattern }} fa-code{{ end }}"{{ if .file_pattern }} title="Some files are not included in this scan"{{ end }}></i>
+          <i class="fa fa-fw{{ if .no_recurse }} fa-minus-square{{ end }}"{{ if .no_recurse }} title="Only scan files in the immediate directory"{{ end }}></i>
+        </td>
         <td>
           <span class="pull-right">
             <button

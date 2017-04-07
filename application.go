@@ -7,6 +7,7 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/go-stockutil/pathutil"
+	"github.com/ghetzel/pivot/backends"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
@@ -170,11 +171,18 @@ func (self *Application) Stop() {
 }
 
 func (self *Application) Scan(deep bool, labels ...string) error {
+	backends.BleveBatchFlushCount = 25
+	defer func() {
+		backends.BleveBatchFlushCount = 1
+	}()
+
 	return self.Database.Scan(deep, labels...)
 }
 
 func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
-	if f, err := db.ParseFilter("name=%s", name); err == nil {
+	if f, err := db.ParseFilter(map[string]interface{}{
+		`name`: name,
+	}); err == nil {
 		var shares []*shares.Share
 
 		if err := self.Database.Shares.Find(f, &shares); err == nil {

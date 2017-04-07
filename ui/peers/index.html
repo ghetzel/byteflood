@@ -6,23 +6,6 @@ bindings:
 - name: status
   resource: :/api/status
 ---
-<div class="card">
-  <div class="card-header">
-    Your Peer ID
-  </div>
-
-  <div class="card-block">
-    <div class="card-text text-center">
-      {{ .bindings.status.local_peer_id }}
-    </div>
-  </div>
-</div>
-
-<div
-  bf-load="/peers/_sessions"
-  bf-interval="5000"
-></div>
-
 <div
   bf-load="/peers/_authorized_peers"
   bf-interval="5000"

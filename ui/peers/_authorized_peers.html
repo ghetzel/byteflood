@@ -2,15 +2,36 @@
 bindings:
 - name: peers
   resource: :/api/peers
+
+- name: sessions
+  resource: :/api/sessions
 ---
+{{ $sessions := .bindings.sessions }}
 <div class="card">
   <div class="card-header">
     Authorized Peers
   </div>
+
+  <nav class="navbar navbar-light bg-faded flex-row justify-content-between">
+    <ul class="navbar-nav flex-row ">
+      <li class="nav-item">
+        <a
+          class="nav-link"
+          href="/peers/edit?id=new"
+          title="Add Peer"
+        >
+          <i class="fa fa-fw fa-user"></i>
+          Add Peer
+        </a>
+      </li>
+    </ul>
+  </nav>
+
   {{ if .bindings.peers }}
   <table class="table">
     <thead>
       <tr>
+        <th>Status</th>
         <th>Peer Name</th>
         <th>ID</th>
         <th>Addresses</th>
@@ -20,6 +41,13 @@ bindings:
     <tbody>
       {{ range .bindings.peers }}
       <tr>
+        <td>
+          {{ if in .id (pluck $sessions "id") }}
+          <span class="badge badge-success">Online</span>
+          {{ else }}
+          <span class="badge badge-default">Offline</span>
+          {{ end }}
+        </td>
         <td>{{ .name }}</td>
         <td>{{ .id }}</td>
         <td>{{ .addresses }}</td>
@@ -35,15 +63,6 @@ bindings:
         </td>
       </tr>
       {{ end }}
-      <tr>
-        <td colspan="4">
-          <span class="pull-right">
-            <a class="btn btn-sm btn-success" href="/peers/edit">
-              <i class="fa fa-plus"></i> Add Peer
-            </a>
-          </span>
-        </td>
-      </tr>
     </tbody>
   </table>
   {{ else }}

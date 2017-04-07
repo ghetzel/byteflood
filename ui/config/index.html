@@ -1,0 +1,58 @@
+---
+page:
+  title: Configuration
+
+bindings:
+- name: app
+  resource: :/api/status
+
+- name: config
+  resource: :/api/configuration
+
+---
+
+<div class="card">
+  <div class="card-header">
+    Current Configuration
+  </div>
+  <div class="card-block">
+    <dl class="row bf-config-table">
+        <dt class="col-sm-4 col-md-3 col-lg-2">Version</dt>
+        <dd class="col-sm-8 col-md-9 col-lg-10">{{ .bindings.app.version }}</dd>
+
+        <dt class="col-sm-4 col-md-3 col-lg-2">Local ID</dt>
+        <dd class="col-sm-8 col-md-9 col-lg-10">{{ .bindings.app.local_peer_id }}</dd>
+
+        <hr />
+
+        <dt class="col-sm-4 col-md-3 col-lg-2">Base Directory</dt>
+        <dd class="col-sm-8 col-md-9 col-lg-10">{{ .bindings.config.database.base_dir }}</dd>
+
+        <dt class="col-sm-4 col-md-3 col-lg-2">Public Key</dt>
+        <dd class="col-sm-8 col-md-9 col-lg-10">{{ .bindings.config.public_key }}</dd>
+
+        <dt class="col-sm-4 col-md-3 col-lg-2">Private Key</dt>
+        <dd class="col-sm-8 col-md-9 col-lg-10">{{ .bindings.config.private_key }}</dd>
+
+        <dt class="col-sm-4 col-md-3 col-lg-2">Database URI</dt>
+        <dd class="col-sm-8 col-md-9 col-lg-10"><code>{{ .bindings.config.database.uri }}</code></dd>
+
+        <dt class="col-sm-4 col-md-3 col-lg-2">Indexers</dt>
+        <dd class="col-sm-8 col-md-9 col-lg-10">
+            <ul class="list-unstyled m-0">
+            {{ range $collection, $uri := .bindings.config.database.additional_indexers }}
+                <li><b>{{ $collection }}:</b> <code>{{ $uri }}</code></li>
+            {{ end }}
+            </ul>
+        </dd>
+
+        <hr />
+
+        <dt class="col-sm-4 col-md-3 col-lg-2">Public Address</dt>
+        <dd class="col-sm-8 col-md-9 col-lg-10">{{ .bindings.config.local.address }}</dd>
+
+        <dt class="col-sm-4 col-md-3 col-lg-2">Admin API</dt>
+        <dd class="col-sm-8 col-md-9 col-lg-10">{{ .bindings.config.api.address }}</dd>
+    </dl>
+  </div>
+</div>

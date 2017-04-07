@@ -49,6 +49,7 @@ func (self *API) Initialize() error {
 	endpointModelMap[`peers`] = self.db.AuthorizedPeers
 	endpointModelMap[`shares`] = self.db.Shares
 	endpointModelMap[`subscriptions`] = self.db.Subscriptions
+	endpointModelMap[`properties`] = self.db.System
 
 	self.eventUpgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -94,6 +95,13 @@ func (self *API) Serve() error {
 	router.Get(`/api/events`, self.wsEventStream)
 	router.Get(`/api/browse/*`, self.handleBrowseLocalDirectories)
 
+	router.Get(`/api/properties`, self.handleGetSystemProperties)
+	router.Get(`/api/properties/:id`, self.handleGetSystemProperty)
+	router.Post(`/api/properties`, self.handleSaveModel)
+	router.Put(`/api/properties`, self.handleSaveModel)
+	router.Delete(`/api/properties/:id`, self.handleDeleteModel)
+	router.Get(`/api/properties/new`, self.handleGetNewModelInstance)
+
 	// download queue endpoints
 	router.Get(`/api/downloads`, self.handleGetQueue)
 	router.Get(`/api/downloads/history`, self.handleGetQueuedDownloads)
@@ -112,6 +120,7 @@ func (self *API) Serve() error {
 	// scanned directory management endpoints
 	router.Get(`/api/directories`, self.handleGetScannedDirectories)
 	router.Get(`/api/directories/:id`, self.handleGetScannedDirectory)
+	router.Post(`/api/directories/ignorelist`, self.handleScannedDirectoryTestIgnoreList)
 	router.Post(`/api/directories`, self.handleSaveModel)
 	router.Put(`/api/directories`, self.handleSaveModel)
 	router.Delete(`/api/directories/:id`, self.handleDeleteModel)

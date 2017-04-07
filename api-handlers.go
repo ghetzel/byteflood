@@ -27,7 +27,7 @@ var endpointInstanceMap = map[string]*dal.Collection{
 	`peers`:         db.AuthorizedPeersSchema,
 	`shares`:        db.SharesSchema,
 	`subscriptions`: db.SubscriptionsSchema,
-	`system`:        db.SystemSchema,
+	`properties`:    db.SystemSchema,
 }
 
 type AuthenticatedHandlerFunc func(http.ResponseWriter, *http.Request, peer.Peer) // {}
@@ -88,7 +88,7 @@ func (self *API) handleSaveModel(w http.ResponseWriter, req *http.Request) {
 
 			for _, record := range recordset.Records {
 				if req.Method == `POST` {
-					err = model.Create(record)
+					err = model.CreateOrUpdate(record.ID, record)
 				} else {
 					err = model.Update(record)
 				}
