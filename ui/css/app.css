@@ -212,12 +212,17 @@
     height: 100%;
     margin-right: -20px;
     margin-top: -10px;
-    color: transparent;
+}
+.bf-share-actions > i:first-child {
+    margin-top: 0.2em;
 }
 
 .bf-share-actions > i {
-    margin-top: 0.2em;
     margin-bottom: 0.1em;
+}
+
+.bf-share-actions .action {
+    color: transparent;
     opacity: 0.8;
 }
 

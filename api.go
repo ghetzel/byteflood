@@ -133,8 +133,8 @@ func (self *API) Serve() error {
 	// active session management endpoints
 	router.Get(`/api/sessions`, self.handleGetSessions)
 	router.Get(`/api/sessions/:session`, self.handleGetSession)
-	router.Add(http.MethodHead, `/api/sessions/:session/files/:file`, self.handleDownloadFile)
-	router.Get(`/api/sessions/:session/files/:file`, self.handleDownloadFile)
+	router.Add(http.MethodHead, `/api/sessions/:session/:share/files/:file`, self.handleDownloadFile)
+	router.Get(`/api/sessions/:session/:share/files/:file`, self.handleDownloadFile)
 
 	for _, method := range []string{`GET`, `POST`, `PUT`, `DELETE`, `HEAD`} {
 		router.Add(method, `/api/sessions/:session/proxy/*`, self.handleProxyToSession)
@@ -187,8 +187,7 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 	router.Get(`/`, self.handleGetSessionStatus)
 
 	// TODO: this needs to go through share to enforce authz
-	router.Post(`/transfers/:transfer/:entry`, self.handleRequestEntryFromShare)
-
+	router.Post(`/transfers/:transfer/:share/:entry`, self.wrapHandlerWithRemotePeer(self.handleRequestEntryFromShare))
 	router.Get(`/shares`, self.wrapHandlerWithRemotePeer(self.handleGetShares))
 	router.Get(`/shares/:id`, self.wrapHandlerWithRemotePeer(self.handleGetShare))
 	router.Get(`/shares/:id/landing`, self.wrapHandlerWithRemotePeer(self.handleShareLandingPage))

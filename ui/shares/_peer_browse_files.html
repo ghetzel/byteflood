@@ -26,6 +26,20 @@ bindings:
 {{ $parent := or .request.url.query.parent `` }}
 {{ $offset := or .request.url.query.offset 0 }}
 
+<script type="text/javascript">
+$(function(){
+  window._shares_browse_view_readme = function(id){
+    if(id){
+      console.debug(id)
+      byteflood.loadInto('#readme-viewer .card-block', '/api{{ if $session }}/sessions/{{ $session }}/{{ $share }}{{ end }}/files/'+id+'?pp=markdown', {
+        success: function(){
+          $('#readme-viewer').removeClass('d-none');
+        },
+      });
+    }
+  };
+});
+</script>
 
 <div class="w-100 d-flex align-items-baseline justify-content-between">
   <nav class="d-flex align-items-baseline">
@@ -216,7 +230,7 @@ bindings:
           {{ end }}
         </td>
         <td class="hidden-md-down">
-          {{ if .directory }}
+          {{ if .fields.directory }}
             &ndash;
           {{ else }}
             {{ if .fields.size }}
@@ -241,6 +255,15 @@ bindings:
           {{ end }}
         </td>
       </tr>
+        {{ if not .fields.directory }}
+        {{   if eqx (.fields.metadata.file.name | lower) `readme.md` }}
+        <script type="text/javascript">
+        $(function(){
+          _shares_browse_view_readme('{{ .id }}');
+        });
+        </script>
+        {{   end }}
+        {{ end }}
       {{ end }}
     </tbody>
   </table>
@@ -255,10 +278,13 @@ bindings:
 </div>
 {{ end }}
 
+{{ if not $parent }}
 {{ if .bindings.share.long_description }}
 {{ if (.bindings.share.long_description | trim) }}
 <div class="card">
-  <div class="card-header">
+  <div class="card-header font-weight-bold">
+    <i class="fa fa-home"></i>
+    Landing Page
   </div>
 
   <div class="card-block">
@@ -276,3 +302,14 @@ bindings:
 </div>
 {{ end }}
 {{ end }}
+{{ end }}
+
+<div class="card d-none" id="readme-viewer">
+  <div class="card-header font-weight-bold">
+    <i class="fa fa-book"></i>
+    README.md
+  </div>
+
+  <div class="card-block">
+  </div>
+</div>

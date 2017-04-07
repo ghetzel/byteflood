@@ -55,7 +55,33 @@ func (self *API) handleActionQueue(w http.ResponseWriter, req *http.Request) {
 
 func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
 	session := vestigo.Param(req, `session`)
+	share := vestigo.Param(req, `share`)
 	entryId := vestigo.Param(req, `file`)
+	var outputWriter io.Writer
+
+	// postprocessors intercept the data that would ordinarily be the response payload
+	// and perform some operation on them. the processed data is then written to the given
+	// io.Writer when the Flush() function is called.
+	//
+	if postprocessor := req.URL.Query().Get(`pp`); postprocessor != `` {
+		if pp, ok := GetPostprocessorByName(postprocessor); ok {
+			pp.SetWriter(w)
+
+			defer func(rw http.ResponseWriter) {
+				// remove Content-Length because we won't know what the final length is before
+				// the postprocessor starts writing the output, at which point it's too late
+				// to send a header.
+				rw.Header().Del(`Content-Length`)
+
+				// perform postprocessing and write data to the ResponseWriter
+				pp.Flush()
+			}(w)
+
+			outputWriter = pp
+		}
+	} else {
+		outputWriter = w
+	}
 
 	if mimeType := req.URL.Query().Get(`mimetype`); mimeType != `` {
 		w.Header().Set(`Content-Type`, mimeType)
@@ -63,8 +89,9 @@ func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
 
 	if session != `` {
 		if _, err := self.application.Queue.Download(
-			w,
+			outputWriter,
 			session,
+			share,
 			entryId,
 		); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -86,7 +113,7 @@ func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
 						log.Debugf("User-Agent: %v", req.Header.Get(`User-Agent`))
 
 						// actually write the data to the response
-						if _, err := io.Copy(w, osFile); err != nil {
+						if _, err := io.Copy(outputWriter, osFile); err != nil {
 							log.Error(err)
 							w.WriteHeader(http.StatusInternalServerError)
 						}

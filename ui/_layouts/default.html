@@ -91,11 +91,11 @@
             </a>
           </li>
 
-          <li class="nav-item {{ if eq .request.url.path `/` }}active{{end}}">
-            <a class="nav-link" href="/">
+          <li class="nav-item {{ if hasPrefix .request.url.path `/queue` }}active{{end}}">
+            <a class="nav-link" href="/queue">
               <i class="fa fa-fw fa-exchange"></i>
               Transfers
-              {{ if eq .request.url.path `/` }}
+              {{ if hasPrefix .request.url.path `/queue` }}
               <span class="sr-only">(current)</span>
               {{ end }}
             </a>

@@ -137,10 +137,11 @@ func (self *DownloadQueue) enqueueFile(remotePeer *peer.RemotePeer, shareID stri
 // for the download to finish.  The QueuedDownload that is returned is an io.Reader referencing the
 // downloaded data.
 //
-func (self *DownloadQueue) Download(w io.Writer, sessionID string, fileID string) (*QueuedDownload, error) {
+func (self *DownloadQueue) Download(w io.Writer, sessionID string, shareID string, fileID string) (*QueuedDownload, error) {
 	if download, ok := db.DownloadsSchema.NewInstance().(*QueuedDownload); ok {
 		download.Status = `idle`
 		download.SessionID = sessionID
+		download.ShareID = shareID
 		download.FileID = fileID
 		download.AddedAt = time.Now()
 		download.app = self.app
@@ -244,19 +245,42 @@ func (self *DownloadQueue) NextDownload() *QueuedDownload {
 	return nil
 }
 
-func (self *DownloadQueue) Clear() error {
-	current := self.NextDownload()
+func (self *DownloadQueue) Clear(statuses ...string) error {
+	idsToRemove := make([]interface{}, 0)
 
-	if err := self.app.Database.Downloads.Each(QueuedDownload{}, func(i interface{}) {
-		if download, ok := i.(*QueuedDownload); ok {
-			self.app.Database.Downloads.Delete(download.ID)
+	if len(statuses) == 0 {
+		statuses = []string{
+			`idle`,
+			`pending`,
+			`completed`,
 		}
-	}); err != nil {
-		return err
 	}
 
-	if current != nil {
-		current.Stop(fmt.Errorf("queue cleared"))
+	for _, status := range statuses {
+		if f, err := db.ParseFilter(map[string]interface{}{
+			`status`: status,
+		}); err == nil {
+			f.Fields = []string{`id`}
+
+			if err := self.app.Database.Downloads.FindFunc(f, QueuedDownload{}, func(i interface{}, err error) {
+				if err == nil {
+					if download, ok := i.(*QueuedDownload); ok {
+						idsToRemove = append(idsToRemove, download.ID)
+					}
+				} else {
+					log.Debugf("Error removing download: %v", err)
+				}
+			}); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
+	if l := len(idsToRemove); l > 0 {
+		log.Debugf("Removing %v downloads", l)
+		self.app.Database.Downloads.Delete(idsToRemove...)
 	}
 
 	return nil

@@ -206,15 +206,17 @@ func (self *Database) Cleanup() error {
 
 	log.Debugf("Cleaning up...")
 
-	if err := self.Metadata.Each(Entry{}, func(entryI interface{}) {
-		if entry, ok := entryI.(*Entry); ok {
-			entry.db = self
+	if err := self.Metadata.Each(Entry{}, func(entryI interface{}, err error) {
+		if err == nil {
+			if entry, ok := entryI.(*Entry); ok {
+				entry.db = self
 
-			if !sliceutil.ContainsString(ids, entry.Label) {
-				entriesToDelete = append(entriesToDelete, entry.ID)
-			} else if absPath, err := entry.GetAbsolutePath(); err == nil {
-				if _, err := os.Stat(absPath); os.IsNotExist(err) {
+				if !sliceutil.ContainsString(ids, entry.Label) {
 					entriesToDelete = append(entriesToDelete, entry.ID)
+				} else if absPath, err := entry.GetAbsolutePath(); err == nil {
+					if _, err := os.Stat(absPath); os.IsNotExist(err) {
+						entriesToDelete = append(entriesToDelete, entry.ID)
+					}
 				}
 			}
 		}

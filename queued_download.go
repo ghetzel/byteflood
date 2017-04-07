@@ -97,6 +97,10 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 				return fmt.Errorf("Download name required")
 			}
 
+			if self.ShareID == `` {
+				return fmt.Errorf("Remote ShareID required")
+			}
+
 			if self.Size == 0 {
 				return fmt.Errorf("Download size required")
 			}
@@ -154,7 +158,7 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 			// ask the remote side to start sending data
 			if response, err := remotePeer.ServiceRequest(
 				`POST`,
-				fmt.Sprintf("/transfers/%s/%s", transfer.ID, self.FileID),
+				fmt.Sprintf("/transfers/%s/%s/%s", transfer.ID, self.ShareID, self.FileID),
 				nil,
 				nil,
 			); err == nil {

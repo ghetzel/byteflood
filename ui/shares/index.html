@@ -71,7 +71,10 @@ bindings:
           return [x[0], x.splice(1).join('=')];
         });
 
-        byteflood.loadInto('#share-browser', '/shares/_peer_browse_{{ $view }}', qs, false);
+        byteflood.loadInto('#share-browser', '/shares/_peer_browse_{{ $view }}', {
+          payload: qs,
+          error: false,
+        });
       })
     </script>
     {{ end }}

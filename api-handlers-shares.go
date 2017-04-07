@@ -8,6 +8,7 @@ import (
 	"github.com/husobee/vestigo"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
+	"github.com/satori/go.uuid"
 	"io"
 	"net/http"
 	"path"
@@ -262,5 +263,44 @@ func (self *API) handleShareLandingPage(w http.ResponseWriter, req *http.Request
 		}
 	} else {
 		http.Error(w, ``, http.StatusNotFound)
+	}
+}
+
+func (self *API) handleRequestEntryFromShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
+	// perform the share authorization check on remote peers
+	if !client.IsLocal() {
+		if _, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `share`)); err != nil {
+			http.Error(w, ``, http.StatusNotFound)
+			return
+		}
+	}
+
+	// get remote peer from proxied request
+	if remotePeer, ok := self.application.LocalPeer.GetSession(client.SessionID()); ok {
+		var entry db.Entry
+
+		if err := self.db.Metadata.Get(vestigo.Param(req, `entry`), &entry); err == nil {
+			entry.SetDatabase(self.db)
+
+			// get the absolute filesystem path to the entry at :id
+			if absPath, err := entry.GetAbsolutePath(); err == nil {
+				// parse the given :transfer UUID
+				if transferId, err := uuid.FromString(vestigo.Param(req, `transfer`)); err == nil {
+					// kick off the transfer on our end
+					// TODO: this should be entered into an upload queue
+					// self.application.QueueUpload(remotePeer, transferId, absPath)
+					go remotePeer.TransferFile(transferId, absPath)
+					http.Error(w, ``, http.StatusNoContent)
+				} else {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+				}
+			} else {
+				http.Error(w, err.Error(), http.StatusNotFound)
+			}
+		} else {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		}
+	} else {
+		http.Error(w, `unknown session`, http.StatusForbidden)
 	}
 }

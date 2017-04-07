@@ -78,23 +78,37 @@ $(function(){
             }.bind(this));
         },
 
-        loadInto: function(selector, url, payload, onError) {
-            return this.loadElement(selector, url, payload, onError, false);
+        loadInto: function(selector, url, config) {
+            return this.loadElement(selector, url, config, false);
         },
 
-        replaceWith: function(selector, url, payload, onError) {
-            return this.loadElement(selector, url, payload, onError, true);
+        replaceWith: function(selector, url, config, onError) {
+            return this.loadElement(selector, url, config, true);
         },
 
-        loadElement: function(selector, url, payload, onError, replace) {
+        loadElement: function(selector, url, config, replace) {
+            var onError, onSuccess, payload;
+
+            if($.isPlainObject(config)){
+                onSuccess = config['success'];
+                onError = config['error'];
+                payload = config['payload'];
+            }
+
             $.ajax(url, {
                 method: 'GET',
                 data: payload,
                 success: function(data){
+                    var el = $(selector);
+
                     if(replace === true){
-                        $(selector).replaceWith(data);
+                        el.replaceWith(data);
                     }else{
-                        $(selector).html(data);
+                        el.html(data);
+                    }
+
+                    if($.isFunction(onSuccess)){
+                        onSuccess(data, el);
                     }
                 }.bind(this),
                 error: function(response){

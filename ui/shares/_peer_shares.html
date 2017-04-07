@@ -32,16 +32,6 @@ bindings:
         </span>
 
         <div class="d-flex align-items-end">
-            {{ if .blocklist }}
-            <span
-                class="badge badge-danger mr-2"
-                title="Access to this share is restricted by a blocklist."
-            >
-                <i class="fa fa-lock"></i>
-                <span class="sr-only">Restricted</span>
-            </span>
-            {{ end }}
-
             <script type="text/javascript" id="share_{{ $current }}_stats">
                 byteflood.replaceWith(
                     '#share_{{ $current }}_stats',
@@ -49,12 +39,18 @@ bindings:
                 );
             </script>
 
-            <div class="bf-share-actions d-flex flex-column align-self-start justify-content-start">
+            <div class="bf-share-actions d-flex flex-column align-self-start justify-content-between">
                 {{ if not $session }}
                 <i
-                    class="align-self-center action-remove fa fa-fw fa-remove"
+                    class="align-self-center action action-remove fa fa-fw fa-remove"
                     title="Delete"
                     onclick="byteflood.delete('shares', '{{ .id }}')"
+                ></i>
+                {{ end }}
+
+                {{ if .blocklist }}
+                <i class="align-self-center fa fa-fw fa-lock"
+                    title="Access to this share is restricted by a blocklist."
                 ></i>
                 {{ end }}
             </div>

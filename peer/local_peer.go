@@ -36,6 +36,7 @@ type Peer interface {
 	String() string
 	GetPublicKey() []byte
 	IsLocal() bool
+	SessionID() string
 }
 
 type LocalPeer struct {
@@ -92,10 +93,12 @@ func (self *LocalPeer) Initialize() error {
 	self.peerServer = NewPeerServer(self)
 
 	// load all authorized peers and populate AutoconnectPeers with their known addresses
-	if err := self.db.AuthorizedPeers.Each(AuthorizedPeer{}, func(v interface{}) {
-		if peer, ok := v.(*AuthorizedPeer); ok {
-			if peer.Addresses != `` {
-				self.AutoconnectPeers = append(self.AutoconnectPeers, peer.GetAddresses()...)
+	if err := self.db.AuthorizedPeers.Each(AuthorizedPeer{}, func(v interface{}, err error) {
+		if err == nil {
+			if peer, ok := v.(*AuthorizedPeer); ok {
+				if peer.Addresses != `` {
+					self.AutoconnectPeers = append(self.AutoconnectPeers, peer.GetAddresses()...)
+				}
 			}
 		}
 	}); err != nil {
@@ -115,6 +118,10 @@ func (self *LocalPeer) String() string {
 
 func (self *LocalPeer) IsLocal() bool {
 	return true
+}
+
+func (self *LocalPeer) SessionID() string {
+	return ``
 }
 
 func (self *LocalPeer) GetPublicKey() []byte {
