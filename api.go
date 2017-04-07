@@ -8,7 +8,7 @@ import (
 	"github.com/ghetzel/diecast"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/gorilla/websocket"
-	"github.com/gregjones/httpcache"
+	// "github.com/gregjones/httpcache"
 	"github.com/husobee/vestigo"
 	"github.com/orcaman/concurrent-map"
 	"github.com/urfave/negroni"
@@ -81,9 +81,9 @@ func (self *API) Serve() error {
 	}
 
 	// provide a cache-aware http.Client to diecast
-	diecast.BindingClient = &http.Client{
-		Transport: httpcache.NewMemoryCacheTransport(),
-	}
+	// diecast.BindingClient = &http.Client{
+	// 	Transport: httpcache.NewMemoryCacheTransport(),
+	// }
 
 	if err := ui.Initialize(); err != nil {
 		return err
