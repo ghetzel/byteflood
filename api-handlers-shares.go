@@ -42,10 +42,6 @@ func writeTsvFileLine(w io.Writer, share *shares.Share, item db.ManifestItem) {
 
 func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, client peer.Peer) {
 	if s, err := shares.GetShares(self.db, client, qsBool(req, `stats`)); err == nil {
-		if !client.IsLocal() {
-			writeCacheHeaders(w, 300)
-		}
-
 		Respond(w, s)
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -54,10 +50,6 @@ func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, clien
 
 func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
 	if s, err := shares.GetShares(self.db, client, qsBool(req, `stats`), vestigo.Param(req, `id`)); err == nil {
-		if !client.IsLocal() {
-			writeCacheHeaders(w, 300)
-		}
-
 		Respond(w, s[0])
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -69,12 +61,6 @@ func (self *API) handleGetShareStats(w http.ResponseWriter, req *http.Request, c
 		share := s[0]
 
 		if stats, err := share.GetStats(); err == nil {
-			if client.IsLocal() {
-				writeCacheHeaders(w, 60)
-			} else {
-				writeCacheHeaders(w, 600)
-			}
-
 			Respond(w, stats)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -235,7 +221,6 @@ func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, cli
 			}
 
 			if results, err := share.Find(query, limit, offset, sort, fields); err == nil {
-				writeCacheHeaders(w, 60)
 				Respond(w, results)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
