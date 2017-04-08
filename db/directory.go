@@ -124,7 +124,7 @@ func (self *Directory) Scan() error {
 
 			// if an ignore list is in effect for this directory
 			if self.compiledIgnoreList != nil {
-				if self.compiledIgnoreList.MatchesPath(absPath) {
+				if self.compiledIgnoreList.MatchesPath(relPath) {
 					log.Debugf("[%s] Ignoring entry %s", self.ID, relPath)
 					continue
 				}

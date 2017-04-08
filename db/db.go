@@ -3,7 +3,6 @@ package db
 import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db/metadata"
-	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot"
 	"github.com/ghetzel/pivot/backends"
@@ -206,31 +205,49 @@ func (self *Database) Cleanup() error {
 
 	log.Debugf("Cleaning up...")
 
-	if err := self.Metadata.Each(Entry{}, func(entryI interface{}, err error) {
-		if err == nil {
-			if entry, ok := entryI.(*Entry); ok {
-				entry.db = self
+	if f, err := ParseFilter(map[string]interface{}{
+		`label`: fmt.Sprintf("not:%s", strings.Join(ids, `|`)),
+	}); err == nil {
+		f.Limit = -1
 
-				if !sliceutil.ContainsString(ids, entry.Label) {
-					entriesToDelete = append(entriesToDelete, entry.ID)
-				} else if absPath, err := entry.GetAbsolutePath(); err == nil {
-					if _, err := os.Stat(absPath); os.IsNotExist(err) {
-						entriesToDelete = append(entriesToDelete, entry.ID)
+		backend := self.Metadata.GetBackend()
+		indexer := backend.WithSearch(``)
+
+		if err := indexer.DeleteQuery(MetadataSchema.Name, f); err != nil {
+			log.Warningf("Remove missing labels failed: %v", err)
+		}
+
+		if err := self.Metadata.Each(Entry{}, func(entryI interface{}, err error) {
+			if err == nil {
+				if entry, ok := entryI.(*Entry); ok {
+					entry.db = self
+
+					if absPath, err := entry.GetAbsolutePath(); err == nil {
+						if _, err := os.Stat(absPath); os.IsNotExist(err) {
+							entriesToDelete = append(entriesToDelete, entry.ID)
+						}
 					}
 				}
-			}
-		}
-	}); err == nil {
-		if l := len(entriesToDelete); l > 0 {
-			if err := self.Metadata.Delete(entriesToDelete...); err == nil {
-				log.Infof("Removed %d entries", l)
 			} else {
-				log.Warningf("Failed to cleanup missing entries: %v", err)
+				log.Warningf("%v", err)
 			}
+		}); err == nil {
+			log.Infof("Got %d entries", len(entriesToDelete))
+			// if l := len(entriesToDelete); l > 0 {
+			// 	if err := self.Metadata.Delete(entriesToDelete...); err == nil {
+			// 		log.Infof("Removed %d entries", l)
+			// 	} else {
+			// 		log.Warningf("Failed to cleanup missing entries: %v", err)
+			// 	}
+			// }
+
+			log.Infof("Database cleanup finished, processed %d entries.", len(entriesToDelete))
+
+		} else {
+			log.Warningf("Failed to cleanup database: %v", err)
 		}
-
-		log.Infof("Database cleanup finished, processed %d entries.", len(entriesToDelete))
-
+	} else {
+		return err
 	}
 
 	return nil
