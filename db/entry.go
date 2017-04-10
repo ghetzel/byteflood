@@ -186,14 +186,16 @@ func (self *Entry) GetAbsolutePath() (string, error) {
 	}
 }
 
-func (self *Entry) GetHumanSize() string {
-	sz := self.Get(`file.size`, 0)
+func (self *Entry) GetHumanSize(format string) string {
+	if format == `` {
+		format = "%f"
+	}
 
-	if human, err := stringutil.ToByteString(self.Get(`file.size`, 0)); err == nil {
+	if human, err := stringutil.ToByteString(self.Size, format); err == nil {
 		return human
 	}
 
-	return fmt.Sprintf("%g", sz)
+	return fmt.Sprintf("%v", self.Size)
 }
 
 func (self *Entry) Get(key string, fallback ...interface{}) interface{} {

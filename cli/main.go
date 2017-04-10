@@ -472,6 +472,12 @@ func main() {
 					Name:      `ls`,
 					ArgsUsage: `PEER [PATH]`,
 					Usage:     `Browse a remote peer's shares.`,
+					Flags: []cli.Flag{
+						cli.BoolTFlag{
+							Name:  `human, H`,
+							Usage: `Print data sizes in human-readable units.`,
+						},
+					},
 					Action: func(c *cli.Context) {
 						peerOrSession := c.Args().Get(0)
 						sharePath := strings.TrimPrefix(c.Args().Get(1), `/`)
@@ -483,17 +489,35 @@ func main() {
 								}
 
 								if sharePath == `` {
-									if shares, err := api.GetShares(peerOrSession); err == nil {
+									if shares, err := api.GetShares(peerOrSession, true); err == nil {
 										printWithFormat(c.GlobalString(`format`), shares, func() {
 											tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 
 											for _, share := range shares {
+												shareSize := ``
+
+												if share.Stats != nil {
+													if share.Stats.TotalBytes > 0 {
+														if c.Bool(`human`) {
+															if v, err := stringutil.ToByteString(
+																share.Stats.TotalBytes,
+																"%.0f",
+															); err == nil {
+																shareSize = v
+															}
+														} else {
+															shareSize = fmt.Sprintf("%d", share.Stats.TotalBytes)
+														}
+													}
+												}
+
 												fmt.Fprintf(
 													tw,
-													"%s\t%s\t%s\t\t%s\t\n",
+													"%s\t%s\t%s\t%s\t%s\t\n",
 													`sr-xr-xr-x`,
 													authPeer.PeerName,
 													authPeer.Group,
+													shareSize,
 													share.ID,
 												)
 											}
@@ -533,19 +557,25 @@ func main() {
 												var entry db.Entry
 												var fileSize string
 
-												if c.Bool(`human`) {
-													fileSize = entry.GetHumanSize()
-												} else {
-													if v, err := stringutil.ToString(entry.Get(`file.size`, 0)); err == nil {
-														fileSize = v
-													}
-												}
-
-												if fileSize == `` {
-													fileSize = `-`
-												}
-
 												if err := record.Populate(&entry, nil); err == nil {
+													if c.Bool(`human`) {
+														fileSize = entry.GetHumanSize("%.0f")
+
+														fileSize = strings.TrimSuffix(fileSize, `B`)
+
+														if stringutil.IsInteger(fileSize) {
+															fileSize = fileSize + `B`
+														}
+													} else {
+														if v, err := stringutil.ToString(entry.Size); err == nil {
+															fileSize = v
+														}
+													}
+
+													if fileSize == `` {
+														fileSize = `-`
+													}
+
 													fmt.Fprintf(
 														tw,
 														"%v\t%s\t%s\t%s\t%s\t%s\n",

@@ -10,11 +10,15 @@ import (
 	"strings"
 )
 
-func (self *Client) GetShares(peerOrSession string) (output []*shares.Share, err error) {
+func (self *Client) GetShares(peerOrSession string, stats bool) (output []*shares.Share, err error) {
 	prefix := `shares`
 
 	if peerOrSession != `` {
 		prefix = fmt.Sprintf("sessions/%v/proxy/shares", peerOrSession)
+	}
+
+	if stats {
+		prefix = prefix + `?stats=true`
 	}
 
 	err = self.Retrieve(prefix, nil, &output)
