@@ -11,16 +11,20 @@ bindings:
 
         <div class="form-group">
             <label for="source_group">Source Name or Group</label>
-            <input
-                type="text"
-                class="form-control"
-                name="source_group"
-                aria-describedby="sourceGroupHelp"
-                placeholder="Name or group"
-                required
-                autofocus
-                value="{{ or .request.url.query.source .bindings.subscription.source_group }}"
-            >
+            <div class="w-100">
+              <input
+                  type="text"
+                  class="form-control typeahead"
+                  name="source_group"
+                  data-typeahead-url="/api/peers/list/name?prefix={}"
+                  autocomplete="off"
+                  aria-describedby="sourceGroupHelp"
+                  placeholder="Name or group"
+                  required
+                  autofocus
+                  value="{{ or .request.url.query.source .bindings.subscription.source_group }}"
+              >
+            </div>
 
             <small id="sourceGroupHelp" class="form-text text-muted">
                 The name of the specific peer or peer group to source files from.<br />

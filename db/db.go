@@ -74,6 +74,10 @@ func NewDatabase() *Database {
 }
 
 func ParseFilter(spec interface{}, fmtvalues ...interface{}) (filter.Filter, error) {
+	if fmt.Sprintf("%v", spec) == `all` {
+		return filter.All, nil
+	}
+
 	switch spec.(type) {
 	case []string:
 		return filter.Parse(strings.Join(spec.([]string), filter.CriteriaSeparator))

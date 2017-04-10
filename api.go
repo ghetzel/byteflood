@@ -135,6 +135,7 @@ func (self *API) Serve() error {
 	router.Get(`/api/peers`, self.handleGetPeers)
 	router.Post(`/api/peers`, self.handleSaveModel)
 	router.Put(`/api/peers`, self.handleSaveModel)
+	router.Get(`/api/peers/list/:fields`, self.handlePeersList)
 	router.Delete(`/api/peers/:id`, self.handleDeleteModel)
 	router.Get(`/api/peers/new`, self.handleGetNewModelInstance)
 	router.Get(`/api/peers/:id`, self.handleGetPeer)
@@ -334,6 +335,12 @@ func qsBool(req *http.Request, key string) bool {
 	return false
 }
 
-func qs(req *http.Request, key string) string {
-	return req.URL.Query().Get(key)
+func qs(req *http.Request, key string, fallbacks ...string) string {
+	if v := req.URL.Query().Get(key); v != `` {
+		return v
+	} else if len(fallbacks) > 0 {
+		return fallbacks[0]
+	} else {
+		return ``
+	}
 }

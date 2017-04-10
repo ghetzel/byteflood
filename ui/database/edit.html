@@ -53,6 +53,7 @@ bindings:
                 type="number"
                 class="form-control"
                 name="min_file_size"
+                min="0"
                 aria-describedby="minFileSizeHelp"
             >
 
@@ -62,8 +63,8 @@ bindings:
         </div>
 
         <div class="form-group row">
-            <div class="col-sm-3">
-                <label class="custom-control custom-checkbox">
+            <div class="col-sm-4">
+                <label class="custom-control custom-checkbox mt-1">
                     <span class="custom-control-description">Follow Symlinks</span>
                     <input
                         type="checkbox"
@@ -76,7 +77,7 @@ bindings:
                 </label>
             </div>
 
-            <div class="col-sm-9">
+            <div class="col-sm-8">
                 <small id="followSymlinksHelp" class="form-text text-muted">
                     If set, symbolic links that appear under this directory will be followed, and their contents
                     will appear as if they were under this directory.
@@ -85,8 +86,8 @@ bindings:
         </div>
 
         <div class="form-group row">
-            <div class="col-sm-3">
-                <label class="custom-control custom-checkbox">
+            <div class="col-sm-4">
+                <label class="custom-control custom-checkbox mt-1">
                     <span class="custom-control-description">Shallow Scan</span>
                     <input
                         type="checkbox"
@@ -99,7 +100,7 @@ bindings:
                 </label>
             </div>
 
-            <div class="col-sm-9">
+            <div class="col-sm-8">
                 <small id="noRecurseHelp" class="form-text text-muted">
                     If set, only in the immediate directory will be scanned, and any subdirectories will be omitted.
                 </small>
