@@ -22,26 +22,32 @@ $(function(){
             }.bind(this));
 
             // setup typeahead for fields that have it
-            $('.typeahead').typeahead({
-                highlight: true,
-                async: true,
-            },{
-                limit: 9,
-                source: function(query, _, asyncResults){
-                    var url = $('.typeahead').data('typeahead-url');
-                    url = url.replace('{}', query.replace(/^\//, ''));
+            $('.typeahead').each(function(i, el){
+                el = $(el);
 
-                    console.log(url);
-                    if(url){
-                        $.ajax(url, {
-                            success: function(data){
-                                asyncResults(data);
-                            }.bind(this),
-                            error: this.showResponseError.bind(this),
-                        });
-                    }
-                }.bind(this),
-            });
+                el.typeahead({
+                    highlight: true,
+                    async: true,
+                },{
+                    limit: parseInt(el.data('typeahead-limit') || 9),
+                    source: function(query, _, asyncResults){
+                        var url = el.data('typeahead-url');
+
+                        if(url){
+                            url = url.replace('{}', query.replace(/^\//, ''));
+
+                            $.ajax(url, {
+                                success: function(data){
+                                    asyncResults(data);
+                                }.bind(this),
+                                error: this.showResponseError.bind(this),
+                            });
+                        }
+                    }.bind(this),
+                });
+            }.bind(this))
+
+            $('.combobox').combobox();
 
             this.setupPartials();
         },

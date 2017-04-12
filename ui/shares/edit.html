@@ -46,61 +46,97 @@ bindings:
             </small>
         </div>
 
-        <div class="form-group row">
-            <label class="col-sm-3 col-form-label" for="_directory">Folder</label>
+        <ul class="nav nav-tabs mb-4" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" data-toggle="tab" href="#folder" role="tab">
+                    <i class="fa fa-fw fa-folder-o"></i>
+                    Folder
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-toggle="tab" href="#query" role="tab">
+                    <i class="fa fa-fw fa-search"></i>
+                    Query
+                </a>
+            </li>
+        </ul>
 
-            <div class="col-sm-9">
-                <select
-                    class="form-control"
-                    name="_directory"
-                    aria-describedby="_directoryHelp"
-                    oninput="document.forms['shares'].elements['filter'].value=event.target.value; _shares_filter_update()"
-                >
-                {{ range .bindings.directories }}
-                    <option value="label={{ .id }}"{{ if eqx $id .id }} selected{{ end }}>{{ .path }}</option>
-                {{ end }}
-                </select>
-            </div>
-        </div>
+        <div class="tab-content mb-4">
+            <div class="tab-pane active" id="folder" role="tabpanel">
+                <div class="form-group">
+                    <p class="form-text">
+                        Share files from a specific folder on the host machine.
+                    </p>
+                </div>
 
-        <div class="form-group row">
-            <div class="offset-sm-3 col-sm-9">
-                <small id="_directoryHelp" class="form-text text-muted">
-                    Select a folder from this list to populate the Content Filter field below.
-                    You can refine the database query below to select different files to expose in this share.
-                </small>
-            </div>
-        </div>
+                <div class="form-group row">
+                    <label class="col-sm-3 col-form-label" for="_directory">Folder Path</label>
 
-        <div class="form-group row">
-            <label class="col-sm-3 col-form-label required" for="filter">Content Filter</label>
+                    <div class="col-sm-9">
+                        <select
+                            class="form-control combobox"
+                            name="_directory"
+                            aria-describedby="_directoryHelp"
+                            oninput="document.forms['shares'].elements['filter'].value=event.target.value; _shares_filter_update()"
+                        >
+                        {{ range .bindings.directories }}
+                            <option value="label={{ .id }}"{{ if eqx $id .id }} selected{{ end }}>{{ .path }}</option>
+                        {{ end }}
+                        </select>
+                    </div>
+                </div>
 
-            <div class="col-sm-9">
-                <div class="input-group">
-                    <input
-                        type="text"
-                        class="form-control"
-                        name="filter"
-                        aria-describedby="filterHelp"
-                        placeholder="Custom filter"
-                        required
-                        value="{{ or .request.url.query.filter .bindings.share.filter }}"
-                        oninput="_shares_filter_update()"
-                    >
-
-                    <span class="input-group-addon" id="share_filter_matches">
-                    </span>
+                <div class="form-group row">
+                    <div class="offset-sm-3 col-sm-9">
+                        <small id="_directoryHelp" class="form-text text-muted">
+                            Select a folder from this list to populate the Content Filter field below.
+                            You can refine the database query below to select different files to expose in this share.
+                        </small>
+                    </div>
                 </div>
             </div>
+
+            <div class="tab-pane" id="query" role="tabpanel">
+                <div class="form-group">
+                    <p class="form-text">
+                        Share files from the metadata database that match a given query.
+                    </p>
+                </div>
+
+                <div class="form-group row">
+                    <label class="col-sm-3 col-form-label required" for="filter">Content Filter</label>
+
+                    <div class="col-sm-9">
+                        <div class="input-group">
+                            <input
+                                type="text"
+                                class="form-control"
+                                name="filter"
+                                aria-describedby="filterHelp"
+                                placeholder="Custom filter"
+                                required
+                                value="{{ or .request.url.query.filter .bindings.share.filter }}"
+                                oninput="_shares_filter_update()"
+                            >
+
+                            <span class="input-group-addon" id="share_filter_matches">
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group row">
+                    <div class="offset-sm-3 col-sm-9">
+                        <small id="filterHelp" class="form-text text-muted">
+                            A database query that can be used to fine-tune which content appears in this share.
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <hr />
         </div>
 
-        <div class="form-group row">
-            <div class="offset-sm-3 col-sm-9">
-                <small id="filterHelp" class="form-text text-muted">
-                    A database query that can be used to fine-tune which content appears in this share.
-                </small>
-            </div>
-        </div>
 
         <div class="form-group row">
             <label class="col-sm-3 col-form-label required" for="icon_name">Icon</label>
