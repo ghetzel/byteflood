@@ -2,7 +2,7 @@ package db
 
 import (
 	"fmt"
-	"github.com/alexcesaro/statsd"
+	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/sabhiram/go-gitignore"
@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 )
-
-var stats, _ = statsd.New()
 
 type Directory struct {
 	ID                   string       `json:"id"`

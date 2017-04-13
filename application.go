@@ -6,6 +6,8 @@ import (
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
+	"github.com/ghetzel/byteflood/stats"
+	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/pivot/backends"
 	"github.com/ghetzel/pivot/dal"
@@ -13,15 +15,24 @@ import (
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"os"
+	"os/user"
+	"path"
 )
 
 var log = logging.MustGetLogger(`byteflood`)
 var DefaultPublicKeyPath = `~/.config/byteflood/keys/peer.pub`
 var DefaultPrivateKeyPath = `~/.config/byteflood/keys/peer.key`
 
+type Stats struct {
+	Path       string                 `json:"path,omitempty"`
+	Tags       map[string]interface{} `json:"tags,omitempty"`
+	StatsdHost string                 `json:"statsd_host,omitempty"`
+}
+
 type Application struct {
 	LocalPeer      *peer.LocalPeer `json:"local,omitempty"`
 	Database       *db.Database    `json:"database,omitempty"`
+	Stats          Stats           `json:"stats,omitempty"`
 	PublicKeyPath  string          `json:"public_key,omitempty"`
 	PrivateKeyPath string          `json:"private_key,omitempty"`
 	Queue          *DownloadQueue  `json:"queue"`
@@ -139,10 +150,30 @@ func (self *Application) Initialize() error {
 		return err
 	}
 
+	// setup stats emission and persistence
+	if self.Stats.Path == `` {
+		self.Stats.Path = path.Join(self.Database.BaseDirectory, `stats`)
+	}
+
 	return nil
 }
 
 func (self *Application) Run() error {
+	hostname, _ := os.Hostname()
+	username := ``
+
+	if user, err := user.Current(); err == nil {
+		username = user.Username
+	}
+
+	if err := stats.Initialize(self.Stats.Path, maputil.Append(self.Stats.Tags, map[string]interface{}{
+		`application`: `byteflood`,
+		`hostname`:    hostname,
+		`username`:    username,
+	})); err != nil {
+		return err
+	}
+
 	errchan := make(chan error)
 
 	// start local peer
@@ -160,6 +191,10 @@ func (self *Application) Run() error {
 		self.Queue.DownloadAll()
 	}()
 
+	defer stats.Cleanup()
+
+	stats.Increment(`byteflood.app.started`)
+
 	select {
 	case err := <-errchan:
 		return err
@@ -168,6 +203,7 @@ func (self *Application) Run() error {
 
 func (self *Application) Stop() {
 	<-self.LocalPeer.Stop()
+	stats.Cleanup()
 }
 
 func (self *Application) Scan(deep bool, labels ...string) error {
