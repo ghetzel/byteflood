@@ -5,6 +5,7 @@ import (
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
+	"github.com/ghetzel/go-stockutil/httputil"
 	"github.com/husobee/vestigo"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
@@ -41,7 +42,7 @@ func writeTsvFileLine(w io.Writer, share *shares.Share, item db.ManifestItem) {
 }
 
 func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, qsBool(req, `stats`)); err == nil {
+	if s, err := shares.GetShares(self.db, client, httputil.QBool(req, `stats`)); err == nil {
 		Respond(w, s)
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -49,7 +50,7 @@ func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, clien
 }
 
 func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, qsBool(req, `stats`), vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(self.db, client, httputil.QBool(req, `stats`), vestigo.Param(req, `id`)); err == nil {
 		Respond(w, s[0])
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)

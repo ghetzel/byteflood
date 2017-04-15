@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/go-stockutil/httputil"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/husobee/vestigo"
 	"net/http"
@@ -36,7 +37,7 @@ func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request) {
 			f.Offset = offset
 			f.Sort = sort
 
-			if v := qs(req, `fields`); v != `` {
+			if v := httputil.Q(req, `fields`); v != `` {
 				f.Fields = strings.Split(v, `,`)
 			}
 
@@ -70,7 +71,7 @@ func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request) 
 			f.Offset = offset
 			f.Sort = sort
 
-			if v := qs(req, `fields`); v != `` {
+			if v := httputil.Q(req, `fields`); v != `` {
 				f.Fields = strings.Split(v, `,`)
 			}
 
@@ -99,7 +100,7 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 
 	fields := strings.Split(fV, `/`)
 
-	if v := qs(req, `q`); v == `` {
+	if v := httputil.Q(req, `q`); v == `` {
 		if rs, err := self.db.Metadata.List(fields); err == nil {
 			Respond(w, rs)
 			return
@@ -127,7 +128,7 @@ func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request) 
 	switch vestigo.Param(req, `action`) {
 	case `scan`:
 		payload := DatabaseScanRequest{
-			DeepScan: qsBool(req, `deep`),
+			DeepScan: httputil.QBool(req, `deep`),
 		}
 
 		if req.ContentLength > 0 {

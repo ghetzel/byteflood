@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
+	"github.com/ghetzel/go-stockutil/httputil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/husobee/vestigo"
 	"net/http"
@@ -33,7 +34,7 @@ func (self *API) handlePeersList(w http.ResponseWriter, req *http.Request) {
 	field := vestigo.Param(req, `fields`)
 	var spec interface{}
 
-	if prefix := qs(req, `prefix`); prefix != `` {
+	if prefix := httputil.Q(req, `prefix`); prefix != `` {
 		spec = map[string]interface{}{
 			field: fmt.Sprintf("prefix:%v", prefix),
 		}

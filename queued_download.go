@@ -3,6 +3,7 @@ package byteflood
 import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/byteflood/stats"
 	"github.com/satori/go.uuid"
 	"io"
 	"io/ioutil"
@@ -179,9 +180,12 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 						self.Status = `downloading`
 						self.Size = bytesReceived
 
+						stats.Gauge("byteflood.queue.downloads.bytes_received", float64(bytesReceived))
+
 						if time.Since(lastCalcTime) >= time.Second {
 							if self.lastByteSize > 0 {
 								self.Rate = (self.Size - self.lastByteSize)
+								stats.Gauge("byteflood.queue.downloads.bytes_per_second", float64(self.Rate))
 							}
 
 							self.lastByteSize = self.Size

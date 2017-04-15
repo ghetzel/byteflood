@@ -5,10 +5,11 @@ package byteflood
 import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/diecast"
-	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/go-stockutil/httputil"
+	"github.com/ghetzel/mobius"
 	"github.com/gorilla/websocket"
-	// "github.com/gregjones/httpcache"
 	"github.com/husobee/vestigo"
 	"github.com/orcaman/concurrent-map"
 	"github.com/urfave/negroni"
@@ -75,6 +76,7 @@ func (self *API) Serve() error {
 	router := vestigo.NewRouter()
 	mux := http.NewServeMux()
 	ui := diecast.NewServer(uiDir, `*.html`)
+	metricsServer := http.StripPrefix(`/api`, mobius.NewServer(stats.StatsDB))
 
 	// handle serving UI from an embedded FileSystem
 	if self.UiDirectory == `embedded` {
@@ -177,6 +179,8 @@ func (self *API) Serve() error {
 	router.Delete(`/api/subscriptions/:id`, self.handleDeleteModel)
 	router.Post(`/api/subscriptions/:id/actions/:action`, self.handleActionSubscription)
 
+	mux.Handle(`/api/metrics`, metricsServer)
+	mux.Handle(`/api/metrics/`, metricsServer)
 	mux.Handle(`/api/`, router)
 	mux.Handle(`/`, ui)
 
@@ -233,23 +237,10 @@ func getSearchParams(req *http.Request) (int, int, []string, error) {
 	offset := 0
 	var sort []string
 
-	if i, err := qsInt(req, `limit`); err == nil {
-		if i > 0 {
-			limit = int(i)
-		} else {
-			limit = DefaultResultLimit
-		}
-	} else {
-		return 0, 0, nil, err
-	}
+	limit = int(httputil.QInt(req, `limit`, int64(DefaultResultLimit)))
+	offset = int(httputil.QInt(req, `offset`, 0))
 
-	if i, err := qsInt(req, `offset`); err == nil {
-		offset = int(i)
-	} else {
-		return 0, 0, nil, err
-	}
-
-	if v := req.URL.Query().Get(`sort`); v != `` {
+	if v := httputil.Q(req, `sort`); v != `` {
 		sort = strings.Split(v, `,`)
 	}
 
@@ -312,35 +303,5 @@ func writeCacheHeaders(w http.ResponseWriter, maxAge int) {
 		w.Header().Del(`Cache-Control`)
 	} else {
 		w.Header().Set(`Cache-Control`, fmt.Sprintf("max-age=%d", maxAge))
-	}
-}
-
-func qsInt(req *http.Request, key string) (int64, error) {
-	if v := req.URL.Query().Get(key); v != `` {
-		if i, err := stringutil.ConvertToInteger(v); err == nil {
-			return i, nil
-		} else {
-			return 0, fmt.Errorf("%s: %v", key, err)
-		}
-	}
-
-	return 0, nil
-}
-
-func qsBool(req *http.Request, key string) bool {
-	if v := req.URL.Query().Get(key); v == `true` {
-		return true
-	}
-
-	return false
-}
-
-func qs(req *http.Request, key string, fallbacks ...string) string {
-	if v := req.URL.Query().Get(key); v != `` {
-		return v
-	} else if len(fallbacks) > 0 {
-		return fallbacks[0]
-	} else {
-		return ``
 	}
 }

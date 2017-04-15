@@ -1,6 +1,8 @@
 package byteflood
 
 import (
+	"fmt"
+	"github.com/ghetzel/byteflood/stats"
 	"github.com/urfave/negroni"
 	"net/http"
 	"strings"
@@ -16,6 +18,8 @@ func NewRequestLogger() *RequestLogger {
 }
 
 func (self *RequestLogger) ServeHTTP(rw http.ResponseWriter, req *http.Request, next http.HandlerFunc) {
+	emitLog := true
+
 	for _, method := range self.Methods {
 		method = strings.ToUpper(method)
 
@@ -23,7 +27,8 @@ func (self *RequestLogger) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 			method = strings.TrimPrefix(method, `-`)
 
 			if req.Method == method {
-				return
+				emitLog = false
+				break
 			}
 		} else if req.Method == method {
 			break
@@ -37,10 +42,36 @@ func (self *RequestLogger) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 	response := rw.(negroni.ResponseWriter)
 	status := response.Status()
 	duration := time.Since(start)
+	isError := false
 
 	if status < 400 {
-		log.Debugf("[HTTP %d] %s to %v took %v", status, req.Method, req.URL, duration)
+		if emitLog {
+			log.Debugf("[HTTP %d] %s to %v took %v", status, req.Method, req.URL, duration)
+		}
 	} else {
-		log.Debugf("[HTTP %d] %s to %v took %v", status, req.Method, req.URL, duration)
+		isError = true
+
+		if emitLog {
+			log.Debugf("[HTTP %d] %s to %v took %v", status, req.Method, req.URL, duration)
+		}
 	}
+
+	stats.Elapsed(
+		fmt.Sprintf(
+			"byteflood.api.request_time,method=%s,status=%d,error=%v",
+			req.Method,
+			status,
+			isError,
+		),
+		duration,
+	)
+
+	stats.Increment(
+		fmt.Sprintf(
+			"byteflood.api.requests,method=%s,status=%d,error=%v",
+			req.Method,
+			status,
+			isError,
+		),
+	)
 }

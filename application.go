@@ -167,9 +167,8 @@ func (self *Application) Run() error {
 	}
 
 	if err := stats.Initialize(self.Stats.Path, maputil.Append(self.Stats.Tags, map[string]interface{}{
-		`application`: `byteflood`,
-		`hostname`:    hostname,
-		`username`:    username,
+		`hostname`: hostname,
+		`username`: username,
 	})); err != nil {
 		return err
 	}

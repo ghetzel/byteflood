@@ -3,6 +3,7 @@ package byteflood
 import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/go-stockutil/httputil"
 	"github.com/husobee/vestigo"
 	"github.com/sabhiram/go-gitignore"
 	"io/ioutil"
@@ -32,7 +33,7 @@ func (self *API) handleGetScannedDirectory(w http.ResponseWriter, req *http.Requ
 func (self *API) handleScannedDirectoryTestIgnoreList(w http.ResponseWriter, req *http.Request) {
 	if ignorelist, err := ioutil.ReadAll(req.Body); err == nil {
 		if ig, err := ignore.CompileIgnoreLines(strings.Split(string(ignorelist[:]), "\n")...); err == nil {
-			if v := qs(req, `path`); v != `` {
+			if v := httputil.Q(req, `path`); v != `` {
 				if testpath, err := url.QueryUnescape(v); err == nil {
 					if ig.MatchesPath(testpath) {
 						w.WriteHeader(http.StatusNoContent)

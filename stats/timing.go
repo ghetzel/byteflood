@@ -10,21 +10,24 @@ type Timing struct {
 	StartedAt time.Time
 }
 
-func NewTiming() *Timing {
+func NewTiming(times ...time.Time) *Timing {
+	if len(times) == 0 {
+		times = []time.Time{time.Now()}
+	}
+
 	return &Timing{
-		StartedAt: time.Now(),
+		StartedAt: times[0],
 	}
 }
 
 func (self *Timing) Send(name string) {
-	elapsed := time.Since(self.StartedAt)
+	Elapsed(name, time.Since(self.StartedAt))
+}
 
-	if statsdb != nil {
-		statsdb.Write(mobius.NewMetric(name+statsuffix), &mobius.Point{
-			Timestamp: time.Now(),
-			Value:     float64(elapsed / time.Millisecond),
-		})
+func Elapsed(name string, duration time.Duration) {
+	if StatsDB != nil {
+		StatsDB.Write(mobius.NewMetric(name+statsuffix).Push(time.Now(), float64(duration)/float64(time.Millisecond)))
 	}
 
-	statsdclient.Timing(name+statsuffix, elapsed)
+	statsdclient.Timing(name+statsuffix, duration)
 }

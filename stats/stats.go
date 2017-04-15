@@ -17,7 +17,7 @@ import (
 var log = logging.MustGetLogger(`byteflood/stats`)
 var StatsdHost = `localhost:8125`
 var statsdclient, _ = statsd.New()
-var statsdb *mobius.Dataset
+var StatsDB *mobius.Dataset
 var statsuffix string
 
 func Initialize(statsdir string, tags map[string]interface{}) error {
@@ -35,7 +35,7 @@ func Initialize(statsdir string, tags map[string]interface{}) error {
 
 	if expandedStatsDir, err := pathutil.ExpandUser(statsdir); err == nil {
 		if dataset, err := mobius.OpenDataset(expandedStatsDir); err == nil {
-			statsdb = dataset
+			StatsDB = dataset
 			tagkeys := maputil.StringKeys(tags)
 			sort.Strings(tagkeys)
 
@@ -66,10 +66,10 @@ func Initialize(statsdir string, tags map[string]interface{}) error {
 }
 
 func Cleanup() {
-	if statsdb != nil {
+	if StatsDB != nil {
 		log.Debugf("Closing statistics database")
-		statsdb.Close()
-		statsdb = nil
+		StatsDB.Close()
+		StatsDB = nil
 	}
 }
 
@@ -78,22 +78,16 @@ func Increment(name string) {
 }
 
 func IncrementN(name string, count int) {
-	if statsdb != nil {
-		statsdb.Write(mobius.NewMetric(name+statsuffix), &mobius.Point{
-			Timestamp: time.Now(),
-			Value:     float64(count),
-		})
+	if StatsDB != nil {
+		StatsDB.Write(mobius.NewMetric(name+statsuffix).Push(time.Now(), float64(count)))
 	}
 
 	statsdclient.Count(name+statsuffix, count)
 }
 
 func Gauge(name string, value float64) {
-	if statsdb != nil {
-		statsdb.Write(mobius.NewMetric(name+statsuffix), &mobius.Point{
-			Timestamp: time.Now(),
-			Value:     value,
-		})
+	if StatsDB != nil {
+		StatsDB.Write(mobius.NewMetric(name+statsuffix).Push(time.Now(), value))
 	}
 
 	statsdclient.Gauge(name+statsuffix, value)

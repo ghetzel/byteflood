@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
+	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/orcaman/concurrent-map"
@@ -157,7 +158,7 @@ func (self *DownloadQueue) WaitForEmpty() {
 	return
 }
 
-func (self *DownloadQueue) downloadWorker() {
+func (self *DownloadQueue) downloadWorker(workerID int) {
 	for download := range self.workerPool {
 		id := fmt.Sprintf("%v", download.ID)
 
@@ -168,12 +169,17 @@ func (self *DownloadQueue) downloadWorker() {
 		log.Debugf("Downloading %v", download)
 		self.ActiveDownloads.Set(id, download)
 
+		stats.Increment(fmt.Sprintf("byteflood.queue.downloads.started,worker=%d", workerID))
+
 		if err := download.Download(); err != nil {
 			log.Errorf("Stopping download %v: %v", download, err)
 			download.Stop(err)
 		}
 
-		if err := self.app.Database.Downloads.Update(download); err != nil {
+		if err := self.app.Database.Downloads.Update(download); err == nil {
+			stats.Increment(fmt.Sprintf("byteflood.queue.downloads.succeeded,worker=%d", workerID))
+		} else {
+			stats.Increment(fmt.Sprintf("byteflood.queue.downloads.failed,worker=%d", workerID))
 			log.Warningf("Failed to update queue download: %v", err)
 		}
 
@@ -190,7 +196,7 @@ func (self *DownloadQueue) downloadWorker() {
 func (self *DownloadQueue) DownloadAll() {
 	for i := 0; i < ConcurrentDownloads; i++ {
 		log.Debugf("Starting download worker %d", i)
-		go self.downloadWorker()
+		go self.downloadWorker(i)
 	}
 
 	for {
