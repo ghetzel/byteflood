@@ -1,0 +1,18 @@
+<div class="card">
+    <div class="card-block">
+        {{ $chart_id := uuid }}
+        <script type="text/javascript" id="#{{ $chart_id }}">
+        $(document).ready(function(){
+            var chart = c3.generate({
+                bindto: '#{{ $chart_id }}',
+                data: {
+                  columns: [
+                    ['data1', 30, 200, 100, 400, 150, 250],
+                    ['data2', 50, 20, 10, 40, 15, 25]
+                  ]
+                }
+            });
+        });
+        </script>
+    </div>
+</div>
