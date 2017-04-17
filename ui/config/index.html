@@ -53,6 +53,18 @@ bindings:
 
         <dt class="col-sm-4 col-md-3 col-lg-2">Admin API</dt>
         <dd class="col-sm-8 col-md-9 col-lg-10">{{ .bindings.config.api.address }}</dd>
+
+        <dt class="col-sm-4 col-md-3 col-lg-2">Stats Database</dt>
+        <dd class="col-sm-8 col-md-9 col-lg-10">{{ .bindings.config.stats.path }}</dd>
+
+        <dt class="col-sm-4 col-md-3 col-lg-2">StatsD Host</dt>
+        <dd class="col-sm-8 col-md-9 col-lg-10">
+            {{ if .bindings.config.stats.statsd_host }}
+            {{ .bindings.config.stats.statsd_host }}
+            {{ else }}
+                <i>Disabled</i>
+            {{ end }}
+        </dd>
     </dl>
   </div>
 </div>

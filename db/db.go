@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db/metadata"
+	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot"
 	"github.com/ghetzel/pivot/backends"
@@ -102,6 +103,12 @@ func (self *Database) Initialize() error {
 
 	// reuse the "json:" struct tag for loading dal.Record into/out of structs
 	dal.RecordStructTag = `json`
+
+	if v, err := pathutil.ExpandUser(self.BaseDirectory); err == nil {
+		self.BaseDirectory = v
+	} else {
+		return err
+	}
 
 	if self.URI == `` {
 		self.URI = fmt.Sprintf("sqlite:///%s/info.db", self.BaseDirectory)

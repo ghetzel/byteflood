@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
+	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/mobius"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/filter"
 	"github.com/op/go-logging"
 	"strings"
+	"time"
 )
 
 var log = logging.MustGetLogger(`byteflood/shares`)
@@ -189,31 +192,56 @@ func (self *Share) Get(id string) (*db.Entry, error) {
 	}
 }
 
-func (self *Share) GetStats(filters ...string) (*Stats, error) {
-	if f, err := db.ParseFilter(self.GetQuery(filters...)); err == nil {
+func (self *Share) GetStats() (*Stats, error) {
+	if metrics, err := stats.StatsDB.Range(
+		time.Now().Add(-1*time.Hour),
+		time.Now(),
+		fmt.Sprintf("byteflood.shares.{total_bytes,file_count,directory_count}**,share=%s,**", self.ID),
+	); err == nil {
+		shareStats := &Stats{}
+
+		for _, metric := range metrics {
+			values := metric.Summarize(mobius.Last)
+
+			switch metric.GetName() {
+			case `byteflood.shares.total_bytes`:
+				shareStats.TotalBytes = uint64(values[0])
+			case `byteflood.shares.file_count`:
+				shareStats.FileCount = uint64(values[0])
+			case `byteflood.shares.directory_count`:
+				shareStats.DirectoryCount = uint64(values[0])
+			}
+		}
+
+		return shareStats, nil
+	} else {
+		return nil, err
+	}
+}
+
+func (self *Share) RefreshShareStats() error {
+	if f, err := db.ParseFilter(self.GetQuery()); err == nil {
 		f.Limit = -1
 		f.Fields = []string{`directory`, `size`}
 		f.Sort = []string{`-directory`, `size`}
-
-		stats := &Stats{}
 
 		// file stats
 		if filesFilter, err := f.NewFromMap(map[string]interface{}{
 			`bool:directory`: `false`,
 		}); err == nil {
 			if v, err := self.db.Metadata.Sum(`size`, filesFilter); err == nil {
-				stats.TotalBytes = uint64(v)
+				stats.Gauge(fmt.Sprintf("byteflood.shares.total_bytes,share=%s", self.ID), float64(v))
 			} else {
-				return nil, err
+				return err
 			}
 
 			if v, err := self.db.Metadata.Count(filesFilter); err == nil {
-				stats.FileCount = uint64(v)
+				stats.Gauge(fmt.Sprintf("byteflood.shares.file_count,share=%s", self.ID), float64(v))
 			} else {
-				return nil, err
+				return err
 			}
 		} else {
-			return nil, err
+			return err
 		}
 
 		// directory stats
@@ -221,17 +249,17 @@ func (self *Share) GetStats(filters ...string) (*Stats, error) {
 			`bool:directory`: `true`,
 		}); err == nil {
 			if v, err := self.db.Metadata.Count(dirFilter); err == nil {
-				stats.DirectoryCount = uint64(v)
+				stats.Gauge(fmt.Sprintf("byteflood.shares.directory_count,share=%s", self.ID), float64(v))
 			} else {
-				return nil, err
+				return err
 			}
 		} else {
-			return nil, err
+			return err
 		}
 
-		return stats, nil
+		return nil
 	} else {
-		return nil, err
+		return err
 	}
 }
 

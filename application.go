@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"time"
 )
 
 var log = logging.MustGetLogger(`byteflood`)
@@ -192,6 +193,9 @@ func (self *Application) Run() error {
 
 	defer stats.Cleanup()
 
+	// setup periodic share stats calculaton
+	go self.startMonitoringShareStats()
+
 	stats.Increment(`byteflood.app.started`)
 
 	select {
@@ -234,4 +238,25 @@ func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
 	}
 
 	return nil, false
+}
+
+func (self *Application) startMonitoringShareStats() {
+	for {
+		var shares []*shares.Share
+
+		if err := self.Database.Shares.All(&shares); err == nil {
+
+			for _, share := range shares {
+				share.SetDatabase(self.Database)
+
+				if err := share.RefreshShareStats(); err != nil {
+					log.Warningf("Failed to refresh stats for share %s: %v", share.ID, err)
+				}
+			}
+		} else {
+			log.Warningf("Failed to refresh share stats: %v", err)
+		}
+
+		time.Sleep(5 * time.Minute)
+	}
 }

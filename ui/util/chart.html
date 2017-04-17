@@ -1,16 +1,27 @@
 <div class="card">
     <div class="card-block">
-        {{ $chart_id := uuid }}
-        <script type="text/javascript" id="#{{ $chart_id }}">
+        {{ $chart_id := replace uuid "-" "" -1 }}
+        <div class="chart" id="chart_{{ $chart_id }}"></div>
+        <script type="text/javascript">
         $(document).ready(function(){
-            var chart = c3.generate({
-                bindto: '#{{ $chart_id }}',
-                data: {
-                  columns: [
-                    ['data1', 30, 200, 100, 400, 150, 250],
-                    ['data2', 50, 20, 10, 40, 15, 25]
-                  ]
-                }
+            $.ajax('/api/metrics/query/byteflood.api.requests?interval=5m&from=-100h&format=csv', {
+                success: function(data){
+                    var xData = [];
+                    var yData = [];
+
+                    $.each(data.split("\n"), function(i, row){
+                        var parts = row.split("\t");
+
+                        xData.push(new Date(parseInt(parts[1])));
+                        yData.push(parseFloat(parts[2]));
+                    });
+
+                    Plotly.newPlot('chart_{{ $chart_id }}', [{
+                        x:    xData,
+                        y:    yData,
+                        type: 'scatter',
+                    }]);
+                },
             });
         });
         </script>
