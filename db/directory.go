@@ -226,13 +226,22 @@ func (self *Directory) WalkModifiedSince(lastModifiedAt time.Time, entryFn WalkE
 }
 
 func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
-	defer stats.NewTiming().Send(`byteflood.db.entry_scan_time`)
-	stats.Increment(`byteflood.db.entry`)
+	defer stats.NewTiming().Send(`byteflood.db.entry_scan_time`, map[string]interface{}{
+		`label`: self.ID,
+	})
+
+	stats.Increment(`byteflood.db.entry`, map[string]interface{}{
+		`label`: self.ID,
+	})
 
 	if isDir {
-		stats.Increment(`byteflood.db.directory`)
+		stats.Increment(`byteflood.db.directory`, map[string]interface{}{
+			`label`: self.ID,
+		})
 	} else {
-		stats.Increment(`byteflood.db.entry`)
+		stats.Increment(`byteflood.db.entry`, map[string]interface{}{
+			`label`: self.ID,
+		})
 	}
 
 	// get entry implementation
@@ -290,7 +299,9 @@ func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 		}
 	}
 
-	tm.Send(`byteflood.db.entry_metadata_load_time`)
+	tm.Send(`byteflood.db.entry_metadata_load_time`, map[string]interface{}{
+		`label`: self.ID,
+	})
 	tm = stats.NewTiming()
 
 	// persist the entry record
@@ -298,9 +309,21 @@ func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 		return nil, err
 	}
 
-	tm.Send(`byteflood.db.entry_persist_time`)
+	tm.Send(`byteflood.db.entry_persist_time`, map[string]interface{}{
+		`label`: self.ID,
+	})
 
 	return entry, nil
+}
+
+func reportEntryDeletionStats(parentLabel string, entry *Entry) {
+	stats.Gauge(`byteflood.db.entry.bytes_removed`, float64(entry.Size), map[string]interface{}{
+		`label`: parentLabel,
+	})
+
+	stats.Increment(`byteflood.db.entry.num_removed`, map[string]interface{}{
+		`label`: parentLabel,
+	})
 }
 
 func (self *Directory) cleanupMissingEntries(query interface{}) error {
@@ -316,6 +339,7 @@ func (self *Directory) cleanupMissingEntries(query interface{}) error {
 				if self.compiledIgnoreList != nil {
 					if self.compiledIgnoreList.MatchesPath(entry.RelativePath) {
 						entriesToDelete = append(entriesToDelete, entry.ID)
+						reportEntryDeletionStats(self.ID, &entry)
 						continue
 					}
 				}
@@ -323,6 +347,7 @@ func (self *Directory) cleanupMissingEntries(query interface{}) error {
 				if absPath, err := entry.GetAbsolutePath(); err == nil {
 					if _, err := os.Stat(absPath); os.IsNotExist(err) {
 						entriesToDelete = append(entriesToDelete, entry.ID)
+						reportEntryDeletionStats(self.ID, &entry)
 					}
 				} else {
 					log.Warningf("[%s] Failed to cleanup missing entry %s (%s)", self.ID, entry.ID, entry.RelativePath)

@@ -11,19 +11,21 @@ bindings:
 {{ $session := or .request.url.query.session `` }}
 {{ $peer := or .request.url.query.peer `` }}
 {{ $active := or .request.url.query.active `` }}
-<div class="list-group">
-    <div class="list-group-item">
-        <div class="input-group">
-            <div class="input-group-addon"><i class="fa fa-search"></i></div>
-                <input
-                    type="text"
-                    class="form-control"
-                    placeholder="Search..."
-                >
-                </input>
-            </div>
-        </div>
+{{ if .bindings.shares }}
+<div class="input-group mt-2 mb-2">
+    <input
+        type="text"
+        class="form-control"
+        placeholder="Search..."
+    >
+    </input>
+    <div class="input-group-addon">
+        <i class="fa fa-search"></i>
     </div>
+</div>
+{{ end }}
+
+<div class="list-group">
     {{ if .bindings.shares }}
     {{ range .bindings.shares }}
         {{ $current := print (or $session `local`) `_` .id }}

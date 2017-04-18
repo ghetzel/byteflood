@@ -169,17 +169,32 @@ func (self *DownloadQueue) downloadWorker(workerID int) {
 		log.Debugf("Downloading %v", download)
 		self.ActiveDownloads.Set(id, download)
 
-		stats.Increment(fmt.Sprintf("byteflood.queue.downloads.started,worker=%d", workerID))
+		stats.Increment(`byteflood.queue.downloads.started`, map[string]interface{}{
+			`worker`: workerID,
+			`peer`:   download.PeerName,
+			`share`:  download.ShareID,
+		})
 
 		if err := download.Download(); err != nil {
 			log.Errorf("Stopping download %v: %v", download, err)
 			download.Stop(err)
+
+			stats.Increment(`byteflood.queue.downloads.completed`, map[string]interface{}{
+				`worker`: workerID,
+				`peer`:   download.PeerName,
+				`share`:  download.ShareID,
+				`error`:  true,
+			})
+		} else {
+			stats.Increment(`byteflood.queue.downloads.completed`, map[string]interface{}{
+				`worker`: workerID,
+				`peer`:   download.PeerName,
+				`share`:  download.ShareID,
+				`error`:  false,
+			})
 		}
 
 		if err := self.app.Database.Downloads.Update(download); err == nil {
-			stats.Increment(fmt.Sprintf("byteflood.queue.downloads.succeeded,worker=%d", workerID))
-		} else {
-			stats.Increment(fmt.Sprintf("byteflood.queue.downloads.failed,worker=%d", workerID))
 			log.Warningf("Failed to update queue download: %v", err)
 		}
 

@@ -1,7 +1,6 @@
 package stats
 
 import (
-	"github.com/ghetzel/mobius"
 	"time"
 )
 
@@ -20,14 +19,16 @@ func NewTiming(times ...time.Time) *Timing {
 	}
 }
 
-func (self *Timing) Send(name string) {
+func (self *Timing) Send(name string, tags ...map[string]interface{}) {
 	Elapsed(name, time.Since(self.StartedAt))
 }
 
-func Elapsed(name string, duration time.Duration) {
+func Elapsed(name string, duration time.Duration, tags ...map[string]interface{}) {
+	m := metric(name, tags)
+
 	if StatsDB != nil {
-		StatsDB.Write(mobius.NewMetric(name+statsuffix).Push(time.Now(), float64(duration)/float64(time.Millisecond)))
+		StatsDB.Write(m.Push(time.Now(), float64(duration)/float64(time.Millisecond)))
 	}
 
-	statsdclient.Timing(name+statsuffix, duration)
+	statsdclient.Timing(m.GetUniqueName(), duration)
 }

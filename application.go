@@ -194,7 +194,7 @@ func (self *Application) Run() error {
 	defer stats.Cleanup()
 
 	// setup periodic share stats calculaton
-	go self.startMonitoringShareStats()
+	go self.startPeriodicMonitoring()
 
 	stats.Increment(`byteflood.app.started`)
 
@@ -240,7 +240,27 @@ func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
 	return nil, false
 }
 
-func (self *Application) startMonitoringShareStats() {
+func (self *Application) startPeriodicMonitoring() {
+	go self.collectQueueStats()
+	go self.collectPeerStats()
+	go self.collectShareStats()
+
+	select {}
+}
+
+func (self *Application) collectQueueStats() {
+	for {
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func (self *Application) collectPeerStats() {
+	for {
+		time.Sleep(10 * time.Second)
+	}
+}
+
+func (self *Application) collectShareStats() {
 	for {
 		var shares []*shares.Share
 

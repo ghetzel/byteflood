@@ -180,12 +180,18 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 						self.Status = `downloading`
 						self.Size = bytesReceived
 
-						stats.Gauge("byteflood.queue.downloads.bytes_received", float64(bytesReceived))
+						stats.Gauge("byteflood.queue.downloads.bytes_received", float64(bytesReceived), map[string]interface{}{
+							`peer`:  self.PeerName,
+							`share`: self.ShareID,
+						})
 
 						if time.Since(lastCalcTime) >= time.Second {
 							if self.lastByteSize > 0 {
 								self.Rate = (self.Size - self.lastByteSize)
-								stats.Gauge("byteflood.queue.downloads.bytes_per_second", float64(self.Rate))
+								stats.Gauge("byteflood.queue.downloads.bytes_per_second", float64(self.Rate), map[string]interface{}{
+									`peer`:  self.PeerName,
+									`share`: self.ShareID,
+								})
 							}
 
 							self.lastByteSize = self.Size

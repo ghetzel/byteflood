@@ -42,6 +42,8 @@ const (
 
 func (self MessageType) String() string {
 	switch self {
+	case Acknowledgment:
+		return `acknowledgement`
 	case DataStart:
 		return `transfer-start`
 	case DataProceed:
@@ -54,8 +56,6 @@ func (self MessageType) String() string {
 		return `transfer-final`
 	case DataFailed:
 		return `transfer-failed`
-	case Acknowledgment:
-		return `acknowledgement`
 	case ServiceRequest:
 		return `service-request`
 	case ServiceResponse:

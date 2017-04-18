@@ -64,7 +64,7 @@ func GetShares(conn *db.Database, requestingPeer peer.Peer, stats bool, ids ...s
 		}
 
 		if len(ids) > 0 && len(output) != len(ids) {
-			return nil, fmt.Errorf("Incorrecto number of shares retrieved")
+			return nil, fmt.Errorf("Incorrect number of shares retrieved")
 		}
 
 		return output, nil
@@ -230,13 +230,17 @@ func (self *Share) RefreshShareStats() error {
 			`bool:directory`: `false`,
 		}); err == nil {
 			if v, err := self.db.Metadata.Sum(`size`, filesFilter); err == nil {
-				stats.Gauge(fmt.Sprintf("byteflood.shares.total_bytes,share=%s", self.ID), float64(v))
+				stats.Gauge(`byteflood.shares.total_bytes`, float64(v), map[string]interface{}{
+					`share`: self.ID,
+				})
 			} else {
 				return err
 			}
 
 			if v, err := self.db.Metadata.Count(filesFilter); err == nil {
-				stats.Gauge(fmt.Sprintf("byteflood.shares.file_count,share=%s", self.ID), float64(v))
+				stats.Gauge(`byteflood.shares.file_count`, float64(v), map[string]interface{}{
+					`share`: self.ID,
+				})
 			} else {
 				return err
 			}
@@ -249,7 +253,9 @@ func (self *Share) RefreshShareStats() error {
 			`bool:directory`: `true`,
 		}); err == nil {
 			if v, err := self.db.Metadata.Count(dirFilter); err == nil {
-				stats.Gauge(fmt.Sprintf("byteflood.shares.directory_count,share=%s", self.ID), float64(v))
+				stats.Gauge(`byteflood.shares.directory_count`, float64(v), map[string]interface{}{
+					`share`: self.ID,
+				})
 			} else {
 				return err
 			}
