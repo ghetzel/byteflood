@@ -1,26 +1,55 @@
 <div class="card">
     <div class="card-block">
         {{ $chart_id := replace uuid "-" "" -1 }}
-        <div class="chart" id="chart_{{ $chart_id }}"></div>
+        <canvas class="chart" id="chart_{{ $chart_id }}"></canvas>
         <script type="text/javascript">
         $(document).ready(function(){
-            $.ajax('/api/metrics/query/byteflood.api.requests?interval=5m&from=-100h&format=csv', {
-                success: function(data){
-                    var xData = [];
-                    var yData = [];
+            $.ajax('/api/metrics/query/byteflood.api.requests?interval=5m&from=-100h&group=status', {
+                success: function(metrics){
+                    var datasets = [];
 
-                    $.each(data.split("\n"), function(i, row){
-                        var parts = row.split("\t");
+                    $.each(metrics, function(_, metric){
+                        var points = [];
 
-                        xData.push(new Date(parseInt(parts[1])));
-                        yData.push(parseFloat(parts[2]));
+
+                        $.each(metric.points, function(_, point){
+                            points.push({
+                                x: Date.parse(point.time),
+                                y: point.value,
+                            });
+                        });
+
+                        if(points.length) {
+                            var name = metric.name;
+
+                            name += ' {status:'+metric.tags['status']+'}';
+
+                            datasets.push({
+                                label: name,
+                                data: points,
+                            });
+                        }
                     });
 
-                    Plotly.newPlot('chart_{{ $chart_id }}', [{
-                        x:    xData,
-                        y:    yData,
-                        type: 'scatter',
-                    }]);
+                    var chart = new Chart('chart_{{ $chart_id }}', {
+                        type: 'line',
+                        data: {
+                            datasets: datasets,
+                        },
+                        options: {
+                            scales: {
+                                xAxes: [{
+                                    type: 'time',
+                                    position: 'bottom',
+                                    time: {
+                                        displayFormats: {
+                                            quarter: 'MMM YYYY',
+                                        },
+                                    },
+                                }],
+                            }
+                        }
+                    });
                 },
             });
         });
