@@ -9,7 +9,44 @@ bindings:
 - name: directories
   resource: :/api/directories
   on_error: print
+
+- name: stats
+  resource: :/api/metrics/summary/byteflood.db.(total_bytes|file_count|directory_count)
+  params:
+    fn: 'last'
 ---
+<div class="row">
+  <div class="col-sm-3 offset-sm-3">
+    <div class="card card-inverse card-success text-center">
+      <div class="card-block">
+        <div class="card-title">Total Size</div>
+        <h3 class="card-blockquote">
+          {{ $i := indexOf (pluck .bindings.stats "name") "byteflood.db.total_bytes" }}
+          {{ if gt $i 0 }}
+            {{ $s := index .bindings.stats $i }}
+            {{ autobyte (or $s.statistics.sum 0) "%.1f" }}
+          {{ end }}
+        </h3>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-3">
+    <div class="card card-inverse card-primary text-center">
+      <div class="card-block">
+        <div class="card-title">File Count</div>
+        <h3 class="card-blockquote">
+          {{ $i := indexOf (pluck .bindings.stats "name") "byteflood.db.file_count" }}
+          {{ if gt $i 0 }}
+            {{ $s := index .bindings.stats $i }}
+            {{ thousandify (or $s.statistics.sum 0) }}
+          {{ end }}
+        </h3>
+      </div>
+    </div>
+  </div>
+</div>
+
 {{ $scanning := .bindings.db.scan_in_progress }}
 <div class="card">
   <div class="card-header">

@@ -90,7 +90,9 @@ func metric(name string, tags []map[string]interface{}) *mobius.Metric {
 		}
 	}
 
-	name = name + maputil.Join(outTags, `=`, mobius.InlineTagSeparator)
+	if len(outTags) > 0 {
+		name = name + mobius.NameTagsDelimiter + maputil.Join(outTags, `=`, mobius.InlineTagSeparator)
+	}
 
 	return mobius.NewMetric(name)
 }

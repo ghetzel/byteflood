@@ -1,7 +1,6 @@
 package byteflood
 
 import (
-	"fmt"
 	"github.com/ghetzel/byteflood/stats"
 	"github.com/urfave/negroni"
 	"net/http"
@@ -56,22 +55,12 @@ func (self *RequestLogger) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 		}
 	}
 
-	stats.Elapsed(
-		fmt.Sprintf(
-			"byteflood.api.request_time,method=%s,status=%d,error=%v",
-			req.Method,
-			status,
-			isError,
-		),
-		duration,
-	)
+	tags := map[string]interface{}{
+		`method`: req.Method,
+		`status`: status,
+		`error`:  isError,
+	}
 
-	stats.Increment(
-		fmt.Sprintf(
-			"byteflood.api.requests,method=%s,status=%d,error=%v",
-			req.Method,
-			status,
-			isError,
-		),
-	)
+	stats.Elapsed(`byteflood.api.request_time`, duration, tags)
+	stats.Increment(`byteflood.api.requests`, tags)
 }

@@ -244,6 +244,7 @@ func (self *Application) startPeriodicMonitoring() {
 	go self.collectQueueStats()
 	go self.collectPeerStats()
 	go self.collectShareStats()
+	go self.collectDatabaseStats()
 
 	select {}
 }
@@ -265,7 +266,6 @@ func (self *Application) collectShareStats() {
 		var shares []*shares.Share
 
 		if err := self.Database.Shares.All(&shares); err == nil {
-
 			for _, share := range shares {
 				share.SetDatabase(self.Database)
 
@@ -275,6 +275,26 @@ func (self *Application) collectShareStats() {
 			}
 		} else {
 			log.Warningf("Failed to refresh share stats: %v", err)
+		}
+
+		time.Sleep(5 * time.Minute)
+	}
+}
+
+func (self *Application) collectDatabaseStats() {
+	for {
+		var dirs []*db.Directory
+
+		if err := self.Database.ScannedDirectories.All(&dirs); err == nil {
+			for _, dir := range dirs {
+				dir.SetDatabase(self.Database)
+
+				if err := dir.RefreshStats(); err != nil {
+					log.Warningf("Failed to refresh stats for directory %s: %v", dir.ID, err)
+				}
+			}
+		} else {
+			log.Warningf("Failed to refresh directory stats: %v", err)
 		}
 
 		time.Sleep(5 * time.Minute)

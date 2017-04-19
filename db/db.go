@@ -182,7 +182,10 @@ func (self *Database) Scan(deep bool, labels ...string) error {
 			if err := directory.Initialize(); err == nil {
 				log.Debugf("Scanning directory %s [%s]", directory.Path, directory.ID)
 
-				if err := directory.Scan(); err != nil {
+				if err := directory.Scan(); err == nil {
+					defer directory.RefreshStats()
+					return nil
+				} else {
 					return err
 				}
 			} else {
@@ -236,6 +239,7 @@ func (self *Database) Cleanup() error {
 					if absPath, err := entry.GetAbsolutePath(); err == nil {
 						if _, err := os.Stat(absPath); os.IsNotExist(err) {
 							entriesToDelete = append(entriesToDelete, entry.ID)
+							reportEntryDeletionStats(entry.Label, entry)
 						}
 					}
 				}
@@ -243,7 +247,7 @@ func (self *Database) Cleanup() error {
 				log.Warningf("%v", err)
 			}
 		}); err == nil {
-			log.Infof("Got %d entries", len(entriesToDelete))
+			log.Infof("[DISABLED] Would remove %d entries", len(entriesToDelete))
 			// if l := len(entriesToDelete); l > 0 {
 			// 	if err := self.Metadata.Delete(entriesToDelete...); err == nil {
 			// 		log.Infof("Removed %d entries", l)

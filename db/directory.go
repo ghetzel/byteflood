@@ -225,24 +225,66 @@ func (self *Directory) WalkModifiedSince(lastModifiedAt time.Time, entryFn WalkE
 	})
 }
 
-func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
-	defer stats.NewTiming().Send(`byteflood.db.entry_scan_time`, map[string]interface{}{
-		`label`: self.ID,
-	})
+func (self *Directory) RefreshStats() error {
+	if f, err := ParseFilter(`all`); err == nil {
+		f.Limit = -1
+		f.Fields = []string{`directory`, `size`}
+		f.Sort = []string{`-directory`, `size`}
 
-	stats.Increment(`byteflood.db.entry`, map[string]interface{}{
-		`label`: self.ID,
-	})
+		// file stats
+		if filesFilter, err := f.NewFromMap(map[string]interface{}{
+			`bool:directory`: `false`,
+		}); err == nil {
+			if v, err := self.db.Metadata.Sum(`size`, filesFilter); err == nil {
+				stats.Gauge(`byteflood.db.total_bytes`, float64(v), map[string]interface{}{
+					`label`: self.ID,
+				})
+			} else {
+				return err
+			}
 
-	if isDir {
-		stats.Increment(`byteflood.db.directory`, map[string]interface{}{
-			`label`: self.ID,
-		})
+			if v, err := self.db.Metadata.Count(filesFilter); err == nil {
+				stats.Gauge(`byteflood.db.file_count`, float64(v), map[string]interface{}{
+					`label`: self.ID,
+				})
+			} else {
+				return err
+			}
+		} else {
+			return err
+		}
+
+		// directory stats
+		if dirFilter, err := f.NewFromMap(map[string]interface{}{
+			`bool:directory`: `true`,
+		}); err == nil {
+			if v, err := self.db.Metadata.Count(dirFilter); err == nil {
+				stats.Gauge(`byteflood.db.directory_count`, float64(v), map[string]interface{}{
+					`label`: self.ID,
+				})
+			} else {
+				return err
+			}
+		} else {
+			return err
+		}
+
+		return nil
 	} else {
-		stats.Increment(`byteflood.db.entry`, map[string]interface{}{
-			`label`: self.ID,
-		})
+		return err
 	}
+}
+
+func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
+	defer stats.NewTiming().Send(`byteflood.db.entry.scan_time`, map[string]interface{}{
+		`label`:     self.ID,
+		`directory`: isDir,
+	})
+
+	stats.Increment(`byteflood.db.entry.num_scanned`, map[string]interface{}{
+		`label`:     self.ID,
+		`directory`: isDir,
+	})
 
 	// get entry implementation
 	entry := NewEntry(self.db, self.ID, self.RootPath, name)
@@ -297,11 +339,18 @@ func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 		} else {
 			return nil, err
 		}
+
+		stats.Gauge(`byteflood.db.entry.bytes_scanned`, float64(entry.Size), map[string]interface{}{
+			`label`:     self.ID,
+			`directory`: isDir,
+		})
 	}
 
-	tm.Send(`byteflood.db.entry_metadata_load_time`, map[string]interface{}{
-		`label`: self.ID,
+	tm.Send(`byteflood.db.entry.metadata_load_time`, map[string]interface{}{
+		`label`:     self.ID,
+		`directory`: isDir,
 	})
+
 	tm = stats.NewTiming()
 
 	// persist the entry record
@@ -309,8 +358,9 @@ func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 		return nil, err
 	}
 
-	tm.Send(`byteflood.db.entry_persist_time`, map[string]interface{}{
-		`label`: self.ID,
+	tm.Send(`byteflood.db.entry.persist_time`, map[string]interface{}{
+		`label`:     self.ID,
+		`directory`: isDir,
 	})
 
 	return entry, nil
