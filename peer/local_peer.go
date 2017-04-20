@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
+	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/jbenet/go-base58"
@@ -612,4 +613,13 @@ func (self *LocalPeer) Stop() chan bool {
 	}()
 
 	return done
+}
+
+func (self *LocalPeer) RefreshStats() {
+	stats.Gauge(`byteflood.peers.sessions`, float64(self.sessions.Count()))
+	stats.Gauge(`byteflood.peers.sessions`, float64(self.sessions.Count()))
+
+	for _, remotePeer := range self.GetPeers() {
+		remotePeer.ObserveStats()
+	}
 }

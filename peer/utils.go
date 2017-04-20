@@ -1,7 +1,9 @@
 package peer
 
 import (
+	"fmt"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"io"
 	"net"
 	"strings"
 )
@@ -11,6 +13,36 @@ const (
 	BF_ERR_LOOPBACK_CONN     = `cannot connect to myself`
 	BF_ERR_UNKNOWN_PEER      = `unknown peer`
 )
+
+type readCounter struct {
+	Reader    io.Reader
+	BytesRead uint64
+}
+
+func (self *readCounter) Read(p []byte) (int, error) {
+	if self.Reader != nil {
+		n, err := self.Reader.Read(p)
+		self.BytesRead += uint64(n)
+		return n, err
+	} else {
+		return 0, fmt.Errorf("Reader not set")
+	}
+}
+
+type writeCounter struct {
+	Writer       io.Writer
+	BytesWritten uint64
+}
+
+func (self *writeCounter) Write(p []byte) (int, error) {
+	if self.Writer != nil {
+		n, err := self.Writer.Write(p)
+		self.BytesWritten += uint64(n)
+		return n, err
+	} else {
+		return 0, fmt.Errorf("Writer not set")
+	}
+}
 
 func min(a, b int) int {
 	if a <= b {

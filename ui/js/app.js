@@ -1,7 +1,7 @@
 "use strict";
 
 $(function(){
-    var guid = function(sep) {
+    window.guid = function(sep) {
         if(sep === undefined){
             sep = '-';
         }
@@ -12,6 +12,20 @@ $(function(){
 
         return s4() + s4() + sep + s4() + sep + s4() + sep + s4() + sep + s4() + s4() + s4();
     };
+
+    window.hexToRGB = function(hex, alpha) {
+        hex = hex.replace(/^#/, '');
+
+        var r = parseInt(hex.slice(0, 2), 16),
+            g = parseInt(hex.slice(2, 4), 16),
+            b = parseInt(hex.slice(4, 6), 16);
+
+        if(alpha){
+            return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
+        } else {
+            return "rgb(" + r + ", " + g + ", " + b + ")";
+        }
+    }
 
     var Byteflood = Stapes.subclass({
         constructor: function(){
@@ -288,6 +302,39 @@ $(function(){
                     response.statusText + ' (HTTP '+response.status.toString()+')' +
                     '<br />' +
                 '</b>',
+            });
+        },
+
+        queryMetrics: function(name, options, callback) {
+            options = (options || {});
+            var url = '/api/metrics/query/'+name+'?';
+            var qs = [];
+
+            if(options['interval']){
+                qs.push('interval='+options['interval']);
+            }
+
+            if(options['from']){
+                qs.push('from='+options['from']);
+            }
+
+            if(options['group']){
+                qs.push('group='+options['group']);
+            }
+
+            if(options['fn']){
+                qs.push('fn='+options['fn']);
+            }
+
+            qs.push('palette='+(options['palette'] || 'spectrum14'));
+
+
+            $.ajax(url+qs.join('&'), {
+                success: function(metrics){
+                    if($.isFunction(callback)){
+                        callback.bind(this)(metrics);
+                    }
+                }.bind(this),
             });
         },
     });

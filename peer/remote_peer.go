@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
+	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/jbenet/go-base58"
 	"github.com/orcaman/concurrent-map"
@@ -53,6 +54,8 @@ type RemotePeer struct {
 	originalRequest       *PeeringRequest
 	messagesAwaitingReply map[uuid.UUID]chan *Message
 	messageReplyLock      sync.Mutex
+	readCounter           *readCounter
+	writeCounter          *writeCounter
 }
 
 func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) (*RemotePeer, error) {
@@ -66,6 +69,8 @@ func NewRemotePeerFromRequest(request *PeeringRequest, connection *net.TCPConn) 
 			originalRequest:       request,
 			inboundTransfers:      cmap.New(),
 			messagesAwaitingReply: make(map[uuid.UUID]chan *Message),
+			readCounter:           &readCounter{},
+			writeCounter:          &writeCounter{},
 		}, nil
 	} else {
 		return nil, err
@@ -223,8 +228,11 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 	// imposes rate limiting on reads (if configured)
 	reader := self.getReadRateLimiter(self.connection)
 
+	// intercepts reads and increments a counter
+	self.readCounter.Reader = reader
+
 	// ensures that the decrypter is using the reader we've specified
-	self.Encryption.SetSource(reader)
+	self.Encryption.SetSource(self.readCounter)
 
 	if cleartext, err := self.Encryption.ReadNext(); err == nil {
 		// decode the decrypted message payload
@@ -249,8 +257,11 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 	self.Encryption.Lock()
 	defer self.Encryption.Unlock()
 
+	// intercepts writes and increments a counter
+	self.writeCounter.Writer = writer
+
 	// ensures that the encrypter is using the writer we've specified
-	self.Encryption.SetTarget(writer)
+	self.Encryption.SetTarget(self.writeCounter)
 
 	// encode the message for transport
 	if encodedMessage, err := message.Encode(); err == nil {
@@ -259,12 +270,16 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 		// write encoded message (cleartext) to encrypter, which will in turn write
 		// the ciphertext and protocol data to the writer specified above
 		if n, err := io.Copy(self.Encryption, encodedMessageR); err == nil {
-			// log.Debugf("[%s] SEND: [%s] Encrypted %d bytes (%d encoded, %d data)",
-			// 	self.String(),
-			// 	message.Type.String(),
-			// 	n,
-			// 	len(encodedMessage),
-			// 	len(message.Data))
+			stats.Increment(`byteflood.peers.messages.total_sent`, map[string]interface{}{
+				`peer`:         self.Name,
+				`message_type`: message.Type.String(),
+			})
+
+			stats.Gauge(`byteflood.peers.messages.sent_payload_size`, float64(len(message.Data)), map[string]interface{}{
+				`peer`:         self.Name,
+				`message_type`: message.Type.String(),
+			})
+
 			return int(n), err
 		} else {
 			// log.Debugf("[%s] SEND: [%s] error: %v", self.String(), message.Type.String(), err)
@@ -453,6 +468,15 @@ func (self *RemotePeer) receiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 		var replyErr error
 
 		// log.Debugf("[%s] RECV: message-type=%s, payload=%d bytes", self.String(), message.Type.String(), len(message.Data))
+		stats.Increment(`byteflood.peers.messages.total_received`, map[string]interface{}{
+			`peer`:         self.Name,
+			`message_type`: message.Type.String(),
+		})
+
+		stats.Gauge(`byteflood.peers.messages.received_payload_size`, float64(len(message.Data)), map[string]interface{}{
+			`peer`:         self.Name,
+			`message_type`: message.Type.String(),
+		})
 
 		switch message.Type {
 		case DataStart:
@@ -613,4 +637,20 @@ func (self *RemotePeer) getWriteRateLimiter(w io.Writer) io.Writer {
 	} else {
 		return w
 	}
+}
+
+func (self *RemotePeer) ObserveStats() {
+	w := self.writeCounter.BytesWritten
+	self.writeCounter.BytesWritten = 0
+
+	r := self.readCounter.BytesRead
+	self.readCounter.BytesRead = 0
+
+	stats.Gauge(`byteflood.peers.data.bytes_sent`, float64(w), map[string]interface{}{
+		`peer`: self.Name,
+	})
+
+	stats.Gauge(`byteflood.peers.data.bytes_recevied`, float64(r), map[string]interface{}{
+		`peer`: self.Name,
+	})
 }

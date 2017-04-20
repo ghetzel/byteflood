@@ -1,56 +1,90 @@
 <div class="card">
+    <div class="card-heading text-center">
+        <b class="card-title">Chart Title</b>
+    </div>
     <div class="card-block">
         {{ $chart_id := replace uuid "-" "" -1 }}
-        <canvas class="chart" id="chart_{{ $chart_id }}"></canvas>
+        <canvas class="chart noselect" id="chart_{{ $chart_id }}"></canvas>
         <script type="text/javascript">
         $(document).ready(function(){
-            $.ajax('/api/metrics/query/byteflood.api.requests?interval=5m&from=-100h&group=status', {
-                success: function(metrics){
-                    var datasets = [];
+            byteflood.queryMetrics('byteflood.api.requests', {
+                interval: '1m',
+                from:     '-5h',
+                group:    'status',
+            }, function(metrics){
+                var datasets = [];
 
-                    $.each(metrics, function(_, metric){
-                        var points = [];
+                $.each(metrics, function(_, metric){
+                    var points = [];
 
 
-                        $.each(metric.points, function(_, point){
-                            points.push({
-                                x: Date.parse(point.time),
-                                y: point.value,
-                            });
+                    $.each(metric.points, function(_, point){
+                        points.push({
+                            x: Date.parse(point.time),
+                            y: point.value,
                         });
-
-                        if(points.length) {
-                            var name = metric.name;
-
-                            name += ' {status:'+metric.tags['status']+'}';
-
-                            datasets.push({
-                                label: name,
-                                data: points,
-                            });
-                        }
                     });
 
-                    var chart = new Chart('chart_{{ $chart_id }}', {
-                        type: 'line',
-                        data: {
-                            datasets: datasets,
+                    if(points.length) {
+                        var name = metric.name;
+
+                        name += ' {status:'+metric.tags['status']+'}';
+
+                        var entry = {
+                            label: name,
+                            data: points,
+                        }
+
+                        if(metric.metadata && metric.metadata.color) {
+                            entry['backgroundColor'] = hexToRGB(metric.metadata.color, 0.5);
+                            entry['borderColor'] = hexToRGB(metric.metadata.color, 0.8);
+                        }
+
+                        datasets.push(entry);
+                    }
+                });
+
+                var chart = new Chart('chart_{{ $chart_id }}', {
+                    type: 'line',
+                    data: {
+                        datasets: datasets,
+                    },
+                    options: {
+                        events: [],
+                        animation: {
+                            duration: 0,
                         },
-                        options: {
-                            scales: {
-                                xAxes: [{
-                                    type: 'time',
-                                    position: 'bottom',
-                                    time: {
-                                        displayFormats: {
-                                            quarter: 'MMM YYYY',
-                                        },
+                        elements: {
+                            line: {
+                                tension: 0,
+                                borderWidth: 2,
+                                // stepped: true,
+                            },
+                            point: {
+                                radius: 0,
+                            },
+                        },
+                        scales: {
+                            xAxes: [{
+                                type: 'time',
+                                position: 'bottom',
+                                time: {
+                                    displayFormats: {
+                                        quarter: 'MMM YYYY',
                                     },
-                                }],
-                            }
+                                },
+                                gridLines: {
+                                    display: false,
+                                },
+                            }],
+                            yAxes: [{
+                                gridLines: {
+                                    display: false,
+                                },
+                            }],
                         }
-                    });
-                },
+                    }
+                });
             });
         });
         </script>

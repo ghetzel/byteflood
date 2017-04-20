@@ -7,6 +7,12 @@ bindings:
   resource: :/api/status
 ---
 <div
+  bf-load="/peers/_peer_stats"
+  bf-interval="30000"
+></div>
+
+
+<div
   bf-load="/peers/_authorized_peers"
   bf-interval="5000"
 ></div>
