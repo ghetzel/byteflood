@@ -17,6 +17,10 @@ bindings:
         type="text"
         class="form-control"
         placeholder="Search..."
+        oninput="byteflood.loadInto('#share-browser', '/shares/_peer_query_files', {
+            'share': '{{ .id }}',
+            'query': this.value,
+        })"
     >
     </input>
     <div class="input-group-addon">
