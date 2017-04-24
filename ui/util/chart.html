@@ -8,9 +8,12 @@
         <script type="text/javascript">
         $(document).ready(function(){
             byteflood.queryMetrics('byteflood.api.requests', {
-                interval: '1m',
-                from:     '-5h',
-                group:    'status',
+                interval: '{{ or .request.url.query.interval "1m" }}',
+                from:     '{{ or .request.url.query.from "-1h" }}',
+                to:       '{{ or .request.url.query.to "now" }}',
+                {{ if .request.url.query.group }}
+                group:    '{{ .request.url.query.group }}',
+                {{ end }}
             }, function(metrics){
                 var datasets = [];
 
@@ -28,7 +31,9 @@
                     if(points.length) {
                         var name = metric.name;
 
-                        name += ' {status:'+metric.tags['status']+'}';
+                        {{ if .request.url.query.group }}
+                        name += '{' + '{{ .request.url.query.group }}:' + metric.tags['{{ .request.url.query.group }}'] + '}';
+                        {{ end }}
 
                         var entry = {
                             label: name,
@@ -43,6 +48,8 @@
                         datasets.push(entry);
                     }
                 });
+
+                console.log(datasets)
 
                 var chart = new Chart('chart_{{ $chart_id }}', {
                     type: 'line',
