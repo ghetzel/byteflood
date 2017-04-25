@@ -3,7 +3,6 @@ bindings:
 - name: results
   resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ or .request.url.query.share `_all` }}/query/name=contains:{{ .request.url.query.query }}
   params:
-    fields: '{{ or .request.url.query.fields "name" }}'
     limit:  '{{ or .request.url.query.limit 25 }}'
     offset: '{{ multiply (subtract (asFloat (or .request.url.query.page 1)) 1) (asFloat (or .request.url.query.limit 25)) }}'
     sort:   '{{ .request.url.query.sort }}'
@@ -77,7 +76,7 @@ bindings:
           <td>
             <a
               target="_blank"
-              href="/api{{ if $session }}/sessions/{{ $session }}{{ end }}/files/{{ .id }}?mimetype={{ .fields.metadata.file.mime.type }}"
+              href="/api{{ if $session }}/sessions/{{ $session }}/{{ $id }}{{ end }}/files/{{ .id }}?mimetype={{ .fields.metadata.file.mime.type }}&amp;inline=true"
             >
               <i class="fa fa-fw fa-download"></i>
             </a>

@@ -274,11 +274,13 @@ func writeHttpHeadersForEntry(w http.ResponseWriter, req *http.Request, entry *d
 		w.Header().Set(`Content-Length`, fmt.Sprintf("%d", entry.Size))
 	}
 
-	if v := w.Header().Get(`Content-Disposition`); v == `` {
-		w.Header().Set(`Content-Disposition`, fmt.Sprintf(
-			"attachment; filename=%q",
-			path.Base(entry.RelativePath),
-		))
+	if !httputil.QBool(req, `inline`) {
+		if v := w.Header().Get(`Content-Disposition`); v == `` {
+			w.Header().Set(`Content-Disposition`, fmt.Sprintf(
+				"attachment; filename=%q",
+				path.Base(entry.RelativePath),
+			))
+		}
 	}
 
 	// if the content-type hasn't already been set, use the mimetype associated with the given entry
