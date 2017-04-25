@@ -45,6 +45,23 @@ bindings:
       </div>
     </div>
   </div>
+<!--
+  <div class="col-sm-3">
+    <div class="card text-center">
+      <div class="card-block p-1">
+        <div
+          bf-load="/util/_chart.html"
+          bf-param-q="byteflood.api.requests"
+          bf-param-from="-24h"
+          bf-param-interval="5m"
+          bf-param-xAxis="false"
+          bf-param-yAxis="false"
+          bf-param-staircase="true"
+          bf-param-legend="false"
+        ></div>
+      </div>
+    </div>
+  </div> -->
 </div>
 
 {{ $scanning := .bindings.db.scan_in_progress }}

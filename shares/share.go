@@ -140,15 +140,9 @@ func (self *Share) IsPeerPermitted(p peer.Peer) bool {
 }
 
 func (self *Share) Length() int {
-	var entries []*db.Entry
-
-	if f, err := db.ParseFilter(self.GetQuery()); err == nil {
-		if err := self.db.Metadata.Find(f, &entries); err == nil {
-			return len(entries)
-		} else {
-			return 0
-		}
-	} else {
+	if stats, err := self.GetStats(); err == nil {
+		return int(stats.FileCount) + int(stats.DirectoryCount)
+	}else{
 		return 0
 	}
 }

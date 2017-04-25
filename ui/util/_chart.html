@@ -1,0 +1,117 @@
+---
+defaults:
+    xaxis:     true
+    xgrid:     true
+    yaxis:     true
+    ygrid:     true
+    y2axis:    false
+    y2grid:    false
+    legend:    true
+    staircase: false
+    palette:   spectrum14
+---
+{{ if .request.url.query.q }}
+    {{ $chart_id := replace uuid "-" "" -1 }}
+    <canvas class="chart noselect" id="chart_{{ $chart_id }}"></canvas>
+    <script type="text/javascript">
+    $(document).ready(function(){
+        byteflood.queryMetrics('{{ .request.url.query.q }}', {
+            interval: '{{ or .request.url.query.interval "1m" }}',
+            from:     '{{ or .request.url.query.from "-1h" }}',
+            to:       '{{ or .request.url.query.to "now" }}',
+            {{ if .request.url.query.group }}
+            group:    '{{ .request.url.query.group }}',
+            {{ end }}
+            palette:  '{{ .request.url.query.palette }}',
+        }, function(metrics){
+            var datasets = [];
+
+            // for each metric that matched the given query, add it as a dataset
+            $.each(metrics, function(_, metric){
+                var points = [];
+
+                $.each(metric.points, function(_, point){
+                    points.push({
+                        x: Date.parse(point.time),
+                        y: point.value,
+                    });
+                });
+
+                if(points.length) {
+                    var name = metric.name;
+
+                    {{ if .request.url.query.group }}
+                    name += '{' + '{{ .request.url.query.group }}:' + metric.tags['{{ .request.url.query.group }}'] + '}';
+                    {{ end }}
+
+                    var entry = {
+                        label: name,
+                        data: points,
+                    }
+
+                    if(metric.metadata && metric.metadata.color) {
+                        entry['backgroundColor'] = hexToRGB(metric.metadata.color, 0.5);
+                        entry['borderColor'] = hexToRGB(metric.metadata.color, 0.8);
+                    }
+
+                    datasets.push(entry);
+                }
+            });
+
+            var chart = new Chart('chart_{{ $chart_id }}', {
+                type: 'line',
+                data: {
+                    datasets: datasets,
+                },
+                options: {
+                    events: [],
+                    animation: {
+                        duration: 0,
+                    },
+                    elements: {
+                        line: {
+                            tension: 0,
+                            borderWidth: 2,
+                            stepped: {{ .request.url.query.staircase }},
+                        },
+                        point: {
+                            radius: 0,
+                        },
+                    },
+                    legend: {
+                        display: {{ .request.url.query.legend }},
+                    },
+                    scales: {
+                        xAxes: [{
+                            display: {{ .request.url.query.xaxis }},
+                            type: 'time',
+                            position: 'bottom',
+                            time: {
+                                displayFormats: {
+                                    quarter: 'MMM YYYY',
+                                },
+                            },
+                            gridLines: {
+                                display: {{ .request.url.query.xgrid }},
+                            },
+                        }],
+                        yAxes: [{
+                            display: {{ .request.url.query.yaxis }},
+                            gridLines: {
+                                display: {{ .request.url.query.ygrid }},
+                            },
+                        },{
+                            display: {{ .request.url.query.y2axis }},
+                            gridLines: {
+                                display: {{ .request.url.query.y2grid }},
+                            },
+                        }],
+                    }
+                }
+            });
+        });
+    });
+    </script>
+{{ else }}
+    <span class="text-danger">No query specified.</span>
+{{ end }}

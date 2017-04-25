@@ -194,7 +194,7 @@ func (self *DownloadQueue) downloadWorker(workerID int) {
 			})
 		}
 
-		if err := self.app.Database.Downloads.Update(download); err == nil {
+		if err := self.app.Database.Downloads.Update(download); err != nil {
 			log.Warningf("Failed to update queue download: %v", err)
 		}
 

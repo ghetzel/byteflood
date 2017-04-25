@@ -105,6 +105,7 @@ func setupApplication(assert *require.Assertions, source string, dest string) *A
 		`/music/(?P<media__artist>[^/]+)/(?P<media__album>[^/]+)/(?P<media__track>\d+) (?P<media__title>[^\.]*)\.`,
 	}
 
+	// initialize the application
 	assert.NoError(app.Initialize())
 
 	dir, err := filepath.Abs(filepath.Join(source, `music`))

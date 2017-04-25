@@ -80,12 +80,21 @@ $(function(){
 
                 // setup partial from element
                 if(!this._partials[id]){
+                    var params = {};
+
+                    $.each(element[0].attributes, function(i, attr){
+                        if(attr.name.match(/^bf-param-/)){
+                            params[attr.name.replace(/^bf-param-/, '')] = attr.value;
+                        }
+                    });
+
                     var partial = new Partial(
                         id,
                         element,
                         element.attr('bf-load'), {
                             'interval': element.attr('bf-interval'),
                             'onload': element.attr('bf-onload'),
+                            'params': params,
                         });
 
                     // load the partial and, if an interval is given, start a timer to
@@ -362,7 +371,21 @@ $(function(){
 
         load: function(){
             if(this.url) {
-                $(this.element).load(this.url, null, function(response, status, xhr){
+                var params = '';
+
+                if($.isPlainObject(this.options.params)){
+                    var qs = [];
+
+                    $.each(this.options.params, function(k, v){
+                        qs.push(k + '=' + encodeURIComponent(v));
+                    })
+
+                    if(qs.length) {
+                        params = '?' + qs.join('&');
+                    }
+                }
+
+                $(this.element).load(this.url+params, null, function(response, status, xhr){
                     if(xhr.status < 400){
                         if(this.options.onload){
                             eval(this.options.onload);

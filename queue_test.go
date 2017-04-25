@@ -11,6 +11,7 @@ import (
 
 func TestQueue(t *testing.T) {
 	assert := require.New(t)
+	assert.NoError(generateTestDirectory())
 	app := setupApplication(assert, `./tests/files`, `./tests/target`)
 	ConcurrentDownloads = 10
 	var completeOrder []int
