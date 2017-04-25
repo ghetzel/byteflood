@@ -1,99 +1,116 @@
-<div class="card">
-    <div class="card-heading text-center">
-        <b class="card-title">Chart Title</b>
-    </div>
-    <div class="card-block">
-        {{ $chart_id := replace uuid "-" "" -1 }}
-        <canvas class="chart noselect" id="chart_{{ $chart_id }}"></canvas>
-        <script type="text/javascript">
-        $(document).ready(function(){
-            byteflood.queryMetrics('byteflood.api.requests', {
-                interval: '{{ or .request.url.query.interval "1m" }}',
-                from:     '{{ or .request.url.query.from "-1h" }}',
-                to:       '{{ or .request.url.query.to "now" }}',
-                {{ if .request.url.query.group }}
-                group:    '{{ .request.url.query.group }}',
-                {{ end }}
-            }, function(metrics){
-                var datasets = [];
+---
+defaults:
+    xAxis:   true
+    xGrid:   true
+    yAxis:   true
+    yGrid:   true
+    y2Axis:  false
+    y2Grid:  false
+    legend:  true
+    palette: spectrum14
+---
+{{ if .request.url.query.q }}
+    {{ $chart_id := replace uuid "-" "" -1 }}
+    <canvas class="chart noselect" id="chart_{{ $chart_id }}"></canvas>
+    <script type="text/javascript">
+    $(document).ready(function(){
+        byteflood.queryMetrics('{{ .request.url.query.q }}', {
+            interval: '{{ or .request.url.query.interval "1m" }}',
+            from:     '{{ or .request.url.query.from "-1h" }}',
+            to:       '{{ or .request.url.query.to "now" }}',
+            {{ if .request.url.query.group }}
+            group:    '{{ .request.url.query.group }}',
+            {{ end }}
+            palette:  '{{ .request.url.query.palette }}',
+        }, function(metrics){
+            var datasets = [];
 
-                $.each(metrics, function(_, metric){
-                    var points = [];
+            // for each metric that matched the given query, add it as a dataset
+            $.each(metrics, function(_, metric){
+                var points = [];
 
-
-                    $.each(metric.points, function(_, point){
-                        points.push({
-                            x: Date.parse(point.time),
-                            y: point.value,
-                        });
+                $.each(metric.points, function(_, point){
+                    points.push({
+                        x: Date.parse(point.time),
+                        y: point.value,
                     });
-
-                    if(points.length) {
-                        var name = metric.name;
-
-                        {{ if .request.url.query.group }}
-                        name += '{' + '{{ .request.url.query.group }}:' + metric.tags['{{ .request.url.query.group }}'] + '}';
-                        {{ end }}
-
-                        var entry = {
-                            label: name,
-                            data: points,
-                        }
-
-                        if(metric.metadata && metric.metadata.color) {
-                            entry['backgroundColor'] = hexToRGB(metric.metadata.color, 0.5);
-                            entry['borderColor'] = hexToRGB(metric.metadata.color, 0.8);
-                        }
-
-                        datasets.push(entry);
-                    }
                 });
 
-                console.log(datasets)
+                if(points.length) {
+                    var name = metric.name;
 
-                var chart = new Chart('chart_{{ $chart_id }}', {
-                    type: 'line',
-                    data: {
-                        datasets: datasets,
+                    {{ if .request.url.query.group }}
+                    name += '{' + '{{ .request.url.query.group }}:' + metric.tags['{{ .request.url.query.group }}'] + '}';
+                    {{ end }}
+
+                    var entry = {
+                        label: name,
+                        data: points,
+                    }
+
+                    if(metric.metadata && metric.metadata.color) {
+                        entry['backgroundColor'] = hexToRGB(metric.metadata.color, 0.5);
+                        entry['borderColor'] = hexToRGB(metric.metadata.color, 0.8);
+                    }
+
+                    datasets.push(entry);
+                }
+            });
+
+            var chart = new Chart('chart_{{ $chart_id }}', {
+                type: 'line',
+                data: {
+                    datasets: datasets,
+                },
+                options: {
+                    events: [],
+                    animation: {
+                        duration: 0,
                     },
-                    options: {
-                        events: [],
-                        animation: {
-                            duration: 0,
+                    elements: {
+                        line: {
+                            tension: 0,
+                            borderWidth: 2,
+                            // stepped: true,
                         },
-                        elements: {
-                            line: {
-                                tension: 0,
-                                borderWidth: 2,
-                                // stepped: true,
-                            },
-                            point: {
-                                radius: 0,
-                            },
+                        point: {
+                            radius: 0,
                         },
-                        scales: {
-                            xAxes: [{
-                                type: 'time',
-                                position: 'bottom',
-                                time: {
-                                    displayFormats: {
-                                        quarter: 'MMM YYYY',
-                                    },
+                    },
+                    legend: {
+                        display: {{ .request.url.query.legend }},
+                    },
+                    scales: {
+                        xAxes: [{
+                            display: {{ .request.url.query.xAxis }},
+                            type: 'time',
+                            position: 'bottom',
+                            time: {
+                                displayFormats: {
+                                    quarter: 'MMM YYYY',
                                 },
-                                gridLines: {
-                                    display: false,
-                                },
-                            }],
-                            yAxes: [{
-                                gridLines: {
-                                    display: false,
-                                },
-                            }],
-                        }
+                            },
+                            gridLines: {
+                                display: {{ .request.url.query.xGrid }},
+                            },
+                        }],
+                        yAxes: [{
+                            display: {{ .request.url.query.yAxis }},
+                            gridLines: {
+                                display: {{ .request.url.query.yGrid }},
+                            },
+                        },{
+                            display: {{ .request.url.query.y2Axis }},
+                            gridLines: {
+                                display: {{ .request.url.query.y2Grid }},
+                            },
+                        }],
                     }
-                });
+                }
             });
         });
-        </script>
-    </div>
-</div>
+    });
+    </script>
+{{ else }}
+    <span class="text-danger">No query specified.</span>
+{{ end }}
