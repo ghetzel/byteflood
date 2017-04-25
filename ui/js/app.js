@@ -116,17 +116,17 @@ $(function(){
         },
 
         loadElement: function(selector, url, config, replace) {
-            var onError, onSuccess, payload;
+            var onError, onSuccess, params;
 
             if($.isPlainObject(config)){
                 onSuccess = config['success'];
                 onError = config['error'];
-                payload = config['payload'];
+                params = config['params'];
             }
 
             $.ajax(url, {
                 method: 'GET',
-                data: payload,
+                data: params,
                 success: function(data){
                     var el = $(selector);
 

@@ -114,9 +114,9 @@ func (self *Database) Initialize() error {
 		self.URI = fmt.Sprintf("sqlite:///%s/info.db", self.BaseDirectory)
 	}
 
-	if _, ok := self.AdditionalIndexers[`metadata`]; !ok {
-		self.AdditionalIndexers[`metadata`] = fmt.Sprintf("bleve:///%s/index", self.BaseDirectory)
-	}
+	// if _, ok := self.AdditionalIndexers[`metadata`]; !ok {
+	// 	self.AdditionalIndexers[`metadata`] = fmt.Sprintf("bleve:///%s/index", self.BaseDirectory)
+	// }
 
 	if db, err := pivot.NewDatabaseWithOptions(self.URI, backends.ConnectOptions{
 		Indexer:            self.Indexer,

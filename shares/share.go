@@ -142,7 +142,7 @@ func (self *Share) IsPeerPermitted(p peer.Peer) bool {
 func (self *Share) Length() int {
 	if stats, err := self.GetStats(); err == nil {
 		return int(stats.FileCount) + int(stats.DirectoryCount)
-	}else{
+	} else {
 		return 0
 	}
 }
@@ -166,6 +166,31 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 
 		if err := self.db.Metadata.Find(f, &recordset); err == nil {
 			return &recordset, nil
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
+}
+
+func (self *Share) List(field string, filterString string, limit int, offset int, sort []string) ([]interface{}, error) {
+	if f, err := db.ParseFilter(self.GetQuery(filterString)); err == nil {
+		f.Limit = limit
+		f.Offset = offset
+
+		if len(sort) == 0 {
+			f.Sort = []string{`-directory`, `name`}
+		} else {
+			f.Sort = sort
+		}
+
+		if results, err := self.db.Metadata.ListWithFilter([]string{field}, f); err == nil {
+			if v, ok := results[field]; ok {
+				return v, nil
+			} else {
+				return []interface{}{}, nil
+			}
 		} else {
 			return nil, err
 		}

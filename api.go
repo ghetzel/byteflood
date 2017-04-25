@@ -158,6 +158,7 @@ func (self *API) Serve() error {
 	router.Put(`/api/shares`, self.handleSaveModel)
 	router.Delete(`/api/shares/:id`, self.handleDeleteModel)
 	router.Get(`/api/shares/new`, self.handleGetNewModelInstance)
+	router.Get(`/api/shares/_all/query/*`, self.wrapHandlerWithLocalPeer(self.handleQueryAllShares))
 
 	router.Get(`/api/shares/:id`, self.wrapHandlerWithLocalPeer(self.handleGetShare))
 	router.Get(`/api/shares/:id/landing`, self.wrapHandlerWithLocalPeer(self.handleShareLandingPage))
@@ -203,6 +204,7 @@ func (self *API) GetPeerRequestHandler() http.Handler {
 	// TODO: this needs to go through share to enforce authz
 	router.Post(`/transfers/:transfer/:share/:entry`, self.wrapHandlerWithRemotePeer(self.handleRequestEntryFromShare))
 	router.Get(`/shares`, self.wrapHandlerWithRemotePeer(self.handleGetShares))
+	router.Get(`/shares/_all/query/*`, self.wrapHandlerWithRemotePeer(self.handleQueryAllShares))
 	router.Get(`/shares/:id`, self.wrapHandlerWithRemotePeer(self.handleGetShare))
 	router.Get(`/shares/:id/landing`, self.wrapHandlerWithRemotePeer(self.handleShareLandingPage))
 	router.Get(`/shares/:id/stats`, self.wrapHandlerWithRemotePeer(self.handleGetShareStats))

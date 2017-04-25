@@ -1,17 +1,17 @@
 ---
 bindings:
 - name: results
-  resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}/query/{{ .request.url.query.query }}
+  resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ or .request.url.query.share `_all` }}/query/name=contains:{{ .request.url.query.query }}
   params:
-    limit: '{{ or .request.url.query.limit 25 }}'
+    fields: '{{ or .request.url.query.fields "name" }}'
+    limit:  '{{ or .request.url.query.limit 25 }}'
     offset: '{{ multiply (subtract (asFloat (or .request.url.query.page 1)) 1) (asFloat (or .request.url.query.limit 25)) }}'
     sort:   '{{ .request.url.query.sort }}'
 ---
-{{ $share := or .bindings.share.id `` }}
+{{ $share := or .bindings.share.id `_all` }}
 {{ $session := or .request.url.query.session `` }}
-{{ $query := or .request.url.query.query }}
+{{ $query := or .request.url.query.query `` }}
 
-{{ if .bindings.results }}
 <div class="card">
   <div class="card-header">
     <b>
@@ -19,72 +19,74 @@ bindings:
     </b>
   </div>
 
-  {{ if .bindings.results.records }}
-    {{ $page := .bindings.results.page }}
-    {{ $perPage := .bindings.results.records_per_page }}
-  <table class="table table-sm table-striped table-hover">
-    <thead>
-      <tr>
-        <th>File Name</th>
-        <th class="hidden-md-down">Type</th>
-        <th class="hidden-md-down">Size</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{ range .bindings.results.records }}
-      <tr>
-        <td>
-          {{ if .fields.directory }}
-          <i class="fa fa-fw fa-folder"></i>
-          {{ .fields.metadata.file.name }}
-          {{ else }}
-          {{ if .fields.metadata.file.mime.type }}
-            {{ if hasPrefix .fields.metadata.file.mime.type `audio` }}
-              <i class="fa fa-fw fa-file-audio-o"></i>
-            {{ else if hasPrefix .fields.metadata.file.mime.type `video` }}
-              <i class="fa fa-fw fa-file-video-o"></i>
-            {{ else if hasPrefix .fields.metadata.file.mime.type `image` }}
-              <i class="fa fa-fw fa-file-image-o"></i>
+  {{ if len .bindings.results }}
+    {{ range $id, $results := .bindings.results }}
+      {{ $page := $results.page }}
+      {{ $perPage := $results.records_per_page }}
+    <table class="table table-sm table-striped table-hover">
+      <thead>
+        <tr>
+          <th>File Name</th>
+          <th class="hidden-md-down">Type</th>
+          <th class="hidden-md-down">Size</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range $results.records }}
+        <tr>
+          <td>
+            {{ if .fields.directory }}
+            <i class="fa fa-fw fa-folder"></i>
+            {{ .fields.name }}
+            {{ else }}
+            {{ if .fields.metadata.file.mime.type }}
+              {{ if hasPrefix .fields.metadata.file.mime.type `audio` }}
+                <i class="fa fa-fw fa-file-audio-o"></i>
+              {{ else if hasPrefix .fields.metadata.file.mime.type `video` }}
+                <i class="fa fa-fw fa-file-video-o"></i>
+              {{ else if hasPrefix .fields.metadata.file.mime.type `image` }}
+                <i class="fa fa-fw fa-file-image-o"></i>
+              {{ else }}
+                <i class="fa fa-fw fa-file-o"></i>
+              {{ end }}
             {{ else }}
               <i class="fa fa-fw fa-file-o"></i>
             {{ end }}
-          {{ else }}
-            <i class="fa fa-fw fa-file-o"></i>
-          {{ end }}
 
-          {{ .fields.metadata.file.name }}
-          {{ end }}
-        </td>
-        <td class="hidden-md-down">
-          {{ if .fields.directory }}directory
-          {{ else }}
-          {{ .fields.metadata.file.extension }}
-          {{ end }}
-        </td>
-        <td class="hidden-md-down">
-          {{ if .fields.directory }}
-            &ndash;
-          {{ else }}
-            {{ if .fields.size }}
-              {{ autobyte .fields.size "%.f" }}
-            {{ else }}
-            &ndash;
+            {{ .fields.name }}
             {{ end }}
-          {{ end }}
-        </td>
-        <td>
-          <a
-            target="_blank"
-            href="/api{{ if $session }}/sessions/{{ $session }}{{ end }}/files/{{ .id }}?mimetype={{ .fields.metadata.file.mime.type }}"
-          >
-            <i class="fa fa-fw fa-download"></i>
-          </a>
-        </td>
-      </tr>
-      {{ end }}
-    </tbody>
-  </table>
+          </td>
+          <td class="hidden-md-down">
+            {{ if .fields.directory }}directory
+            {{ else }}
+            {{ .fields.metadata.file.extension }}
+            {{ end }}
+          </td>
+          <td class="hidden-md-down">
+            {{ if .fields.directory }}
+              &ndash;
+            {{ else }}
+              {{ if .fields.size }}
+                {{ autobyte .fields.size "%.f" }}
+              {{ else }}
+              &ndash;
+              {{ end }}
+            {{ end }}
+          </td>
+          <td>
+            <a
+              target="_blank"
+              href="/api{{ if $session }}/sessions/{{ $session }}{{ end }}/files/{{ .id }}?mimetype={{ .fields.metadata.file.mime.type }}"
+            >
+              <i class="fa fa-fw fa-download"></i>
+            </a>
+          </td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ end }}
 
   <div class="card-footer d-flex justify-content-between">
   </div>
@@ -94,4 +96,3 @@ bindings:
   </div>
   {{ end }}
 </div>
-{{ end }}

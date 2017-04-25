@@ -6,6 +6,7 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/go-stockutil/httputil"
+	"github.com/ghetzel/pivot/dal"
 	"github.com/husobee/vestigo"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
@@ -179,22 +180,29 @@ func (self *API) handleGetShareFileIdsToRoot(w http.ResponseWriter, req *http.Re
 	}
 }
 
+func (self *API) handleQueryAllShares(w http.ResponseWriter, req *http.Request, client peer.Peer) {
+	if s, err := shares.GetShares(self.db, client, httputil.QBool(req, `stats`)); err == nil {
+		resultsets := make(map[string]interface{})
+
+		for _, share := range s {
+			if results, err := self.getResultsetFromShare(&share, req); err == nil {
+				resultsets[share.ID] = results
+			} else {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+
+		Respond(w, resultsets)
+	} else {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+}
+
 func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
 	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
-		share := s[0]
-
-		if limit, offset, sort, err := getSearchParams(req); err == nil {
-			var fields []string
-
-			if v := req.URL.Query().Get(`fields`); v != `` {
-				fields = strings.Split(v, `,`)
-			}
-
-			if results, err := share.Find(vestigo.Param(req, `_name`), limit, offset, sort, fields); err == nil {
-				Respond(w, results)
-			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
+		if results, err := self.getResultsetFromShare(&s[0], req); err == nil {
+			Respond(w, results)
 		} else {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
@@ -288,5 +296,23 @@ func (self *API) handleRequestEntryFromShare(w http.ResponseWriter, req *http.Re
 		}
 	} else {
 		http.Error(w, `unknown session`, http.StatusForbidden)
+	}
+}
+
+func (self *API) getResultsetFromShare(share *shares.Share, req *http.Request) (*dal.RecordSet, error) {
+	if limit, offset, sort, err := getSearchParams(req); err == nil {
+		var fields []string
+
+		if v := req.URL.Query().Get(`fields`); v != `` {
+			fields = strings.Split(v, `,`)
+		}
+
+		if results, err := share.Find(vestigo.Param(req, `_name`), limit, offset, sort, fields); err == nil {
+			return results, nil
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
 	}
 }
