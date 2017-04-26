@@ -9,6 +9,7 @@ import (
 	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/pathutil"
+	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/pivot/backends"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghodss/yaml"
@@ -151,6 +152,9 @@ func (self *Application) Initialize() error {
 		return err
 	}
 
+	// listen for and respond to peer events at the application level
+	go self.monitorPeerEvents()
+
 	// setup stats emission and persistence
 	if self.Stats.Path == `` {
 		self.Stats.Path = path.Join(self.Database.BaseDirectory, `stats`)
@@ -216,6 +220,42 @@ func (self *Application) Scan(deep bool, labels ...string) error {
 	}()
 
 	return self.Database.Scan(deep, labels...)
+}
+
+func (self *Application) Sync(peerNames ...string) error {
+	var subscriptions []*Subscription
+	var connectedPeers []string
+
+	for _, name := range peerNames {
+		if _, ok := self.LocalPeer.GetSession(name); ok {
+			connectedPeers = append(connectedPeers, name)
+		}
+	}
+
+	if err := self.Database.Subscriptions.All(&subscriptions); err == nil {
+		for _, subscription := range subscriptions {
+			subscriptionPeers := peer.ExpandPeerGroup(self.Database, subscription.SourceGroup)
+
+			if len(peerNames) == 0 || sliceutil.ContainsAnyString(connectedPeers, subscriptionPeers...) {
+				log.Debugf("Scanning subscription %v...", subscription.ID)
+
+				if err := subscription.Sync(self); err != nil {
+					log.Warningf("Sync failed for %v: %v", subscription.ID, err)
+				}
+			} else {
+				log.Debugf(
+					"Skipping subscription %v sync: no peers available to service this subscription (%+v not in %+v)",
+					subscription.ID,
+					connectedPeers,
+					subscriptionPeers,
+				)
+			}
+		}
+
+		return nil
+	} else {
+		return err
+	}
 }
 
 func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
@@ -298,5 +338,14 @@ func (self *Application) collectDatabaseStats() {
 		}
 
 		time.Sleep(5 * time.Minute)
+	}
+}
+
+func (self *Application) monitorPeerEvents() {
+	for event := range self.LocalPeer.PeerEvents() {
+		switch event.Type {
+		case peer.PeerConnected:
+			self.Sync(event.Peer.Name)
+		}
 	}
 }

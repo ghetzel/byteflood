@@ -14,6 +14,18 @@ const (
 	BF_ERR_UNKNOWN_PEER      = `unknown peer`
 )
 
+type PeerEventType int
+
+const (
+	PeerConnected PeerEventType = iota
+	PeerDisconnected
+)
+
+type PeerEvent struct {
+	Type PeerEventType
+	Peer *RemotePeer
+}
+
 type readCounter struct {
 	Reader    io.Reader
 	BytesRead uint64
@@ -84,6 +96,14 @@ func IsLoopbackConnectionErr(err error) bool {
 
 func IsUnknownPeerErr(err error) bool {
 	if err.Error() == BF_ERR_UNKNOWN_PEER {
+		return true
+	}
+
+	return false
+}
+
+func IsLookupFailure(err error) bool {
+	if strings.HasSuffix(err.Error(), `: no such host`) {
 		return true
 	}
 

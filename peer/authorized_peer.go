@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/util"
+	"github.com/ghetzel/pivot/filter"
 	"strings"
 )
 
@@ -13,6 +14,43 @@ type AuthorizedPeer struct {
 	Group     string `json:"group,omitempty"`
 	Addresses string `json:"addresses,omitempty"`
 	db        *db.Database
+}
+
+func ExpandPeerGroup(conn *db.Database, groupOrName string) []string {
+	names := make([]string, 0)
+	var f filter.Filter
+
+	if strings.HasPrefix(groupOrName, `@`) {
+		if groupFilter, err := db.ParseFilter(map[string]interface{}{
+			`group`: strings.TrimPrefix(groupOrName, `@`),
+		}); err == nil {
+			f = groupFilter
+		} else {
+			log.Warning(err)
+			return nil
+		}
+	} else {
+		if nameFilter, err := db.ParseFilter(map[string]interface{}{
+			`name`: groupOrName,
+		}); err == nil {
+			f = nameFilter
+		} else {
+			log.Warning(err)
+			return nil
+		}
+	}
+
+	var peers []*AuthorizedPeer
+
+	if err := conn.AuthorizedPeers.Find(f, &peers); err == nil {
+		for _, peer := range peers {
+			names = append(names, peer.PeerName)
+		}
+	} else {
+		log.Warning(err)
+	}
+
+	return names
 }
 
 func GetAuthorizedPeer(conn *db.Database, id string) (*AuthorizedPeer, error) {

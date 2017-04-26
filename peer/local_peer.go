@@ -59,6 +59,7 @@ type LocalPeer struct {
 	listening            chan bool
 	peerServer           *PeerServer
 	peerRequestHandler   http.Handler
+	peerEvents           chan PeerEvent
 	db                   *db.Database
 }
 
@@ -72,6 +73,7 @@ func NewLocalPeer(db *db.Database) *LocalPeer {
 		autoReceiveMessages:  true,
 		sessions:             cmap.New(),
 		listening:            make(chan bool),
+		peerEvents:           make(chan PeerEvent),
 		db:                   db,
 	}
 }
@@ -441,6 +443,9 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 				go remotePeer.ReceiveMessages(self)
 			}
 
+			// tell anyone that's interested that we've got a new peer
+			self.broadcastPeerEvent(PeerConnected, remotePeer)
+
 			return remotePeer, nil
 		} else {
 			return nil, err
@@ -448,6 +453,20 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 	} else {
 		return nil, fmt.Errorf("Could not read remote peering request")
 	}
+}
+
+func (self *LocalPeer) broadcastPeerEvent(event PeerEventType, peer *RemotePeer) {
+	select {
+	case self.peerEvents <- PeerEvent{
+		Type: event,
+		Peer: peer,
+	}:
+	default:
+	}
+}
+
+func (self *LocalPeer) PeerEvents() <-chan PeerEvent {
+	return self.peerEvents
 }
 
 func (self *LocalPeer) GetSessions() []*RemotePeer {
@@ -489,6 +508,7 @@ func (self *LocalPeer) GetSession(sessionOrName string) (*RemotePeer, bool) {
 func (self *LocalPeer) RemovePeer(sessionId string) error {
 	if v, ok := self.sessions.Get(sessionId); ok {
 		if remotePeer, ok := v.(*RemotePeer); ok {
+			self.broadcastPeerEvent(PeerDisconnected, remotePeer)
 			log.Errorf("Disconnected from %s", remotePeer.String())
 
 			err := remotePeer.Disconnect()
@@ -572,6 +592,8 @@ func (self *LocalPeer) ConnectToAndMonitor(address string) {
 			} else if IsLoopbackConnectionErr(err) {
 				return
 			} else if strings.HasSuffix(err.Error(), `connection refused`) {
+				return
+			} else if IsLookupFailure(err) {
 				return
 			}
 		}
