@@ -1,4 +1,8 @@
 ---
+defaults:
+  limit:  25
+  page:   1
+  offset: 0
 bindings:
 - name: share
   resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}
@@ -14,17 +18,17 @@ bindings:
 - name: results
   resource: :/api{{ if .request.url.query.session }}/sessions/{{ .request.url.query.session }}/proxy{{ end }}/shares/{{ .request.url.query.share }}/browse/{{ .request.url.query.parent }}
   params:
-    limit: '{{ or .request.url.query.limit 25 }}'
-    offset: '{{ multiply (subtract (asFloat (or .request.url.query.page 1)) 1) (asFloat (or .request.url.query.limit 25)) }}'
+    limit: '{{ .request.url.query.limit }}'
+    offset: '{{ multiply (subtract (asFloat .request.url.query.page) 1) (asFloat .request.url.query.limit) }}'
     sort:   '{{ .request.url.query.sort }}'
 ---
-{{ $page := asFloat (or .request.url.query.page 1) }}
+{{ $page := asFloat .request.url.query.page }}
 {{ $session := or .request.url.query.session `` }}
 {{ $peer := or .request.url.query.peer `` }}
 {{ $share := or .bindings.share.id `` }}
 {{ $grandparent := or .request.url.query.grandparent `` }}
 {{ $parent := or .request.url.query.parent `` }}
-{{ $offset := or .request.url.query.offset 0 }}
+{{ $offset := .request.url.query.offset }}
 
 <script type="text/javascript">
 $(function(){
@@ -50,7 +54,7 @@ $(function(){
         <a
           class="page-link"
           aria-label="Previous"
-          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ subtract $page 1 }}&amp;parent={{ $parent }}&amp;grandparent={{ $grandparent }}"
+          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ subtract $page 1 }}{{ if $parent }}&amp;parent={{ $parent }}{{ end }}{{ if $grandparent }}&amp;grandparent={{ $grandparent }}{{ end }}"
           tabindex="-1"
         >
           &laquo;
@@ -60,7 +64,7 @@ $(function(){
       <li class="page-item{{ if eqx $page (add $index 1) }} active{{ end }}">
         <a
           class="page-link"
-          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $index 1 }}&amp;parent={{ $parent }}&amp;grandparent={{ $grandparent }}"
+          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $index 1 }}{{ if $parent }}&amp;parent={{ $parent }}{{ end }}{{ if $grandparent }}&amp;grandparent={{ $grandparent }}{{ end }}"
         >
           {{ if eqx $page (add $index 1) }}
           <span class="sr-only">(current)</span>
@@ -74,7 +78,7 @@ $(function(){
         <a
           class="page-link"
           aria-label="Next"
-          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $page 1 }}&amp;parent={{ $parent }}&amp;grandparent={{ $grandparent }}"
+          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $page 1 }}{{ if $parent }}&amp;parent={{ $parent }}{{ end }}{{ if $grandparent }}&amp;grandparent={{ $grandparent }}{{ end }}"
           tabindex="-1"
         >
           &raquo;
@@ -243,7 +247,7 @@ $(function(){
         <td>
           <a
             target="_blank"
-            href="/api{{ if $session }}/sessions/{{ $session }}{{ end }}/files/{{ .id }}?mimetype={{ .fields.metadata.file.mime.type }}"
+            href="/api{{ if $session }}/sessions/{{ $session }}{{ end }}/files/{{ .id }}?mimetype={{ .fields.metadata.file.mime.type }}&amp;inline=true"
           >
             <i class="fa fa-fw fa-download"></i>
           </a>
