@@ -141,7 +141,11 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 			// create destination parent directory
 			if err := os.MkdirAll(destDir, 0755); err == nil || os.IsExist(err) {
 				// open the destination file
-				if file, err := ioutil.TempFile(destDir, fmt.Sprintf("%s%v_", QueueTempFileFormat, self.ID)); err == nil {
+				tempFileName := fmt.Sprintf("%s%v_", QueueTempFileFormat, self.ID)
+
+				if file, err := ioutil.TempFile(destDir, tempFileName); err == nil {
+					defer os.Remove(tempFileName)
+
 					self.tempFile = file
 					destWriter = file
 				} else {
