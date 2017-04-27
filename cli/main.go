@@ -10,6 +10,7 @@ import (
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
+	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
@@ -88,6 +89,10 @@ func main() {
 			Usage: `Byteflood client request timeout`,
 			Value: client.DefaultRequestTimeout,
 		},
+		cli.BoolTFlag{
+			Name:  `collect-stats`,
+			Usage: `Whether to collect and store statistics within the application data directory.`,
+		},
 	}
 
 	app.Before = func(c *cli.Context) error {
@@ -119,6 +124,8 @@ func main() {
 
 		api.Timeout = c.Duration(`timeout`)
 		api.Address = c.String(`api-address`)
+		stats.LocalStatsEnabled = c.Bool(`collect-stats`)
+
 		log.Debugf("API address is %s", api.Address)
 
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)

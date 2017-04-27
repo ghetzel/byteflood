@@ -29,10 +29,11 @@ bindings:
     <thead>
       <tr>
         <th>Status</th>
-        <th>Peer</th>
         <th>File</th>
         <th>Progress</th>
         <th></th>
+        <th>Size</th>
+        <th>Peer</th>
         <th></th>
       </tr>
     </thead>
@@ -43,10 +44,9 @@ bindings:
           <i class="fa fa-fw bf-queue-status-{{ $download.status }}"></i>
           <span class="badge badge-default">{{ titleize $download.status }}</span>
         </td>
-        <td>{{ or $download.peer_name $download.session_id }}</td>
         <td>{{ or $download.name $download.file_id }}</td>
         {{ if $download.error }}
-        <td colspan="2" class="text-danger">
+        <td colspan="3" class="text-danger">
           {{ $download.error }}
         </td>
         {{ else }}
@@ -56,7 +56,7 @@ bindings:
               class="progress-bar"
               role="progressbar"
               aria-valuemin="0"
-              style="width: {{ percent $download.progress 100 }}%"
+              style="width: {{ percent $download.progress 1.0 }}%"
               aria-valuenow="{{ percent $download.progress 1.0 }}"
               aria-valuemax="100"
             ></div>
@@ -65,7 +65,11 @@ bindings:
         <td>
           {{ percent $download.progress 1.0 }}% ({{ autobyte $download.rate "%.1f" }}/s)
         </td>
+        <td>
+          {{ autobyte $download.bytes_received "%.2f" }} / {{ autobyte $download.size "%.2f" }}
+        </td>
         {{ end }}
+        <td>{{ or $download.peer_name $download.session_id }}</td>
         <td></td>
       </tr>
       {{ end }}

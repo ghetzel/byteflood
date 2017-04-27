@@ -14,6 +14,7 @@ var StatsdHost = `localhost:8125`
 var statsdclient, _ = statsd.New()
 var StatsDB *mobius.Dataset
 var basetags = make(map[string]interface{})
+var LocalStatsEnabled = true
 
 func Initialize(statsdir string, tags map[string]interface{}) error {
 	sdopts := make([]statsd.Option, 0)
@@ -28,23 +29,35 @@ func Initialize(statsdir string, tags map[string]interface{}) error {
 		statsdclient = sd
 	}
 
-	if expandedStatsDir, err := pathutil.ExpandUser(statsdir); err == nil {
-		if dataset, err := mobius.OpenDataset(expandedStatsDir); err == nil {
-			StatsDB = dataset
-			log.Infof("Statistics database: %v", dataset.GetPath())
+	if len(tags) > 0 {
+		basetags = tags
+	}
 
-			if len(tags) > 0 {
-				basetags = tags
+	if LocalStatsEnabled {
+		if expandedStatsDir, err := pathutil.ExpandUser(statsdir); err == nil {
+			if dataset, err := mobius.OpenDataset(expandedStatsDir); err == nil {
+				StatsDB = dataset
+				log.Infof("Statistics database: %v", dataset.GetPath())
 				log.Debugf("Statistics suffix: %v", maputil.Join(basetags, `=`, mobius.InlineTagSeparator))
+			} else {
+				return err
 			}
 		} else {
 			return err
 		}
 	} else {
-		return err
+		log.Noticef("Local statistics storage has been disabled.")
 	}
 
 	return nil
+}
+
+func IsEnabled() bool {
+	if StatsDB == nil {
+		return false
+	}
+
+	return true
 }
 
 func Cleanup() {

@@ -41,6 +41,7 @@ type QueuedDownload struct {
 	FileID           string    `json:"file_id"`
 	Name             string    `json:"name"`
 	DestinationPath  string    `json:"destination"`
+	BytesReceived    uint64    `json:"bytes_received"`
 	Size             uint64    `json:"size"`
 	AddedAt          time.Time `json:"added_at,omitempty"`
 	Error            string    `json:"error,omitempty"`
@@ -183,7 +184,7 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 						}
 
 						self.Status = `downloading`
-						self.Size = bytesReceived
+						self.BytesReceived = bytesReceived
 
 						stats.Gauge("byteflood.queue.downloads.bytes_received", float64(bytesReceived), map[string]interface{}{
 							`peer`:  self.PeerName,
@@ -192,14 +193,14 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 
 						if time.Since(lastCalcTime) >= time.Second {
 							if self.lastByteSize > 0 {
-								self.Rate = (self.Size - self.lastByteSize)
+								self.Rate = (self.BytesReceived - self.lastByteSize)
 								stats.Gauge("byteflood.queue.downloads.bytes_per_second", float64(self.Rate), map[string]interface{}{
 									`peer`:  self.PeerName,
 									`share`: self.ShareID,
 								})
 							}
 
-							self.lastByteSize = self.Size
+							self.lastByteSize = self.BytesReceived
 							lastCalcTime = time.Now()
 						}
 
@@ -212,7 +213,7 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 					}); err == nil {
 						self.Progress = 1.0
 						self.Status = `completed`
-						self.Size = transfer.BytesReceived
+						self.BytesReceived = transfer.BytesReceived
 					} else {
 						return err
 					}

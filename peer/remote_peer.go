@@ -228,11 +228,15 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 	// imposes rate limiting on reads (if configured)
 	reader := self.getReadRateLimiter(self.connection)
 
-	// intercepts reads and increments a counter
-	self.readCounter.Reader = reader
+	if stats.IsEnabled() {
+		// intercepts reads and increments a counter
+		self.readCounter.Reader = reader
 
-	// ensures that the decrypter is using the reader we've specified
-	self.Encryption.SetSource(self.readCounter)
+		// ensures that the decrypter is using the reader we've specified
+		self.Encryption.SetSource(self.readCounter)
+	} else {
+		self.Encryption.SetSource(reader)
+	}
 
 	if cleartext, err := self.Encryption.ReadNext(); err == nil {
 		// decode the decrypted message payload
@@ -257,11 +261,15 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 	self.Encryption.Lock()
 	defer self.Encryption.Unlock()
 
-	// intercepts writes and increments a counter
-	self.writeCounter.Writer = writer
+	if stats.IsEnabled() {
+		// intercepts writes and increments a counter
+		self.writeCounter.Writer = writer
 
-	// ensures that the encrypter is using the writer we've specified
-	self.Encryption.SetTarget(self.writeCounter)
+		// ensures that the encrypter is using the writer we've specified
+		self.Encryption.SetTarget(self.writeCounter)
+	} else {
+		self.Encryption.SetTarget(writer)
+	}
 
 	// encode the message for transport
 	if encodedMessage, err := message.Encode(); err == nil {
