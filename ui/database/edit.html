@@ -15,7 +15,7 @@ bindings:
                 name="id"
                 aria-describedby="idHelp"
                 required
-                {{ if eq (or .request.url.query.id "new") "new" }}autofocus{{ else }}readonly{{ end }}
+                {{ if eqx (qs "id" "new") "new" }}autofocus{{ else }}readonly{{ end }}
                 value="{{ .bindings.directory.id }}"
             >
 
@@ -37,7 +37,7 @@ bindings:
                     name="path"
                     aria-describedby="pathHelp"
                     required
-                    {{ if ne (or .request.url.query.id "new") "new" }}autofocus{{ end }}
+                    {{ if nex (qs "id" "new") "new" }}autofocus{{ end }}
                     value="{{ .bindings.directory.path }}"
                 >
             </div>

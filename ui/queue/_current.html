@@ -51,7 +51,16 @@ bindings:
         </td>
         {{ else }}
         <td>
-          <progress class="progress" value="{{ percent $download.progress 1.0 }}" max="100"></progress>
+          <div class="progress">
+            <div
+              class="progress-bar"
+              role="progressbar"
+              aria-valuemin="0"
+              style="width: {{ percent $download.progress 100 }}%"
+              aria-valuenow="{{ percent $download.progress 1.0 }}"
+              aria-valuemax="100"
+            ></div>
+          </div>
         </td>
         <td>
           {{ percent $download.progress 1.0 }}% ({{ autobyte $download.rate "%.1f" }}/s)
