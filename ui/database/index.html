@@ -89,17 +89,28 @@ bindings:
 
       {{ if $scanning }}
       <li class="nav-item">
-        <a class="nav-link">Scanning...</a>
+        <a class="nav-link">Please wait...</a>
       </li>
       {{ else }}
       <li class="nav-item">
         <a
           href=""
-          class="nav-link {{ if $scanning }}disabled{{ end }}"
+          class="nav-link"
           onclick="byteflood.scan()"
         >
           <i class="fa fa-search"></i>
           Scan All
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a
+          href=""
+          class="nav-link"
+          onclick="byteflood.cleanup()"
+        >
+          <i class="fa fa-trash"></i>
+          Cleanup
         </a>
       </li>
       {{ end }}

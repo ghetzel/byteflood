@@ -13,6 +13,8 @@ import (
 	"github.com/orcaman/concurrent-map"
 	"net"
 	"net/http"
+	"os"
+	"os/user"
 	"strings"
 	"time"
 )
@@ -46,6 +48,8 @@ type LocalPeer struct {
 	Address              string        `json:"address,omitempty"`
 	Autoconnect          bool          `json:"autoconnect"`
 	AutoconnectPeers     []string      `json:"autoconnect_peers,omitempty"`
+	Hostname             string        `json:"hostname"`
+	User                 string        `json:"user"`
 	PublicKey            []byte        `json:"-"`
 	PrivateKey           []byte        `json:"-"`
 	UpnpMappingDuration  time.Duration `json:"upnp_mapping_duration,omitempty"`
@@ -64,10 +68,19 @@ type LocalPeer struct {
 }
 
 func NewLocalPeer(db *db.Database) *LocalPeer {
+	username := ``
+	hostname, _ := os.Hostname()
+
+	if u, err := user.Current(); err == nil {
+		username = u.Username
+	}
+
 	return &LocalPeer{
 		Address:              DEFAULT_PEER_SERVER_ADDRESS,
 		Autoconnect:          true,
 		EnableUpnp:           false,
+		Hostname:             hostname,
+		User:                 username,
 		UpnpDiscoveryTimeout: DEFAULT_UPNP_DISCOVERY_TIMEOUT,
 		UpnpMappingDuration:  DEFAULT_UPNP_MAPPING_DURATION,
 		autoReceiveMessages:  true,

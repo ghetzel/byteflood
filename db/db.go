@@ -242,6 +242,14 @@ func (self *Database) GetDirectoriesByFile(filename string) []Directory {
 }
 
 func (self *Database) Cleanup() error {
+	if !self.ScanInProgress {
+		self.ScanInProgress = true
+
+		defer func() {
+			self.ScanInProgress = false
+		}()
+	}
+
 	var scannedDirectories []Directory
 	var ids []string
 

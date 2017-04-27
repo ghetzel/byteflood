@@ -139,9 +139,14 @@ func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request) 
 		}
 
 		go self.db.Scan(payload.DeepScan, payload.Labels...)
-		http.Error(w, ``, http.StatusNoContent)
+
+	case `cleanup`:
+		go self.db.Cleanup()
 
 	default:
 		http.Error(w, ``, http.StatusNotFound)
+		return
 	}
+
+	http.Error(w, ``, http.StatusNoContent)
 }

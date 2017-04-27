@@ -40,7 +40,7 @@
     <title>Byteflood{{ if .page.title }} :: {{ .page.title }}{{ end }}</title>
   </head>
   <body>
-    <nav class="navbar navbar-toggleable-sm navbar-inverse sitewide site-main">
+    <nav class="navbar navbar-toggleable-sm navbar-inverse sitewide site-main d-flex align-items-start">
       <button
         class="navbar-toggler navbar-toggler-right"
         type="button"
@@ -133,6 +133,10 @@
             </a>
           </li>
         </ul>
+      </div>
+
+      <div class="collapse navbar-collapse align-self-end">
+        <span class="navbar-text bf-hostname w-100 text-center" bf-load="/util/_sidebar"></span>
       </div>
     </nav>
 

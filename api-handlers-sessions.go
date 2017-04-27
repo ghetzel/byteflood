@@ -47,7 +47,7 @@ func (self *API) handleProxyToSession(w http.ResponseWriter, req *http.Request) 
 		proxyPath = strings.TrimPrefix(proxyPath, `/proxy`)
 		proxyPath = `/` + strings.TrimPrefix(proxyPath, `/`)
 
-		log.Debugf("Proxying %s %s to peer %s (session: %s)", req.Method, proxyPath, remotePeer.Name, remotePeer.SessionID())
+		// log.Debugf("Proxying %s %s to peer %s (session: %s)", req.Method, proxyPath, remotePeer.Name, remotePeer.SessionID())
 
 		if response, err := remotePeer.ServiceRequest(
 			req.Method,

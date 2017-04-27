@@ -1,0 +1,6 @@
+---
+bindings:
+- name:     system
+  resource: :/api/status
+---
+{{ if .bindings.system.user }}{{ .bindings.system.user }}@{{ end }}{{ .bindings.system.hostname }}

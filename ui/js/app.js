@@ -224,6 +224,10 @@ $(function(){
             });
         },
 
+        cleanup: function(callback){
+            this.performAction('db/actions/cleanup', callback);
+        },
+
         performAction: function(path, callback) {
             $.ajax('/api/'+path, {
                 method: 'POST',

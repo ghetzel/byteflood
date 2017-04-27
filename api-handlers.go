@@ -45,6 +45,8 @@ func (self *API) handleStatus(w http.ResponseWriter, req *http.Request) {
 	Respond(w, map[string]interface{}{
 		`version`:       Version,
 		`local_peer_id`: self.application.LocalPeer.GetID(),
+		`hostname`:      self.application.LocalPeer.Hostname,
+		`user`:          self.application.LocalPeer.User,
 	})
 }
 
