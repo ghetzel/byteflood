@@ -22,13 +22,13 @@ bindings:
     offset: '{{ multiply (subtract (asFloat .request.url.query.page) 1) (asFloat .request.url.query.limit) }}'
     sort:   '{{ .request.url.query.sort }}'
 ---
-{{ $page := asFloat .request.url.query.page }}
-{{ $session := or .request.url.query.session `` }}
-{{ $peer := or .request.url.query.peer `` }}
+{{ $page := asFloat (qs `page`) }}
+{{ $session := qs `session` }}
+{{ $peer := qs `peer` }}
 {{ $share := or .bindings.share.id `` }}
-{{ $grandparent := or .request.url.query.grandparent `` }}
-{{ $parent := or .request.url.query.parent `` }}
-{{ $offset := .request.url.query.offset }}
+{{ $grandparent := qs `grandparent` }}
+{{ $parent := qs `parent` }}
+{{ $offset := qs `offset` }}
 
 <script type="text/javascript">
 $(function(){

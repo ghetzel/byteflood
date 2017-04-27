@@ -7,10 +7,6 @@ bindings:
     offset: '{{ or .request.url.query.offset 0 }}'
     sort:   '{{ .request.url.query.sort }}'
 ---
-{{ $share := or .request.url.query.share `` }}
-{{ $session := or .request.url.query.session `` }}
-{{ $peer := or .request.url.query.peer `` }}
-{{ $active := or .request.url.query.active `` }}
 {{ if .bindings.shares }}
 <div class="input-group mt-2 mb-2">
     <input
@@ -29,8 +25,8 @@ bindings:
                 byteflood.loadInto('#share-browser', '/shares/_peer_query_files', {
                     'params': {
                         'query': this.value,
-                        {{ if $session -}}
-                        'session': '{{ $session }}',
+                        {{ if qs `session` -}}
+                        'session': '{{ qs `session` }}',
                         {{ end }}
                     },
                 });
@@ -49,15 +45,15 @@ bindings:
 <div class="list-group">
     {{ if .bindings.shares }}
     {{ range .bindings.shares }}
-        {{ $current := print (or $session `local`) `_` .id }}
+        {{ $current := print (qs `session` `local`) `_` .id }}
     <button
         type="button"
-        class="list-group-item list-group-item-action{{ if eq $current $active }} active{{ end }} justify-content-between"
-        {{ if not $session }}
+        class="list-group-item list-group-item-action{{ if eqx $current (qs `active`) }} active{{ end }} justify-content-between"
+        {{ if not (qs `session`) }}
         title="Right-click to edit"
         oncontextmenu="event.preventDefault(); location.href='/shares/edit?id={{ .id }}'"
         {{ end }}
-        onclick="location.href='/shares/?share={{ .id }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}'"
+        onclick="location.href='/shares/?share={{ .id }}{{ if qs `session` }}&amp;session={{ qs `session` }}&amp;peer={{ qs `peer` }}{{ end }}'"
     >
         <span class="align-items-start">
             <i class="fa fa-fw fa-{{ or .icon_name `folder-o` }} mr-1"></i>
@@ -68,12 +64,12 @@ bindings:
             <script type="text/javascript" id="share_{{ $current }}_stats">
                 byteflood.replaceWith(
                     '#share_{{ $current }}_stats',
-                    '/shares/_peer_share_stats?session={{ $session }}&share={{ .id }}'
+                    '/shares/_peer_share_stats?session={{ qs `session` }}&share={{ .id }}'
                 );
             </script>
 
             <div class="bf-share-actions d-flex flex-column align-self-start justify-content-between">
-                {{ if not $session }}
+                {{ if not (qs `session`) }}
                 <i
                     class="align-self-center action action-remove fa fa-fw fa-remove"
                     title="Delete"

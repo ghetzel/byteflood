@@ -1,0 +1,26 @@
+---
+bindings:
+- name:     sessions
+  resource: :/api/sessions
+---
+<!-- Remote Share Browser -->
+{{ range .bindings.sessions }}
+<li class="nav-item mb-3">
+  <div class="d-flex justify-content-between">
+    <h4 class="bf-nav-tree-title">{{ .name }}</h4>
+    <div>
+      <a class="btn btn-sm btn-secondary" href="/peers/edit?id={{ .id }}">
+        <i class="fa fa-pencil"></i> Edit
+      </a>
+    </div>
+  </div>
+
+  <div
+    bf-load="/shares/_peer_shares"
+    bf-param-session="{{ .session_id }}"
+    bf-param-peer="{{ .name }}"
+    bf-param-share="{{ qs `share` }}"
+    bf-param-active="{{ qs `active` }}"
+  ></div>
+</li>
+{{ end }}

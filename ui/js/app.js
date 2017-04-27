@@ -63,12 +63,11 @@ $(function(){
 
             $('.combobox').combobox();
 
+            this._partials = {};
             this.setupPartials();
         },
 
         setupPartials: function(){
-            this._partials = {};
-
             $('[bf-load]').each(function(i, element){
                 element = $(element);
                 var id = element.attr('id');
@@ -135,6 +134,8 @@ $(function(){
                     }else{
                         el.html(data);
                     }
+
+                    this.setupPartials();
 
                     if($.isFunction(onSuccess)){
                         onSuccess(data, el);

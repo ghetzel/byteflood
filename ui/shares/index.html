@@ -3,17 +3,11 @@ page:
   title: Shares
   local_interval: 120000
   peer_interval: 300000
-bindings:
-- name: sessions
-  resource: :/api/sessions
+
+defaults:
+  view: files
 ---
-{{ $session := or .request.url.query.session `` }}
-{{ $share := or .request.url.query.share `` }}
-{{ $view := or .request.url.query.view `files` }}
-{{ $path := or .request.url.query.path `` }}
-{{ $limit := or .request.url.query.limit `` }}
-{{ $offset := or .request.url.query.offset `` }}
-{{ $active := print (or $session `local`) `_` $share }}
+{{ $active := print (qs `session` `local`) `_` (qs `share`) }}
 <div class="row">
   <div class="col-lg-3">
       <ul class="nav flex-column bf-nav-tree">
@@ -30,35 +24,27 @@ bindings:
             </div>
 
             <div
-              bf-load="/shares/_peer_shares?share={{ $share }}&amp;active={{ $active }}"
+              bf-load="/shares/_peer_shares"
+              bf-param-share="{{ qs `share` }}"
+              bf-param-active="{{ $active }}"
               bf-interval="{{ $.page.local_interval }}"
             ></div>
           </li>
+      </ul>
 
-          <!-- Remote Share Browser -->
-          {{ range .bindings.sessions }}
-          <li class="nav-item mb-3">
-            <div class="d-flex justify-content-between">
-              <h4 class="bf-nav-tree-title">{{ .name }}</h4>
-
-              <div>
-                <a class="btn btn-sm btn-secondary" href="/peers/edit?id={{ .id }}">
-                  <i class="fa fa-pencil"></i> Edit
-                </a>
-              </div>
-            </div>
-
-            <div
-              bf-load="/shares/_peer_shares?session={{ .session_id }}&amp;share={{ $share }}&amp;peer={{ .name }}&amp;active={{ $active }}"
-              bf-interval="{{ $.page.peer_interval }}"
-            ></div>
-          </li>
-          {{ end }}
+      <ul
+        class="nav flex-column bf-nav-tree"
+        bf-load="/shares/_peer_sessions"
+        {{ range $k, $v := querystrings -}}
+        bf-param-{{ $k }}="{{ $v | asStr }}"
+        {{ end -}}
+        bf-interval="{{ $.page.peer_interval }}"
+      >
       </ul>
   </div>
 
   <div class="col-lg-9" id="share-browser">
-    {{ if $share }}
+    {{ if qs `share` }}
     <script type="text/javascript">
       $(function(){
         qs = {
@@ -71,9 +57,9 @@ bindings:
           return [x[0], x.splice(1).join('=')];
         });
 
-        byteflood.loadInto('#share-browser', '/shares/_peer_browse_{{ $view }}', {
+        byteflood.loadInto('#share-browser', '/shares/_peer_browse_{{ qs `view` }}', {
           params: qs,
-          error: false,
+          error:  false,
         });
       })
     </script>
