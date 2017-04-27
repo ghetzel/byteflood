@@ -177,12 +177,10 @@ func (self *Entry) GenerateChecksum(forceRecalculate bool) (string, error) {
 }
 
 func (self *Entry) GetAbsolutePath() (string, error) {
-	var rootDirectory Directory
-
-	if err := self.db.ScannedDirectories.Get(self.Label, &rootDirectory); err == nil {
-		return path.Join(rootDirectory.Path, self.RelativePath), nil
+	if rootDirectory, ok := labelToPath[self.Label]; ok {
+		return path.Join(rootDirectory, self.RelativePath), nil
 	} else {
-		return ``, err
+		return ``, fmt.Errorf("Unknown path for label %q", self.Label)
 	}
 }
 

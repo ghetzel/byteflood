@@ -215,7 +215,7 @@ func (self *Share) GetStats() (*Stats, error) {
 	if metrics, err := stats.StatsDB.Range(
 		time.Now().Add(-1*time.Hour),
 		time.Now(),
-		fmt.Sprintf("byteflood.shares.{total_bytes,file_count,directory_count}**,share=%s,**", self.ID),
+		fmt.Sprintf("byteflood.shares.*:share=%s", self.ID),
 	); err == nil {
 		shareStats := &Stats{}
 

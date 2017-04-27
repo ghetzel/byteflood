@@ -89,6 +89,14 @@ func (self *Directory) Initialize() error {
 	return nil
 }
 
+func (self *Directory) ContainsPath(name string) bool {
+	if strings.HasPrefix(path.Clean(name), path.Clean(self.Path)) {
+		return true
+	}
+
+	return false
+}
+
 func (self *Directory) Scan() error {
 	if entries, err := ioutil.ReadDir(self.Path); err == nil {
 		for _, entry := range entries {

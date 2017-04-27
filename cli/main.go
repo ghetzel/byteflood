@@ -91,7 +91,7 @@ func main() {
 	}
 
 	app.Before = func(c *cli.Context) error {
-		logging.SetFormatter(logging.MustStringFormatter(`%{color}%{level:.4s}%{color:reset}[%{id:04d}] %{message}`))
+		logging.SetFormatter(logging.MustStringFormatter(`%{color}%{level:.4s}%{color:reset}[%{id:04d} %{shortfile:30s}] %{message}`))
 
 		if logLevel := c.String(`log-level`); logLevel == `` {
 			if lvl, ok := DefaultLogLevel[c.Args().First()]; ok {

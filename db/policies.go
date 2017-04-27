@@ -1,7 +1,7 @@
 package db
 
 import (
-	"fmt"
+	"github.com/ghetzel/go-stockutil/typeutil"
 )
 
 type SyncPolicy struct {
@@ -11,7 +11,7 @@ type SyncPolicy struct {
 
 func (self *SyncPolicy) Compare(field string, value interface{}, other interface{}) bool {
 	// TODO: provide some kind of comparator other than ==
-	if fmt.Sprintf("%v", value) == fmt.Sprintf("%v", other) {
+	if eq, err := typeutil.RelaxedEqual(value, other); err == nil && eq {
 		return true
 	}
 

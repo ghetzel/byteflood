@@ -51,6 +51,7 @@ type QueuedDownload struct {
 	db               *db.Database
 	tempFile         *os.File
 	destinationFile  io.Reader
+	destinationPath  string
 	lastByteSize     uint64
 	stopChan         chan error
 }
@@ -62,6 +63,10 @@ func (self *QueuedDownload) Stop(err error) {
 	if self.stopChan != nil {
 		self.stopChan <- err
 	}
+}
+
+func (self *QueuedDownload) Path() string {
+	return self.destinationPath
 }
 
 func (self *QueuedDownload) Download(writers ...io.Writer) error {
@@ -225,6 +230,7 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 				if err := os.Rename(self.tempFile.Name(), destFile); err == nil {
 					// reopen the downloaded file as readable
 					if readFile, err := os.Open(destFile); err == nil {
+						self.destinationPath = destFile
 						self.destinationFile = readFile
 					} else {
 						return err

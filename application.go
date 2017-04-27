@@ -2,6 +2,7 @@ package byteflood
 
 import (
 	"fmt"
+	"github.com/fatih/set"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/peer"
@@ -155,6 +156,9 @@ func (self *Application) Initialize() error {
 	// listen for and respond to peer events at the application level
 	go self.monitorPeerEvents()
 
+	// listen for downloaded files and trigger local database scans as appropriate
+	go self.monitorQueueCompletedFiles()
+
 	// setup stats emission and persistence
 	if self.Stats.Path == `` {
 		self.Stats.Path = path.Join(self.Database.BaseDirectory, `stats`)
@@ -237,7 +241,7 @@ func (self *Application) Sync(peerNames ...string) error {
 			subscriptionPeers := peer.ExpandPeerGroup(self.Database, subscription.SourceGroup)
 
 			if len(peerNames) == 0 || sliceutil.ContainsAnyString(connectedPeers, subscriptionPeers...) {
-				log.Debugf("Scanning subscription %v...", subscription.ID)
+				log.Debugf("Scanning subscription %v", subscription)
 
 				if err := subscription.Sync(self); err != nil {
 					log.Warningf("Sync failed for %v: %v", subscription.ID, err)
@@ -347,5 +351,36 @@ func (self *Application) monitorPeerEvents() {
 		case peer.PeerConnected:
 			self.Sync(event.Peer.Name)
 		}
+	}
+}
+
+func (self *Application) monitorQueueCompletedFiles() {
+	fileset := set.New()
+
+	// this routine accumulates all of the files completed in the past 15 seconds,
+	// figures out which (if any) Scanned Directories were affected, and scans them
+	go func() {
+		for {
+			paths := set.StringSlice(fileset)
+			fileset.Clear()
+			scanset := set.New()
+
+			for _, filePath := range paths {
+				for _, dir := range self.Database.GetDirectoriesByFile(filePath) {
+					scanset.Add(dir.ID)
+				}
+			}
+
+			if affectedLabels := set.StringSlice(scanset); len(affectedLabels) > 0 {
+				// scan all affected labels
+				self.Database.Scan(false, affectedLabels...)
+			}
+
+			time.Sleep(15 * time.Second)
+		}
+	}()
+
+	for filePath := range self.Queue.CompletedFiles() {
+		fileset.Add(filePath)
 	}
 }

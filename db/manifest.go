@@ -34,7 +34,7 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 	var absPath string
 	var stat os.FileInfo
 
-	log.Debugf("Compare: %v to %v", manifest.Fields, self.Values)
+	// log.Debugf("Compare: %v to %v", manifest.Fields, self.Values)
 
 	// perform the local filesystem check.  If the file does not exist, then we don't have it
 	if localAbsPath, err := filepath.Abs(
@@ -43,6 +43,7 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 		absPath = localAbsPath
 
 		if fileinfo, err := os.Stat(localAbsPath); os.IsNotExist(err) {
+			log.Debugf("Need %s because a local copy does not exist", self.ID)
 			return true, nil
 		} else if err != nil {
 			return false, err
@@ -63,13 +64,13 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 	for i, value := range self.Values {
 		if i < len(manifest.Fields) {
 			fieldName := manifest.Fields[i]
-			log.Debugf("Item %s: check field %q", self.ID, fieldName)
+			// log.Debugf("Item %s: check field %q", self.ID, fieldName)
 
 			switch fieldName {
 			case `checksum`:
 				if sum, err := file.GenerateChecksum(true); err == nil {
 					if fmt.Sprintf("%v", value) != sum {
-						log.Debugf("  field %s no match %v != %v", `checksum`, value, sum)
+						log.Debugf("Need %s because field 'checksum' differs from local copy", self.ID)
 						return true, nil
 					}
 				} else {
@@ -86,7 +87,7 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 
 				// perform metadata comparison
 				if !policy.Compare(fieldName, file.Get(fieldName), value) {
-					log.Debugf("  field %s no match %v", fieldName, value)
+					log.Debugf("Need %s because field '%s' differs from local copy", self.ID, fieldName)
 					return true, nil
 				}
 			}
@@ -98,7 +99,7 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 		}
 	}
 
-	log.Debugf("Item %s: up-to-date at %s", self.ID, absPath)
+	// log.Debugf("Item %s: up-to-date at %s", self.ID, absPath)
 	return false, nil
 }
 
@@ -200,8 +201,6 @@ func (self *Manifest) GetUpdateManifest(policy SyncPolicy) (*Manifest, error) {
 	diff := NewManifest(self.BaseDirectory)
 	copy(diff.Fields, self.Fields)
 
-	log.Debugf("Got %d items from remote peer", len(self.Items))
-
 	for _, item := range self.Items {
 		if update, err := item.NeedsUpdate(self, &policy); err == nil {
 			if update {
@@ -210,6 +209,12 @@ func (self *Manifest) GetUpdateManifest(policy SyncPolicy) (*Manifest, error) {
 		} else {
 			return nil, err
 		}
+	}
+
+	if l := len(diff.Items); l == 0 {
+		log.Debugf("Local directory %v is up-to-date", self.BaseDirectory)
+	} else {
+		log.Debugf("Want %d items from remote sources", l)
 	}
 
 	return diff, nil

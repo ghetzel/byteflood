@@ -30,11 +30,12 @@ var DefaultGlobalExclusions = []string{
 }
 
 var DefaultBaseDirectory = `~/.config/byteflood`
-var AdminUserName = `admin`
 
 type Model interface {
 	SetDatabase(*Database)
 }
+
+var labelToPath = make(map[string]string)
 
 type Database struct {
 	BaseDirectory      string            `json:"base_dir"`
@@ -139,6 +140,25 @@ func (self *Database) Initialize() error {
 		}
 	}
 
+	if err := self.refreshLabelPathCache(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Update the label-to-realpath map (used by Entry.GetAbsolutePath)
+func (self *Database) refreshLabelPathCache() error {
+	var scannedDirectories []Directory
+
+	if err := self.ScannedDirectories.All(&scannedDirectories); err == nil {
+		for _, directory := range scannedDirectories {
+			labelToPath[directory.ID] = directory.Path
+		}
+	} else {
+		return err
+	}
+
 	return nil
 }
 
@@ -152,7 +172,9 @@ func (self *Database) Scan(deep bool, labels ...string) error {
 		return fmt.Errorf("Scan already running")
 	} else {
 		self.ScanInProgress = true
+
 		defer func() {
+			self.Cleanup()
 			self.ScanInProgress = false
 		}()
 	}
@@ -161,6 +183,9 @@ func (self *Database) Scan(deep bool, labels ...string) error {
 
 	if err := self.ScannedDirectories.All(&scannedDirectories); err == nil {
 		for _, directory := range scannedDirectories {
+			// update our label-to-realpath map (used by Entry.GetAbsolutePath)
+			labelToPath[directory.ID] = directory.Path
+
 			directory.DeepScan = deep
 
 			if len(labels) > 0 {
@@ -192,12 +217,25 @@ func (self *Database) Scan(deep bool, labels ...string) error {
 				return err
 			}
 		}
-
-		if err := self.Cleanup(); err != nil {
-			return err
-		}
 	} else {
 		return err
+	}
+
+	return nil
+}
+
+func (self *Database) GetDirectoriesByFile(filename string) []Directory {
+	var scannedDirectories []Directory
+	foundDirectories := make([]Directory, 0)
+
+	if err := self.ScannedDirectories.All(&scannedDirectories); err == nil {
+		for _, dir := range scannedDirectories {
+			if dir.ContainsPath(filename) {
+				foundDirectories = append(foundDirectories, dir)
+			}
+		}
+
+		return foundDirectories
 	}
 
 	return nil
@@ -231,11 +269,12 @@ func (self *Database) Cleanup() error {
 			log.Warningf("Remove missing labels failed: %v", err)
 		}
 
-		if err := self.Metadata.Each(Entry{}, func(entryI interface{}, err error) {
+		allQuery := filter.Copy(&filter.All)
+		allQuery.Fields = []string{`id`, `label`}
+
+		if err := self.Metadata.FindFunc(allQuery, Entry{}, func(entryI interface{}, err error) {
 			if err == nil {
 				if entry, ok := entryI.(*Entry); ok {
-					entry.db = self
-
 					if absPath, err := entry.GetAbsolutePath(); err == nil {
 						if _, err := os.Stat(absPath); os.IsNotExist(err) {
 							entriesToDelete = append(entriesToDelete, entry.ID)
@@ -247,16 +286,15 @@ func (self *Database) Cleanup() error {
 				log.Warningf("%v", err)
 			}
 		}); err == nil {
-			log.Infof("[DISABLED] Would remove %d entries", len(entriesToDelete))
-			// if l := len(entriesToDelete); l > 0 {
-			// 	if err := self.Metadata.Delete(entriesToDelete...); err == nil {
-			// 		log.Infof("Removed %d entries", l)
-			// 	} else {
-			// 		log.Warningf("Failed to cleanup missing entries: %v", err)
-			// 	}
-			// }
+			if l := len(entriesToDelete); l > 0 {
+				if err := self.Metadata.Delete(entriesToDelete...); err == nil {
+					log.Infof("Removed %d entries", l)
+				} else {
+					log.Warningf("Failed to cleanup missing entries: %v", err)
+				}
+			}
 
-			log.Infof("Database cleanup finished, processed %d entries.", len(entriesToDelete))
+			log.Infof("Database cleanup finished, deleted %d entries.", len(entriesToDelete))
 
 		} else {
 			log.Warningf("Failed to cleanup database: %v", err)

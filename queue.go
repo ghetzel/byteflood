@@ -26,14 +26,16 @@ type DownloadQueue struct {
 	waitForEmpty     chan bool
 	customDownloader DownloadFunc
 	waitForComplete  sync.WaitGroup
+	downloadComplete chan string
 }
 
 func NewDownloadQueue(app *Application) *DownloadQueue {
 	return &DownloadQueue{
-		ActiveDownloads: cmap.New(),
-		app:             app,
-		waitForEmpty:    make(chan bool),
-		workerPool:      make(chan *QueuedDownload, ConcurrentDownloads),
+		ActiveDownloads:  cmap.New(),
+		app:              app,
+		waitForEmpty:     make(chan bool),
+		workerPool:       make(chan *QueuedDownload, ConcurrentDownloads),
+		downloadComplete: make(chan string),
 	}
 }
 
@@ -200,6 +202,13 @@ func (self *DownloadQueue) downloadWorker(workerID int) {
 
 		self.ActiveDownloads.Remove(id)
 		self.waitForComplete.Done()
+
+		if p := download.Path(); p != `` {
+			select {
+			case self.downloadComplete <- p:
+			default:
+			}
+		}
 	}
 }
 
@@ -305,4 +314,8 @@ func (self *DownloadQueue) Clear(statuses ...string) error {
 	}
 
 	return nil
+}
+
+func (self *DownloadQueue) CompletedFiles() <-chan string {
+	return self.downloadComplete
 }

@@ -39,7 +39,6 @@ func writeTsvFileLine(w io.Writer, share *shares.Share, item db.ManifestItem) {
 	}
 
 	fmt.Fprintf(w, "%s\t%s\t%s%v\n", item.ID, item.RelativePath, item.Type, fieldset)
-	log.Debugf("%s\t%s\t%s%v\n", item.ID, item.RelativePath, item.Type, fieldset)
 }
 
 func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, client peer.Peer) {

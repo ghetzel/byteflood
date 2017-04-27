@@ -39,6 +39,10 @@ func NewSubscription(id int, share string, source string, target string) *Subscr
 	}
 }
 
+func (self *Subscription) String() string {
+	return fmt.Sprintf("id=%d share=%v sources=%v", self.ID, self.ShareName, self.SourceGroup)
+}
+
 func (self *Subscription) GetWantedItems(localPeer *peer.LocalPeer) ([]*WantedItem, error) {
 	if self.ShareName == `` {
 		return nil, fmt.Errorf("A share name must be specified")
@@ -66,6 +70,8 @@ func (self *Subscription) GetWantedItems(localPeer *peer.LocalPeer) ([]*WantedIt
 
 			// get the list of files the remote peer has that we want
 			if updates, err := manifest.GetUpdateManifest(policy); err == nil {
+				log.Debugf("Got %d items from remote peer=%v share=%v", len(updates.Items), remotePeer, self.ShareName)
+
 				for _, item := range updates.Items {
 					if !sliceutil.ContainsString(requestedPaths, item.RelativePath) {
 						log.Debugf("Want %s:%s from peer %v -> %v", self.ShareName, item.RelativePath, remotePeer, path.Join(self.TargetPath, item.RelativePath))
