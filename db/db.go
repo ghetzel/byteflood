@@ -270,7 +270,7 @@ func (self *Database) Cleanup() error {
 		}
 
 		allQuery := filter.Copy(&filter.All)
-		allQuery.Fields = []string{`id`, `label`}
+		allQuery.Fields = []string{`id`, `name`, `label`}
 
 		if err := self.Metadata.FindFunc(allQuery, Entry{}, func(entryI interface{}, err error) {
 			if err == nil {
