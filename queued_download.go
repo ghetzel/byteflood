@@ -62,7 +62,10 @@ func (self *QueuedDownload) Stop(err error) {
 	self.Status = `failed`
 
 	if self.stopChan != nil {
-		self.stopChan <- err
+		select {
+		case self.stopChan <- err:
+		default:
+		}
 	}
 }
 

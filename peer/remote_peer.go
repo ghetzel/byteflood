@@ -404,7 +404,7 @@ func (self *RemotePeer) TransferData(id uuid.UUID, data []byte) error {
 	}
 }
 
-// Transfers the given filename to the peer.
+// Transfers the given filename to the peer (non-blocking).
 //
 func (self *RemotePeer) TransferFile(id uuid.UUID, path string) error {
 	log.Debugf("[%v] Transfer requested for file at %s", id, path)
@@ -412,14 +412,19 @@ func (self *RemotePeer) TransferFile(id uuid.UUID, path string) error {
 	if file, err := os.Open(path); err == nil {
 		if stat, err := file.Stat(); err == nil {
 			if transfer, err := self.CreateOutboundTransfer(id, uint64(stat.Size())); err == nil {
-				log.Infof("[%v] Sending file %s (%d bytes)", self, path, stat.Size())
+				go func() {
+					log.Infof("[%v] Sending file %s (%d bytes)", self, path, stat.Size())
 
-				if _, err := io.Copy(transfer, file); err == nil {
-					return transfer.Close()
-				} else {
-					log.Debugf("[%v] Transfer failed: %v", id, err)
-					return err
-				}
+					if _, err := io.Copy(transfer, file); err == nil {
+						if err := transfer.Close(); err != nil {
+							log.Debugf("[%v] Transfer close failed: %v", id, err)
+						}
+					} else {
+						log.Debugf("[%v] Transfer failed: %v", id, err)
+					}
+				}()
+
+				return nil
 			} else {
 				log.Debugf("[%v] Transfer failed: %v", id, err)
 				return err

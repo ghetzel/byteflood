@@ -28,6 +28,7 @@ bindings:
   <table class="table">
     <thead>
       <tr>
+        <th>#</th>
         <th>Status</th>
         <th>File</th>
         <th>Progress</th>
@@ -40,6 +41,9 @@ bindings:
     <tbody>
       {{ range $key, $download := .bindings.queue.active_downloads }}
       <tr>
+        <td>
+        #{{ $download.id }}
+        </td>
         <td>
           <i class="fa fa-fw bf-queue-status-{{ $download.status }}"></i>
           <span class="badge badge-default">{{ titleize $download.status }}</span>

@@ -178,8 +178,8 @@ func (self *DownloadQueue) downloadWorker(workerID int) {
 		})
 
 		if err := download.Download(); err != nil {
-			log.Errorf("Stopping download %v: %v", download, err)
 			download.Stop(err)
+			log.Errorf("Stopping download %v: %v", download, err)
 
 			stats.Increment(`byteflood.queue.downloads.completed`, map[string]interface{}{
 				`worker`: workerID,

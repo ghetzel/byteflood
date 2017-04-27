@@ -279,11 +279,12 @@ func (self *API) handleRequestEntryFromShare(w http.ResponseWriter, req *http.Re
 			if absPath, err := entry.GetAbsolutePath(); err == nil {
 				// parse the given :transfer UUID
 				if transferId, err := uuid.FromString(vestigo.Param(req, `transfer`)); err == nil {
-					// kick off the transfer on our end
-					// TODO: this should be entered into an upload queue
-					// self.application.QueueUpload(remotePeer, transferId, absPath)
-					go remotePeer.TransferFile(transferId, absPath)
-					http.Error(w, ``, http.StatusNoContent)
+					// start the transfer and return
+					if err := remotePeer.TransferFile(transferId, absPath); err == nil {
+						http.Error(w, ``, http.StatusNoContent)
+					} else {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+					}
 				} else {
 					http.Error(w, err.Error(), http.StatusBadRequest)
 				}
