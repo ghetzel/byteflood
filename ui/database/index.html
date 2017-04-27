@@ -13,9 +13,11 @@ bindings:
 
 - name: stats
   resource: :/api/metrics/summary/byteflood.db.(total_bytes|file_count|directory_count)
+  optional: true
   params:
     fn: 'last'
 ---
+{{ if .bindings.stats }}
 <div class="row">
   <div class="col-sm-3 offset-sm-3">
     <div class="card card-inverse card-success text-center">
@@ -64,6 +66,7 @@ bindings:
     </div>
   </div> -->
 </div>
+{{ end }}
 
 {{ $scanning := .bindings.db.scan_in_progress }}
 <div class="card">

@@ -212,29 +212,33 @@ func (self *Share) Get(id string) (*db.Entry, error) {
 }
 
 func (self *Share) GetStats() (*Stats, error) {
-	if metrics, err := stats.StatsDB.Range(
-		time.Now().Add(-1*time.Hour),
-		time.Now(),
-		fmt.Sprintf("byteflood.shares.*:share=%s", self.ID),
-	); err == nil {
-		shareStats := &Stats{}
+	if stats.IsEnabled() {
+		if metrics, err := stats.StatsDB.Range(
+			time.Now().Add(-1*time.Hour),
+			time.Now(),
+			fmt.Sprintf("byteflood.shares.*:share=%s", self.ID),
+		); err == nil {
+			shareStats := &Stats{}
 
-		for _, metric := range metrics {
-			values := metric.Summarize(mobius.Last)
+			for _, metric := range metrics {
+				values := metric.Summarize(mobius.Last)
 
-			switch metric.GetName() {
-			case `byteflood.shares.total_bytes`:
-				shareStats.TotalBytes = uint64(values[0])
-			case `byteflood.shares.file_count`:
-				shareStats.FileCount = uint64(values[0])
-			case `byteflood.shares.directory_count`:
-				shareStats.DirectoryCount = uint64(values[0])
+				switch metric.GetName() {
+				case `byteflood.shares.total_bytes`:
+					shareStats.TotalBytes = uint64(values[0])
+				case `byteflood.shares.file_count`:
+					shareStats.FileCount = uint64(values[0])
+				case `byteflood.shares.directory_count`:
+					shareStats.DirectoryCount = uint64(values[0])
+				}
 			}
-		}
 
-		return shareStats, nil
+			return shareStats, nil
+		} else {
+			return nil, err
+		}
 	} else {
-		return nil, err
+		return &Stats{}, nil
 	}
 }
 

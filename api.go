@@ -76,7 +76,11 @@ func (self *API) Serve() error {
 	router := vestigo.NewRouter()
 	mux := http.NewServeMux()
 	ui := diecast.NewServer(uiDir, `*.html`)
-	metricsServer := http.StripPrefix(`/api`, mobius.NewServer(stats.StatsDB))
+	var metricsServer http.Handler
+
+	if stats.IsEnabled() {
+		metricsServer = http.StripPrefix(`/api`, mobius.NewServer(stats.StatsDB))
+	}
 
 	// handle serving UI from an embedded FileSystem
 	if self.UiDirectory == `embedded` {
@@ -180,8 +184,11 @@ func (self *API) Serve() error {
 	router.Delete(`/api/subscriptions/:id`, self.handleDeleteModel)
 	router.Post(`/api/subscriptions/:id/actions/:action`, self.handleActionSubscription)
 
-	mux.Handle(`/api/metrics`, metricsServer)
-	mux.Handle(`/api/metrics/`, metricsServer)
+	if stats.IsEnabled() {
+		mux.Handle(`/api/metrics`, metricsServer)
+		mux.Handle(`/api/metrics/`, metricsServer)
+	}
+
 	mux.Handle(`/api/`, router)
 	mux.Handle(`/`, ui)
 
