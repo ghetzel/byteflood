@@ -277,6 +277,11 @@ func (self *API) handleRequestEntryFromShare(w http.ResponseWriter, req *http.Re
 
 			// get the absolute filesystem path to the entry at :id
 			if absPath, err := entry.GetAbsolutePath(); err == nil {
+				if strings.HasPrefix(path.Base(absPath), QueueTempFileFormat) {
+					http.Error(w, `refusing to transfer temporary file`, http.StatusForbidden)
+					return
+				}
+
 				// parse the given :transfer UUID
 				if transferId, err := uuid.FromString(vestigo.Param(req, `transfer`)); err == nil {
 					// start the transfer and return

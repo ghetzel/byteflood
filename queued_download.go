@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-var TempFileFormat = ".byteflood-%v_"
+var QueueTempFileFormat = ".byteflood-"
 
 type DownloadFunc func(*QueuedDownload, ...io.Writer) error // {}
 
@@ -141,7 +141,7 @@ func (self *QueuedDownload) Download(writers ...io.Writer) error {
 			// create destination parent directory
 			if err := os.MkdirAll(destDir, 0755); err == nil || os.IsExist(err) {
 				// open the destination file
-				if file, err := ioutil.TempFile(destDir, fmt.Sprintf(TempFileFormat, self.ID)); err == nil {
+				if file, err := ioutil.TempFile(destDir, fmt.Sprintf("%s%v_", QueueTempFileFormat, self.ID)); err == nil {
 					self.tempFile = file
 					destWriter = file
 				} else {
