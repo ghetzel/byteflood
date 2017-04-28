@@ -48,6 +48,8 @@ func (self *Directory) SetDatabase(conn *Database) {
 	self.db = conn
 }
 
+// Constructor is called when creating a new instance via the mapper.Mapper.NewInstance() method.
+// We're using it here because the ID is calculated from the value of other fields.
 func (self *Directory) Constructor() interface{} {
 	if self.ID == `` && self.Path != `` {
 		self.ID = path.Base(self.Path)

@@ -225,19 +225,6 @@ func (self *RemotePeer) GetManifest(share string, fields ...string) (*db.Manifes
 // Receive the next message from this peer.
 //
 func (self *RemotePeer) ReceiveMessage() (*Message, error) {
-	// imposes rate limiting on reads (if configured)
-	reader := self.getReadRateLimiter(self.connection)
-
-	if stats.IsEnabled() {
-		// intercepts reads and increments a counter
-		self.readCounter.Reader = reader
-
-		// ensures that the decrypter is using the reader we've specified
-		self.Encryption.SetSource(self.readCounter)
-	} else {
-		self.Encryption.SetSource(reader)
-	}
-
 	if cleartext, err := self.Encryption.ReadNext(); err == nil {
 		// decode the decrypted message payload
 		if message, err := DecodeMessage(cleartext); err == nil {
@@ -253,23 +240,10 @@ func (self *RemotePeer) ReceiveMessage() (*Message, error) {
 // Sends a message to the remote peer.
 //
 func (self *RemotePeer) SendMessage(message *Message) (int, error) {
-	// imposes rate limiting on writes (if configured)
-	writer := self.getWriteRateLimiter(self.connection)
-
 	// get an exclusive lock on writing to the encrypter
 	// release it once we've encrypted the data
 	self.Encryption.Lock()
 	defer self.Encryption.Unlock()
-
-	if stats.IsEnabled() {
-		// intercepts writes and increments a counter
-		self.writeCounter.Writer = writer
-
-		// ensures that the encrypter is using the writer we've specified
-		self.Encryption.SetTarget(self.writeCounter)
-	} else {
-		self.Encryption.SetTarget(writer)
-	}
 
 	// encode the message for transport
 	if encodedMessage, err := message.Encode(); err == nil {
@@ -458,6 +432,9 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 		localPeer.RemovePeer(self.SessionID())
 	}()
 
+	// setup connection throttling and monitoring
+	self.setupReadWritePipeline()
+
 	for {
 		if message, err := self.receiveMessagesIterate(localPeer); err == nil {
 			if message != nil && self.messageFn != nil {
@@ -472,6 +449,32 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 	err := fmt.Errorf("protocol error: unknown")
 	log.Error(err)
 	return err
+}
+
+// Insert rate limiters and stats counters in between the raw connection object and
+// the encryption layer. This provides the ability to throttle and monitor data
+// immediately before it's transmitted, and immediately after it's received.
+func (self *RemotePeer) setupReadWritePipeline() {
+	// imposes rate limiting on reads (if configured)
+	reader := self.getReadRateLimiter(self.connection)
+	writer := self.getWriteRateLimiter(self.connection)
+
+	// lock the encrypter while we're messing with it
+	self.Encryption.Lock()
+	defer self.Encryption.Unlock()
+
+	if stats.IsEnabled() {
+		// intercepts reads/writes and increments a counter
+		self.readCounter.Reader = reader
+		self.writeCounter.Writer = writer
+
+		// ensures that the decrypter is using the reader we've specified
+		self.Encryption.SetSource(self.readCounter)
+		self.Encryption.SetTarget(self.writeCounter)
+	} else {
+		self.Encryption.SetSource(reader)
+		self.Encryption.SetTarget(writer)
+	}
 }
 
 func (self *RemotePeer) receiveMessagesIterate(localPeer *LocalPeer) (*Message, error) {
