@@ -2,11 +2,15 @@ package db
 
 import (
 	"fmt"
+	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/pathutil"
+	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/go-stockutil/typeutil"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/sabhiram/go-gitignore"
 	"os"
 	"strings"
+	"time"
 )
 
 var MetadataSchema = &dal.Collection{
@@ -22,8 +26,9 @@ var MetadataSchema = &dal.Collection{
 			Type:     dal.StringType,
 			Required: true,
 		}, {
-			Name: `size`,
-			Type: dal.IntType,
+			Name:      `size`,
+			Type:      dal.IntType,
+			Validator: dal.ValidatePositiveOrZeroInteger,
 		}, {
 			Name: `checksum`,
 			Type: dal.StringType,
@@ -36,11 +41,13 @@ var MetadataSchema = &dal.Collection{
 			Type:     dal.BooleanType,
 			Required: true,
 		}, {
-			Name: `children`,
-			Type: dal.IntType,
+			Name:      `children`,
+			Type:      dal.IntType,
+			Validator: dal.ValidatePositiveOrZeroInteger,
 		}, {
-			Name: `descendants`,
-			Type: dal.IntType,
+			Name:      `descendants`,
+			Type:      dal.IntType,
+			Validator: dal.ValidatePositiveOrZeroInteger,
 		}, {
 			Name:     `last_modified_at`,
 			Type:     dal.IntType,
@@ -91,6 +98,14 @@ var DownloadsSchema = &dal.Collection{
 			Name:     `status`,
 			Type:     dal.StringType,
 			Required: true,
+			Validator: dal.ValidateIsOneOf(
+				`idle`,
+				`pending`,
+				`waiting`,
+				`downloading`,
+				`completed`,
+				`failed`,
+			),
 		}, {
 			Name: `priority`,
 			Type: dal.IntType,
@@ -126,6 +141,13 @@ var DownloadsSchema = &dal.Collection{
 			Name:     `added_at`,
 			Type:     dal.TimeType,
 			Required: true,
+			Formatter: func(value interface{}, op dal.FieldOperation) (interface{}, error) {
+				if op == dal.PersistOperation && typeutil.IsZero(value) {
+					return time.Now(), nil
+				}
+
+				return value, nil
+			},
 		}, {
 			Name: `error`,
 			Type: dal.StringType,
@@ -142,9 +164,29 @@ var AuthorizedPeersSchema = &dal.Collection{
 			Name:     `name`,
 			Type:     dal.StringType,
 			Required: true,
+			Unique:   true,
+			Formatter: func(value interface{}, op dal.FieldOperation) (interface{}, error) {
+				return stringutil.Underscore(
+					strings.TrimSpace(
+						fmt.Sprintf("%v", value),
+					),
+				), nil
+			},
 		}, {
-			Name: `group`,
+			Name: `groups`,
 			Type: dal.StringType,
+			Formatter: func(value interface{}, op dal.FieldOperation) (interface{}, error) {
+				groupset := util.SplitMulti.Split(
+					strings.TrimSpace(fmt.Sprintf("%v", value)),
+					-1,
+				)
+
+				for i, group := range groupset {
+					groupset[i] = `@` + stringutil.Underscore(strings.TrimPrefix(group, `@`))
+				}
+
+				return strings.Join(groupset, ` `), nil
+			},
 		}, {
 			Name: `addresses`,
 			Type: dal.StringType,
@@ -213,6 +255,7 @@ var ScannedDirectoriesSchema = &dal.Collection{
 			Name:        `min_file_size`,
 			Description: `If set, files smaller than this value will be skipped.`,
 			Type:        dal.IntType,
+			Validator:   dal.ValidatePositiveOrZeroInteger,
 		}, {
 			Name: `follow_symlinks`,
 			Description: `If true, symbolic links in this directory will be followed when scanning, and the files ` +

@@ -11,6 +11,7 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/byteflood/stats"
+	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
@@ -407,7 +408,7 @@ func main() {
 					Usage:     `Authorize a peer for communication with us.`,
 					ArgsUsage: `PEERID NAME`,
 					Flags: []cli.Flag{
-						cli.StringFlag{
+						cli.StringSliceFlag{
 							Name:  `group, g`,
 							Usage: `A named group this peer should belong to.`,
 						},
@@ -432,7 +433,7 @@ func main() {
 							if err := api.AuthorizePeer(
 								peerID,
 								name,
-								c.String(`group`),
+								c.StringSlice(`group`),
 								c.StringSlice(`address`),
 							); err == nil {
 								log.Noticef("Peer ID %q successfully authorized with name %q", peerID, name)
@@ -491,9 +492,7 @@ func main() {
 
 						if peer, err := api.GetSession(peerOrSession); err == nil {
 							if authPeer, err := api.GetAuthorizedPeer(peer.ID); err == nil {
-								if authPeer.Group == `` {
-									authPeer.Group = fmt.Sprintf("@%s", authPeer.PeerName)
-								}
+								authPeerGroups := strings.Join(util.SplitMulti.Split(authPeer.Groups, -1), `,`)
 
 								if sharePath == `` {
 									if shares, err := api.GetShares(peerOrSession, true); err == nil {
@@ -523,7 +522,7 @@ func main() {
 													"%s\t%s\t%s\t%s\t%s\t\n",
 													`sr-xr-xr-x`,
 													authPeer.PeerName,
-													authPeer.Group,
+													authPeerGroups,
 													shareSize,
 													share.ID,
 												)
@@ -588,7 +587,7 @@ func main() {
 														"%v\t%s\t%s\t%s\t%s\t%s\n",
 														entry.Get(`file.permissions.string`, `??????????`),
 														authPeer.PeerName,
-														authPeer.Group,
+														authPeerGroups,
 														fileSize,
 														path.Base(entry.RelativePath),
 														entry.ID,
@@ -599,7 +598,7 @@ func main() {
 														"%v\t%s\t%s\t-\t%s\t\n",
 														`??????????`,
 														authPeer.PeerName,
-														authPeer.Group,
+														authPeerGroups,
 														fmt.Sprintf("err:%v", err),
 													)
 												}

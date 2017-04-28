@@ -45,7 +45,7 @@ bindings:
         </div>
 
         <div class="form-group">
-            <label for="name" class="required">Local Name</label>
+            <label for="name" class="required">Peer Name</label>
             <input
                 type="text"
                 class="form-control"
@@ -59,6 +59,25 @@ bindings:
             <small id="nameHelp" class="form-text text-muted">
                 This is a friendly name you can use to describe this peer.  Multiple Peer IDs can be associated with the same
                 name.  This name is for your reference only and will never be exposed to the remote peer.
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="groups" class="required">Peer Groups</label>
+            <input
+                type="text"
+                class="form-control"
+                name="groups"
+                aria-describedby="groupsHelp"
+                required
+                placeholder="@trusted"
+                value="{{ .bindings.peer.groups }}"
+            >
+
+            <small id="groupsHelp" class="form-text text-muted">
+                Peer Groups are used by Share access control lists to grant access to groups of peers. A common use case for
+                this would be to name individual peers after the machine they're running from, and add those peers to a set of
+                groups that describe who these machines are.
             </small>
         </div>
 

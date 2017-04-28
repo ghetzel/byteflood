@@ -36,7 +36,7 @@ func (self *Client) GetAuthorizedPeer(peerID string) (output *peer.AuthorizedPee
 	return
 }
 
-func (self *Client) AuthorizePeer(id string, name string, group string, addresses []string) error {
+func (self *Client) AuthorizePeer(id string, name string, groups []string, addresses []string) error {
 	if typeutil.IsEmpty(id) {
 		return fmt.Errorf("%q cannot be empty", `id`)
 	}
@@ -48,8 +48,8 @@ func (self *Client) AuthorizePeer(id string, name string, group string, addresse
 	return self.Create(`peers`, peer.AuthorizedPeer{
 		ID:        id,
 		PeerName:  name,
-		Group:     group,
-		Addresses: strings.Join(addresses, `,`),
+		Groups:    strings.Join(groups, ` `),
+		Addresses: strings.Join(addresses, ` `),
 	})
 }
 

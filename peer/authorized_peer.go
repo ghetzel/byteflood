@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/util"
+	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/pivot/filter"
 	"strings"
 )
@@ -11,7 +12,7 @@ import (
 type AuthorizedPeer struct {
 	ID        string `json:"id"`
 	PeerName  string `json:"name"`
-	Group     string `json:"group,omitempty"`
+	Groups    string `json:"groups,omitempty"`
 	Addresses string `json:"addresses,omitempty"`
 	db        *db.Database
 }
@@ -77,7 +78,10 @@ func (self *AuthorizedPeer) SetDatabase(conn *db.Database) {
 
 func (self *AuthorizedPeer) IsMemberOf(groupOrName string) bool {
 	if strings.HasPrefix(groupOrName, `@`) {
-		if strings.TrimPrefix(groupOrName, `@`) == self.Group {
+		if sliceutil.ContainsAnyString(
+			util.SplitMulti.Split(self.Groups, -1),
+			groupOrName,
+		) {
 			return true
 		}
 	} else {
