@@ -432,9 +432,6 @@ func (self *RemotePeer) ReceiveMessages(localPeer *LocalPeer) error {
 		localPeer.RemovePeer(self.SessionID())
 	}()
 
-	// setup connection throttling and monitoring
-	self.setupReadWritePipeline()
-
 	for {
 		if message, err := self.receiveMessagesIterate(localPeer); err == nil {
 			if message != nil && self.messageFn != nil {

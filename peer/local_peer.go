@@ -451,6 +451,9 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 				log.Debugf("  Uploads capped at %d Bps", self.UploadCap)
 			}
 
+			// setup connection throttling and monitoring
+			remotePeer.setupReadWritePipeline()
+
 			// start automatically receiving messages from this peer if we're supposed to
 			if self.autoReceiveMessages {
 				go remotePeer.ReceiveMessages(self)
