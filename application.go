@@ -100,6 +100,37 @@ func (self *Application) Initialize() error {
 		return err
 	}
 
+	// create database base directory (if necessary)
+	if v, err := pathutil.ExpandUser(self.Database.BaseDirectory); err == nil {
+		// if the directory does not exist, create it...
+		if _, err := os.Stat(v); os.IsNotExist(err) {
+			log.Noticef("Creating directory %v", v)
+
+			if err := os.MkdirAll(v, 0755); err != nil {
+				return err
+			}
+		}
+	} else {
+		return err
+	}
+
+	// automatically generate keys if neither keypath exists
+	if _, err := os.Stat(self.PublicKeyPath); os.IsNotExist(err) {
+		if _, err := os.Stat(self.PrivateKeyPath); os.IsNotExist(err) {
+			if err := os.MkdirAll(path.Dir(self.PublicKeyPath), 0700); err != nil {
+				return err
+			}
+
+			if err := os.MkdirAll(path.Dir(self.PrivateKeyPath), 0700); err != nil {
+				return err
+			}
+
+			if err := encryption.GenerateKeypair(self.PublicKeyPath, self.PrivateKeyPath); err != nil {
+				return err
+			}
+		}
+	}
+
 	// initialize and open database
 	// --------------------------------------------------------------------------------------------
 	if err := self.Database.Initialize(); err != nil {

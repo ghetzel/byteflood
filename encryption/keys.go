@@ -99,7 +99,11 @@ func GenerateKeypair(publicKeyPath string, privateKeyPath string) error {
 						Type:    `NACL CRYPTOBOX PRIVATE KEY`,
 						Headers: headers,
 						Bytes:   []byte(privateKey[:]),
-					}); err != nil {
+					}); err == nil {
+						log.Infof("Generated keypair: NaCl cryptobox-compatible; XSalsa20 cipher; ECDH (Curve25519) Key Exchange; Poly1305 MAC")
+						log.Infof("Public Key:  %v", publicKeyPath)
+						log.Infof("Private Key: %v", privateKeyPath)
+					} else {
 						genError = err
 					}
 				} else {

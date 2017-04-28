@@ -20,6 +20,9 @@ test:
 	go test ./db
 	go test .
 
+docker:
+	docker run --rm -it -v $(PWD)/bin/byteflood:/usr/bin/byteflood:ro ghetzel/byteflood byteflood run -u
+
 bench:
 	go test -race -v -bench=. ./encryption/
 

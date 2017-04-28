@@ -25,15 +25,16 @@ type Stats struct {
 }
 
 type Share struct {
-	ID              string `json:"id"`
-	IconName        string `json:"icon_name"`
-	BaseFilter      string `json:"filter,omitempty"`
-	Description     string `json:"description,omitempty"`
-	LongDescription string `json:"long_description,omitempty"`
-	Blocklist       string `json:"blocklist,omitempty"`
-	Allowlist       string `json:"allowlist,omitempty"`
-	Stats           *Stats `json:"stats,omitempty"`
-	db              *db.Database
+	ID                   string `json:"id"`
+	IconName             string `json:"icon_name"`
+	BaseFilter           string `json:"filter,omitempty"`
+	ScannedDirectoryPath string `json:"scanned_directory_path,omitempty"`
+	Description          string `json:"description,omitempty"`
+	LongDescription      string `json:"long_description,omitempty"`
+	Blocklist            string `json:"blocklist,omitempty"`
+	Allowlist            string `json:"allowlist,omitempty"`
+	Stats                *Stats `json:"stats,omitempty"`
+	db                   *db.Database
 }
 
 func GetShares(conn *db.Database, requestingPeer peer.Peer, stats bool, ids ...string) ([]Share, error) {

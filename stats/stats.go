@@ -6,6 +6,7 @@ import (
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/mobius"
 	"github.com/op/go-logging"
+	"os"
 	"time"
 )
 
@@ -35,10 +36,17 @@ func Initialize(statsdir string, tags map[string]interface{}) error {
 
 	if LocalStatsEnabled {
 		if expandedStatsDir, err := pathutil.ExpandUser(statsdir); err == nil {
+			// autocreate parent directory
+			if _, err := os.Stat(expandedStatsDir); os.IsNotExist(err) {
+				if err := os.MkdirAll(expandedStatsDir, 0755); err != nil {
+					return err
+				}
+			}
+
 			if dataset, err := mobius.OpenDataset(expandedStatsDir); err == nil {
 				StatsDB = dataset
-				log.Infof("Statistics database: %v", dataset.GetPath())
-				log.Debugf("Statistics suffix: %v", maputil.Join(basetags, `=`, mobius.InlineTagSeparator))
+				log.Debugf("Statistics database: %v", dataset.GetPath())
+				log.Debugf("Statistics tags:     %v", maputil.Join(basetags, `=`, ` `))
 			} else {
 				return err
 			}

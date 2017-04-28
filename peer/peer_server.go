@@ -67,19 +67,19 @@ func (self *PeerServer) HandleRequest(remotePeer *RemotePeer, w io.Writer, data 
 
 				// this is safe to use as an authoritative peer identifier in request handlers
 				// that are implementing authentication/authorization becase we're setting it
-				// here, which is on the receiving end of the request (as opposed to this header coming)
+				// here, which is on the receiving end of the request (as opposed to this header coming
 				// from the client and us trusting it implicitly as correct and not forged)
 				request.Header.Set(`X-Byteflood-Session`, remotePeer.SessionID())
 
 				if response, err := http.DefaultClient.Do(request); err == nil {
-					log.Infof(
-						"ServiceRequest [%s]: %s %s: %s (%d bytes)",
-						remotePeer.String(),
-						request.Method,
-						request.URL.Path,
-						response.Status,
-						response.ContentLength,
-					)
+					// log.Infof(
+					// 	"ServiceRequest [%s]: %s %s: %s (%d bytes)",
+					// 	remotePeer.String(),
+					// 	request.Method,
+					// 	request.URL.Path,
+					// 	response.Status,
+					// 	response.ContentLength,
+					// )
 
 					return response.Write(w)
 				} else {

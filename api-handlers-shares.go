@@ -1,11 +1,13 @@
 package byteflood
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/go-stockutil/httputil"
+	"github.com/ghetzel/go-stockutil/typeutil"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/husobee/vestigo"
 	"github.com/microcosm-cc/bluemonday"
@@ -39,6 +41,42 @@ func writeTsvFileLine(w io.Writer, share *shares.Share, item db.ManifestItem) {
 	}
 
 	fmt.Fprintf(w, "%s\t%s\t%s%v\n", item.ID, item.RelativePath, item.Type, fieldset)
+}
+
+func (self *API) handleSaveShare(w http.ResponseWriter, req *http.Request) {
+	var recordset dal.RecordSet
+
+	if err := json.NewDecoder(req.Body).Decode(&recordset); err == nil {
+		for _, record := range recordset.Records {
+			var err error
+
+			// if a scanned directory path was given, and if it doesn't already exist, create it
+			if v := record.Get(`scanned_directory_path`, nil); !typeutil.IsEmpty(v) {
+				if existing := self.db.GetDirectoriesByFile(fmt.Sprintf("%v", v)); len(existing) == 0 {
+					// TODO: create scanned directory
+				}
+
+				if q := record.Get(`filter`, nil); typeutil.IsEmpty(q) {
+					// TODO: update filter if empty
+				}
+			}
+
+			if req.Method == `POST` {
+				err = self.db.Shares.CreateOrUpdate(record.ID, record)
+			} else {
+				err = self.db.Shares.Update(record)
+			}
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+
+		http.Error(w, ``, http.StatusNoContent)
+	} else {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
 }
 
 func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, client peer.Peer) {
