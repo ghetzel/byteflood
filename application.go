@@ -187,7 +187,7 @@ func (self *Application) Initialize() error {
 	go self.monitorPeerEvents()
 
 	// listen for downloaded files and trigger local database scans as appropriate
-	go self.monitorQueueCompletedFiles()
+	go self.monitorQueueCompletedFiles(15 * time.Second)
 
 	// setup stats emission and persistence
 	if self.Stats.Path == `` {
@@ -266,12 +266,17 @@ func (self *Application) Sync(peerNames ...string) error {
 		}
 	}
 
+	// get all subscriptions
 	if err := db.Subscriptions.All(&subscriptions); err == nil {
+		// for each subscription...
 		for _, subscription := range subscriptions {
+			// expand the SourceGroup into a list of peers
 			if subscriptionPeers, err := peer.ExpandPeerGroup(subscription.SourceGroup); err == nil {
+				// if any of the peers in that group are currently connected...
 				if len(peerNames) == 0 || sliceutil.ContainsAnyString(connectedPeers, subscriptionPeers...) {
 					log.Debugf("Scanning subscription %v", subscription)
 
+					// sync the subscription, as we have a source for the data
 					if err := subscription.Sync(self); err != nil {
 						log.Warningf("Sync failed for %v: %v", subscription.ID, err)
 					}
@@ -319,27 +324,27 @@ func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
 }
 
 func (self *Application) startPeriodicMonitoring() {
-	go self.collectQueueStats()
-	go self.collectPeerStats()
-	go self.collectShareStats()
-	go self.collectDatabaseStats()
+	go self.collectQueueStats(2 * time.Second)
+	go self.collectPeerStats(10 * time.Second)
+	go self.collectShareStats(5 * time.Minute)
+	go self.collectDatabaseStats(5 * time.Minute)
 
 	select {}
 }
 
-func (self *Application) collectQueueStats() {
+func (self *Application) collectQueueStats(interval time.Duration) {
 	for {
-		time.Sleep(2 * time.Second)
+		time.Sleep(interval)
 	}
 }
 
-func (self *Application) collectPeerStats() {
+func (self *Application) collectPeerStats(interval time.Duration) {
 	for {
-		time.Sleep(10 * time.Second)
+		time.Sleep(interval)
 	}
 }
 
-func (self *Application) collectShareStats() {
+func (self *Application) collectShareStats(interval time.Duration) {
 	for {
 		var shares []*shares.Share
 
@@ -353,11 +358,11 @@ func (self *Application) collectShareStats() {
 			log.Warningf("Failed to refresh share stats: %v", err)
 		}
 
-		time.Sleep(5 * time.Minute)
+		time.Sleep(interval)
 	}
 }
 
-func (self *Application) collectDatabaseStats() {
+func (self *Application) collectDatabaseStats(interval time.Duration) {
 	for {
 		var dirs []*db.Directory
 
@@ -371,7 +376,7 @@ func (self *Application) collectDatabaseStats() {
 			log.Warningf("Failed to refresh directory stats: %v", err)
 		}
 
-		time.Sleep(5 * time.Minute)
+		time.Sleep(interval)
 	}
 }
 
@@ -384,7 +389,7 @@ func (self *Application) monitorPeerEvents() {
 	}
 }
 
-func (self *Application) monitorQueueCompletedFiles() {
+func (self *Application) monitorQueueCompletedFiles(interval time.Duration) {
 	fileset := set.New()
 
 	// this routine accumulates all of the files completed in the past 15 seconds,
@@ -406,7 +411,7 @@ func (self *Application) monitorQueueCompletedFiles() {
 				self.Database.Scan(false, affectedLabels...)
 			}
 
-			time.Sleep(15 * time.Second)
+			time.Sleep(interval)
 		}
 	}()
 
