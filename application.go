@@ -17,7 +17,6 @@ import (
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"os"
-	"os/user"
 	"path"
 	"time"
 )
@@ -43,6 +42,7 @@ type Application struct {
 	running        chan bool
 }
 
+// Create a new, unconfigured application instance.
 func NewApplication() *Application {
 	app := &Application{
 		Database: db.NewDatabase(),
@@ -56,6 +56,7 @@ func NewApplication() *Application {
 	return app
 }
 
+// Create a new application instance with a given configuration file path.
 func NewApplicationFromConfig(configFile string) (*Application, error) {
 	app := NewApplication()
 
@@ -78,6 +79,7 @@ func NewApplicationFromConfig(configFile string) (*Application, error) {
 	return app, nil
 }
 
+// Initialize the application and perform basic configuration checks.
 func (self *Application) Initialize() error {
 	// setup defaults and expand key paths
 	if self.PublicKeyPath == `` {
@@ -183,12 +185,6 @@ func (self *Application) Initialize() error {
 		return err
 	}
 
-	// listen for and respond to peer events at the application level
-	go self.monitorPeerEvents()
-
-	// listen for downloaded files and trigger local database scans as appropriate
-	go self.monitorQueueCompletedFiles(15 * time.Second)
-
 	// setup stats emission and persistence
 	if self.Stats.Path == `` {
 		self.Stats.Path = path.Join(self.Database.BaseDirectory, `stats`)
@@ -198,19 +194,19 @@ func (self *Application) Initialize() error {
 }
 
 func (self *Application) Run() error {
-	hostname, _ := os.Hostname()
-	username := ``
-
-	if user, err := user.Current(); err == nil {
-		username = user.Username
-	}
-
+	// setup stats collection and reporting
 	if err := stats.Initialize(self.Stats.Path, maputil.Append(self.Stats.Tags, map[string]interface{}{
-		`hostname`: hostname,
-		`username`: username,
+		`hostname`: self.LocalPeer.Hostname,
+		`username`: self.LocalPeer.User,
 	})); err != nil {
 		return err
 	}
+
+	// listen for and respond to peer events at the application level
+	go self.monitorPeerEvents()
+
+	// listen for downloaded files and trigger local database scans as appropriate
+	go self.monitorQueueCompletedFiles(15 * time.Second)
 
 	errchan := make(chan error)
 
@@ -242,11 +238,13 @@ func (self *Application) Run() error {
 	}
 }
 
+// Gracefully stop the application.
 func (self *Application) Stop() {
 	<-self.LocalPeer.Stop()
 	stats.Cleanup()
 }
 
+// Perform a scan of all or some of the scanned directories configured in the database.
 func (self *Application) Scan(deep bool, labels ...string) error {
 	backends.BleveBatchFlushCount = 25
 	defer func() {
@@ -256,6 +254,7 @@ func (self *Application) Scan(deep bool, labels ...string) error {
 	return self.Database.Scan(deep, labels...)
 }
 
+// Synchronize all subscriptions or only a subset based on whether a given list of peers is currently connected.
 func (self *Application) Sync(peerNames ...string) error {
 	var subscriptions []*Subscription
 	var connectedPeers []string
@@ -301,6 +300,7 @@ func (self *Application) Sync(peerNames ...string) error {
 	}
 }
 
+// Retrieve a share by name.
 func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
 	if f, err := db.ParseFilter(map[string]interface{}{
 		`name`: name,
