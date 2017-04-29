@@ -5,7 +5,6 @@ import (
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/sliceutil"
-	"github.com/ghetzel/pivot/filter"
 	"strings"
 )
 
@@ -16,41 +15,40 @@ type AuthorizedPeer struct {
 	Addresses string `json:"addresses,omitempty"`
 }
 
-func ExpandPeerGroup(groupOrName string) []string {
+func ExpandPeerGroup(groupOrName string) ([]string, error) {
 	names := make([]string, 0)
-	var f filter.Filter
 
 	if strings.HasPrefix(groupOrName, `@`) {
-		if groupFilter, err := db.ParseFilter(map[string]interface{}{
-			`group`: strings.TrimPrefix(groupOrName, `@`),
-		}); err == nil {
-			f = groupFilter
-		} else {
-			log.Warning(err)
-			return nil
+		if err := db.AuthorizedPeers.Each(AuthorizedPeer{}, func(v interface{}, err error) {
+			if err == nil {
+				if peer, ok := v.(*AuthorizedPeer); ok {
+					if peer.IsMemberOf(groupOrName) {
+						names = append(names, peer.PeerName)
+					}
+				}
+			}
+		}); err != nil {
+			return nil, err
 		}
 	} else {
 		if nameFilter, err := db.ParseFilter(map[string]interface{}{
 			`name`: groupOrName,
 		}); err == nil {
-			f = nameFilter
+			var peers []*AuthorizedPeer
+
+			if err := db.AuthorizedPeers.Find(nameFilter, &peers); err == nil {
+				for _, peer := range peers {
+					names = append(names, peer.PeerName)
+				}
+			} else {
+				return nil, err
+			}
 		} else {
-			log.Warning(err)
-			return nil
+			return nil, err
 		}
 	}
 
-	var peers []*AuthorizedPeer
-
-	if err := db.AuthorizedPeers.Find(f, &peers); err == nil {
-		for _, peer := range peers {
-			names = append(names, peer.PeerName)
-		}
-	} else {
-		log.Warning(err)
-	}
-
-	return names
+	return names, nil
 }
 
 func GetAuthorizedPeer(id string) (*AuthorizedPeer, error) {

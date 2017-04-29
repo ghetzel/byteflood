@@ -268,21 +268,25 @@ func (self *Application) Sync(peerNames ...string) error {
 
 	if err := db.Subscriptions.All(&subscriptions); err == nil {
 		for _, subscription := range subscriptions {
-			subscriptionPeers := peer.ExpandPeerGroup(subscription.SourceGroup)
+			if subscriptionPeers, err := peer.ExpandPeerGroup(subscription.SourceGroup); err == nil {
+				if len(peerNames) == 0 || sliceutil.ContainsAnyString(connectedPeers, subscriptionPeers...) {
+					log.Debugf("Scanning subscription %v", subscription)
 
-			if len(peerNames) == 0 || sliceutil.ContainsAnyString(connectedPeers, subscriptionPeers...) {
-				log.Debugf("Scanning subscription %v", subscription)
-
-				if err := subscription.Sync(self); err != nil {
-					log.Warningf("Sync failed for %v: %v", subscription.ID, err)
+					if err := subscription.Sync(self); err != nil {
+						log.Warningf("Sync failed for %v: %v", subscription.ID, err)
+					}
+				} else {
+					log.Debugf(
+						"Skipping subscription %v sync: no peers available to service this subscription (%+v not in %+v [%v])",
+						subscription.ID,
+						connectedPeers,
+						subscriptionPeers,
+						subscription.SourceGroup,
+					)
 				}
 			} else {
-				log.Debugf(
-					"Skipping subscription %v sync: no peers available to service this subscription (%+v not in %+v)",
-					subscription.ID,
-					connectedPeers,
-					subscriptionPeers,
-				)
+				log.Errorf("Failed to retrieve peers in group %q: %v", subscription.SourceGroup, err)
+				continue
 			}
 		}
 
