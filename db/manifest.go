@@ -59,7 +59,7 @@ func (self *ManifestItem) NeedsUpdate(manifest *Manifest, policy *SyncPolicy) (b
 	}
 
 	// perform field checks
-	file := NewEntry(nil, self.Label, manifest.BaseDirectory, absPath)
+	file := NewEntry(self.Label, manifest.BaseDirectory, absPath)
 
 	for i, value := range self.Values {
 		if i < len(manifest.Fields) {

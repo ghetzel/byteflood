@@ -27,7 +27,6 @@ type Subscription struct {
 	Quota           uint64    `json:"quota,omitempty"`
 	QuotaInterval   uint64    `json:"quota_interval,omitempty"`
 	QuotaResetAt    time.Time `json:"quota_reset_at,omitempty"`
-	db              *db.Database
 }
 
 func NewSubscription(id int, share string, source string, target string) *Subscription {
@@ -95,10 +94,6 @@ func (self *Subscription) GetWantedItems(localPeer *peer.LocalPeer) ([]*WantedIt
 	}
 
 	return items, nil
-}
-
-func (self *Subscription) SetDatabase(conn *db.Database) {
-	self.db = conn
 }
 
 func (self *Subscription) Sync(app *Application) error {

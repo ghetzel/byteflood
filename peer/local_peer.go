@@ -30,8 +30,8 @@ const (
 var log = logging.MustGetLogger(`byteflood/peer`)
 var logproxy = util.NewLogProxy(`byteflood/peer`, `info`)
 
-var PeerMonitorRetryMultiplier = 2
-var PeerMonitorRetryMultiplierMax = 512
+var PeerMonitorRetryMultiplier float64 = 1.125
+var PeerMonitorRetryMultiplierMax float64 = 512
 var PeerMonitorRetryMax = -1
 
 type Peer interface {
@@ -64,10 +64,9 @@ type LocalPeer struct {
 	peerServer           *PeerServer
 	peerRequestHandler   http.Handler
 	peerEvents           chan PeerEvent
-	db                   *db.Database
 }
 
-func NewLocalPeer(db *db.Database) *LocalPeer {
+func NewLocalPeer() *LocalPeer {
 	username := ``
 	hostname, _ := os.Hostname()
 
@@ -87,7 +86,6 @@ func NewLocalPeer(db *db.Database) *LocalPeer {
 		sessions:             cmap.New(),
 		listening:            make(chan bool),
 		peerEvents:           make(chan PeerEvent),
-		db:                   db,
 	}
 }
 
@@ -109,7 +107,7 @@ func (self *LocalPeer) Initialize() error {
 	self.peerServer = NewPeerServer(self)
 
 	// load all authorized peers and populate AutoconnectPeers with their known addresses
-	if err := self.db.AuthorizedPeers.Each(AuthorizedPeer{}, func(v interface{}, err error) {
+	if err := db.AuthorizedPeers.Each(AuthorizedPeer{}, func(v interface{}, err error) {
 		if err == nil {
 			if peer, ok := v.(*AuthorizedPeer); ok {
 				if peer.Addresses != `` {
@@ -158,8 +156,8 @@ func (self *LocalPeer) AddAuthorizedPeer(peerID string, name string) error {
 		PeerName: name,
 	}
 
-	if !self.db.AuthorizedPeers.Exists(peerID) {
-		return self.db.AuthorizedPeers.Create(peer)
+	if !db.AuthorizedPeers.Exists(peerID) {
+		return db.AuthorizedPeers.Create(peer)
 	} else {
 		return fmt.Errorf("Peer %s already exists", peerID)
 	}
@@ -359,7 +357,7 @@ func (self *LocalPeer) GetPeersInGroup(nameOrGroup string) ([]*RemotePeer, error
 	}
 
 	if f, err := db.ParseFilter(query); err == nil {
-		if err := self.db.AuthorizedPeers.Find(f, &authPeersInGroup); err == nil {
+		if err := db.AuthorizedPeers.Find(f, &authPeersInGroup); err == nil {
 			for _, remotePeer := range self.GetPeers() {
 				for _, authPeer := range authPeersInGroup {
 					if remotePeer.ID == authPeer.ID {
@@ -424,7 +422,7 @@ func (self *LocalPeer) RegisterPeer(conn *net.TCPConn, remoteInitiated bool) (*R
 
 		if remotePeer, err := NewRemotePeerFromRequest(remotePeeringRequest, conn); err == nil {
 			// if a record exists for this peer ID, their name will be added to the remotePeer instance
-			if err := self.db.AuthorizedPeers.Get(remotePeer.ID, remotePeer); err != nil {
+			if err := db.AuthorizedPeers.Get(remotePeer.ID, remotePeer); err != nil {
 				log.Errorf("rejecting unknown peer %s (%s)", remotePeer.ID, remotePeer.String())
 				return nil, err
 			}
@@ -574,11 +572,13 @@ func (self *LocalPeer) ConnectTo(address string) (*RemotePeer, error) {
 }
 
 func (self *LocalPeer) ConnectToAndMonitor(address string) {
+	var retryWaitSec float64
+
 	if strings.TrimSpace(address) == `` {
 		return
 	}
 
-	retryWaitSec := 1
+	retryWaitSec = 1.0
 	retries := 0
 
 	for retries = 0; PeerMonitorRetryMax < 0 || retries < PeerMonitorRetryMax; retries++ {
@@ -599,8 +599,6 @@ func (self *LocalPeer) ConnectToAndMonitor(address string) {
 			remotePeer.Disconnect()
 
 		} else {
-			log.Warning(err)
-
 			if IsUnknownPeerErr(err) {
 				return
 			} else if IsAlreadyConnectedErr(err) {
@@ -616,7 +614,7 @@ func (self *LocalPeer) ConnectToAndMonitor(address string) {
 
 		time.Sleep(time.Duration(retryWaitSec) * time.Second)
 
-		// exponential backoff up to a maximum delay
+		// backoff up to a maximum delay
 		if v := (retryWaitSec * PeerMonitorRetryMultiplier); v <= PeerMonitorRetryMultiplierMax {
 			retryWaitSec *= PeerMonitorRetryMultiplier
 		}

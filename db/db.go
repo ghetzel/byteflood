@@ -30,11 +30,6 @@ var DefaultGlobalExclusions = []string{
 }
 
 var DefaultBaseDirectory = `~/.config/byteflood`
-
-type Model interface {
-	SetDatabase(*Database)
-}
-
 var labelToPath = make(map[string]string)
 
 type Database struct {
@@ -45,13 +40,6 @@ type Database struct {
 	GlobalExclusions   []string          `json:"global_exclusions,omitempty"`
 	ScanInProgress     bool              `json:"scan_in_progress"`
 	ExtractFields      []string          `json:"extract_fields,omitempty"`
-	Metadata           mapper.Mapper     `json:"-"`
-	Shares             mapper.Mapper     `json:"-"`
-	Downloads          mapper.Mapper     `json:"-"`
-	AuthorizedPeers    mapper.Mapper     `json:"-"`
-	System             mapper.Mapper     `json:"-"`
-	ScannedDirectories mapper.Mapper     `json:"-"`
-	Subscriptions      mapper.Mapper     `json:"-"`
 	db                 backends.Backend
 }
 
@@ -61,9 +49,7 @@ type Property struct {
 	db    *Database
 }
 
-func (self *Property) SetDatabase(conn *Database) {
-	self.db = conn
-}
+var Instance *Database
 
 func NewDatabase() *Database {
 	db := &Database{
@@ -151,7 +137,7 @@ func (self *Database) Initialize() error {
 func (self *Database) refreshLabelPathCache() error {
 	var scannedDirectories []Directory
 
-	if err := self.ScannedDirectories.All(&scannedDirectories); err == nil {
+	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
 		for _, directory := range scannedDirectories {
 			labelToPath[directory.ID] = directory.Path
 		}
@@ -181,7 +167,7 @@ func (self *Database) Scan(deep bool, labels ...string) error {
 
 	var scannedDirectories []Directory
 
-	if err := self.ScannedDirectories.All(&scannedDirectories); err == nil {
+	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
 		for _, directory := range scannedDirectories {
 			// update our label-to-realpath map (used by Entry.GetAbsolutePath)
 			labelToPath[directory.ID] = directory.Path
@@ -228,7 +214,7 @@ func (self *Database) GetDirectoriesByFile(filename string) []Directory {
 	var scannedDirectories []Directory
 	foundDirectories := make([]Directory, 0)
 
-	if err := self.ScannedDirectories.All(&scannedDirectories); err == nil {
+	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
 		for _, dir := range scannedDirectories {
 			if dir.ContainsPath(filename) {
 				foundDirectories = append(foundDirectories, dir)
@@ -253,7 +239,7 @@ func (self *Database) Cleanup() error {
 	var scannedDirectories []Directory
 	var ids []string
 
-	if err := self.ScannedDirectories.All(&scannedDirectories); err == nil {
+	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
 		for _, dir := range scannedDirectories {
 			ids = append(ids, dir.ID)
 		}
@@ -270,7 +256,7 @@ func (self *Database) Cleanup() error {
 	}); err == nil {
 		f.Limit = -1
 
-		backend := self.Metadata.GetBackend()
+		backend := Metadata.GetBackend()
 		indexer := backend.WithSearch(``)
 
 		if err := indexer.DeleteQuery(MetadataSchema.Name, f); err != nil {
@@ -280,7 +266,7 @@ func (self *Database) Cleanup() error {
 		allQuery := filter.Copy(&filter.All)
 		allQuery.Fields = []string{`id`, `name`, `label`}
 
-		if err := self.Metadata.FindFunc(allQuery, Entry{}, func(entryI interface{}, err error) {
+		if err := Metadata.FindFunc(allQuery, Entry{}, func(entryI interface{}, err error) {
 			if err == nil {
 				if entry, ok := entryI.(*Entry); ok {
 					if absPath, err := entry.GetAbsolutePath(); err == nil {
@@ -295,7 +281,7 @@ func (self *Database) Cleanup() error {
 			}
 		}); err == nil {
 			if l := len(entriesToDelete); l > 0 {
-				if err := self.Metadata.Delete(entriesToDelete...); err == nil {
+				if err := Metadata.Delete(entriesToDelete...); err == nil {
 					log.Infof("Removed %d entries", l)
 				} else {
 					log.Warningf("Failed to cleanup missing entries: %v", err)
@@ -315,22 +301,26 @@ func (self *Database) Cleanup() error {
 }
 
 func (self *Database) setupSchemata() error {
-	self.AuthorizedPeers = mapper.NewModel(self.db, AuthorizedPeersSchema)
-	self.Downloads = mapper.NewModel(self.db, DownloadsSchema)
-	self.Metadata = mapper.NewModel(self.db, MetadataSchema)
-	self.ScannedDirectories = mapper.NewModel(self.db, ScannedDirectoriesSchema)
-	self.Shares = mapper.NewModel(self.db, SharesSchema)
-	self.Subscriptions = mapper.NewModel(self.db, SubscriptionsSchema)
-	self.System = mapper.NewModel(self.db, SystemSchema)
+	// register global mapper.Model instances to this database
+	AuthorizedPeers = mapper.NewModel(self.db, AuthorizedPeersSchema)
+	Downloads = mapper.NewModel(self.db, DownloadsSchema)
+	Metadata = mapper.NewModel(self.db, MetadataSchema)
+	ScannedDirectories = mapper.NewModel(self.db, ScannedDirectoriesSchema)
+	Shares = mapper.NewModel(self.db, SharesSchema)
+	Subscriptions = mapper.NewModel(self.db, SubscriptionsSchema)
+	System = mapper.NewModel(self.db, SystemSchema)
+
+	// set global default DB instance to us
+	Instance = self
 
 	models := []mapper.Mapper{
-		self.AuthorizedPeers,
-		self.Downloads,
-		self.Metadata,
-		self.ScannedDirectories,
-		self.Shares,
-		self.Subscriptions,
-		self.System,
+		AuthorizedPeers,
+		Downloads,
+		Metadata,
+		ScannedDirectories,
+		Shares,
+		Subscriptions,
+		System,
 	}
 
 	for _, model := range models {
@@ -340,11 +330,4 @@ func (self *Database) setupSchemata() error {
 	}
 
 	return nil
-}
-
-func (self *Database) Initializer(instance interface{}) interface{} {
-	// we want this to panic if the type cast fails
-	model := instance.(Model)
-	model.SetDatabase(self)
-	return instance
 }

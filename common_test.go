@@ -114,21 +114,21 @@ func setupApplication(assert *require.Assertions, source string, dest string) *A
 	assert.NoError(err)
 	assert.True(info.IsDir())
 
-	directory, ok := app.Database.ScannedDirectories.NewInstance(func(i interface{}) interface{} {
+	directory, ok := db.ScannedDirectories.NewInstance(func(i interface{}) interface{} {
 		d := i.(*db.Directory)
 		d.Path = dir
 		return d
 	}).(*db.Directory)
 
 	assert.True(ok)
-	assert.NoError(app.Database.ScannedDirectories.Create(directory))
-	assert.NoError(app.Database.Shares.Create(&shares.Share{
+	assert.NoError(db.ScannedDirectories.Create(directory))
+	assert.NoError(db.Shares.Create(&shares.Share{
 		ID:         `music`,
 		BaseFilter: `label=music`,
 	}))
 
 	sub := NewSubscription(1, `music`, ``, filepath.Join(dest, `music`))
-	assert.NoError(app.Database.Subscriptions.Create(sub))
+	assert.NoError(db.Subscriptions.Create(sub))
 
 	return app
 }

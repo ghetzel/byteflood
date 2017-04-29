@@ -13,7 +13,7 @@ import (
 )
 
 func (self *API) handleGetScannedDirectories(w http.ResponseWriter, req *http.Request) {
-	if dirs, err := db.GetScannedDirectories(self.db); err == nil {
+	if dirs, err := db.GetScannedDirectories(); err == nil {
 		Respond(w, dirs)
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -23,7 +23,7 @@ func (self *API) handleGetScannedDirectories(w http.ResponseWriter, req *http.Re
 func (self *API) handleGetScannedDirectory(w http.ResponseWriter, req *http.Request) {
 	dir := new(db.Directory)
 
-	if err := self.db.ScannedDirectories.Get(vestigo.Param(req, `id`), dir); err == nil {
+	if err := db.ScannedDirectories.Get(vestigo.Param(req, `id`), dir); err == nil {
 		Respond(w, dir)
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)

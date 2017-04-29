@@ -40,12 +40,11 @@ type Entry struct {
 	InitialPath     string                 `json:"-"`
 	info            os.FileInfo            `json:"-"`
 	metadataLoaded  bool
-	db              *Database
 }
 
 type WalkFunc func(path string, file *Entry, err error) error // {}
 
-func NewEntry(db *Database, label string, root string, name string) *Entry {
+func NewEntry(label string, root string, name string) *Entry {
 	normFileName := NormalizeFileName(root, name)
 
 	return &Entry{
@@ -53,12 +52,7 @@ func NewEntry(db *Database, label string, root string, name string) *Entry {
 		RelativePath: normFileName,
 		Metadata:     make(map[string]interface{}),
 		InitialPath:  name,
-		db:           db,
 	}
-}
-
-func (self *Entry) SetDatabase(db *Database) {
-	self.db = db
 }
 
 func (self *Entry) Info() os.FileInfo {
@@ -119,11 +113,9 @@ func (self *Entry) Children(filterString ...string) ([]*Entry, error) {
 
 		files := make([]*Entry, 0)
 
-		if err := self.db.Metadata.Find(f, &files); err == nil {
+		if err := Metadata.Find(f, &files); err == nil {
 			// enforce a strict path hierarchy for parent-child relationships
 			for _, file := range files {
-				file.SetDatabase(self.db)
-
 				if !strings.HasPrefix(file.RelativePath, self.RelativePath+`/`) {
 					return nil, fmt.Errorf("child entry falls outside of parent path")
 				}

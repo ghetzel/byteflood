@@ -46,7 +46,7 @@ func (self *DownloadQueue) Add(sessionID string, shareID string, entryID string,
 	if remotePeer, ok := self.app.LocalPeer.GetSession(sessionID); ok {
 		// get file record from peer
 		if response, err := remotePeer.ServiceRequest(`GET`, fmt.Sprintf("/shares/%s/view/%s", shareID, entryID), nil, nil); err == nil {
-			entry := db.NewEntry(self.app.Database, ``, ``, ``)
+			entry := db.NewEntry(``, ``, ``)
 
 			// parse and load record
 			if err := json.NewDecoder(response.Body).Decode(entry); err == nil {
@@ -68,7 +68,7 @@ func (self *DownloadQueue) Add(sessionID string, shareID string, entryID string,
 
 func (self *DownloadQueue) Enqueue(download *QueuedDownload) error {
 	log.Debugf("Adding %+v", download)
-	return self.app.Database.Downloads.Create(download)
+	return db.Downloads.Create(download)
 }
 
 func (self *DownloadQueue) enqueueDirectory(remotePeer *peer.RemotePeer, shareID string, directoryID string, destination string) error {
@@ -196,7 +196,7 @@ func (self *DownloadQueue) downloadWorker(workerID int) {
 			})
 		}
 
-		if err := self.app.Database.Downloads.Update(download); err != nil {
+		if err := db.Downloads.Update(download); err != nil {
 			log.Warningf("Failed to update queue download: %v", err)
 		}
 
@@ -252,12 +252,12 @@ func (self *DownloadQueue) NextDownload() *QueuedDownload {
 
 		var downloads []*QueuedDownload
 
-		if err := self.app.Database.Downloads.Find(f, &downloads); err == nil {
+		if err := db.Downloads.Find(f, &downloads); err == nil {
 			if len(downloads) > 0 {
 				download := downloads[0]
 				download.SetStatus(`pending`)
 
-				if err := self.app.Database.Downloads.Update(download); err == nil {
+				if err := db.Downloads.Update(download); err == nil {
 					download.SetApplication(self.app)
 
 					return download
@@ -292,7 +292,7 @@ func (self *DownloadQueue) Clear(statuses ...string) error {
 		}); err == nil {
 			f.Fields = []string{`id`}
 
-			if err := self.app.Database.Downloads.FindFunc(f, QueuedDownload{}, func(i interface{}, err error) {
+			if err := db.Downloads.FindFunc(f, QueuedDownload{}, func(i interface{}, err error) {
 				if err == nil {
 					if download, ok := i.(*QueuedDownload); ok {
 						idsToRemove = append(idsToRemove, download.ID)
@@ -310,7 +310,7 @@ func (self *DownloadQueue) Clear(statuses ...string) error {
 
 	if l := len(idsToRemove); l > 0 {
 		log.Debugf("Removing %v downloads", l)
-		self.app.Database.Downloads.Delete(idsToRemove...)
+		db.Downloads.Delete(idsToRemove...)
 	}
 
 	return nil

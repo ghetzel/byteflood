@@ -14,10 +14,9 @@ type AuthorizedPeer struct {
 	PeerName  string `json:"name"`
 	Groups    string `json:"groups,omitempty"`
 	Addresses string `json:"addresses,omitempty"`
-	db        *db.Database
 }
 
-func ExpandPeerGroup(conn *db.Database, groupOrName string) []string {
+func ExpandPeerGroup(groupOrName string) []string {
 	names := make([]string, 0)
 	var f filter.Filter
 
@@ -43,7 +42,7 @@ func ExpandPeerGroup(conn *db.Database, groupOrName string) []string {
 
 	var peers []*AuthorizedPeer
 
-	if err := conn.AuthorizedPeers.Find(f, &peers); err == nil {
+	if err := db.AuthorizedPeers.Find(f, &peers); err == nil {
 		for _, peer := range peers {
 			names = append(names, peer.PeerName)
 		}
@@ -54,10 +53,10 @@ func ExpandPeerGroup(conn *db.Database, groupOrName string) []string {
 	return names
 }
 
-func GetAuthorizedPeer(conn *db.Database, id string) (*AuthorizedPeer, error) {
-	v := conn.AuthorizedPeers.NewInstance()
+func GetAuthorizedPeer(id string) (*AuthorizedPeer, error) {
+	v := db.AuthorizedPeers.NewInstance()
 
-	if err := conn.AuthorizedPeers.Get(id, v); err == nil {
+	if err := db.AuthorizedPeers.Get(id, v); err == nil {
 		if ap, ok := v.(*AuthorizedPeer); ok {
 			return ap, nil
 		} else {
@@ -70,10 +69,6 @@ func GetAuthorizedPeer(conn *db.Database, id string) (*AuthorizedPeer, error) {
 
 func (self *AuthorizedPeer) GetAddresses() []string {
 	return util.SplitMulti.Split(self.Addresses, -1)
-}
-
-func (self *AuthorizedPeer) SetDatabase(conn *db.Database) {
-	self.db = conn
 }
 
 func (self *AuthorizedPeer) IsMemberOf(groupOrName string) bool {

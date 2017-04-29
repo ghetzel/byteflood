@@ -52,7 +52,7 @@ func (self *API) handleSaveShare(w http.ResponseWriter, req *http.Request) {
 
 			// if a scanned directory path was given, and if it doesn't already exist, create it
 			if v := record.Get(`scanned_directory_path`, nil); !typeutil.IsEmpty(v) {
-				if existing := self.db.GetDirectoriesByFile(fmt.Sprintf("%v", v)); len(existing) == 0 {
+				if existing := db.Instance.GetDirectoriesByFile(fmt.Sprintf("%v", v)); len(existing) == 0 {
 					// TODO: create scanned directory
 				}
 
@@ -62,9 +62,9 @@ func (self *API) handleSaveShare(w http.ResponseWriter, req *http.Request) {
 			}
 
 			if req.Method == `POST` {
-				err = self.db.Shares.CreateOrUpdate(record.ID, record)
+				err = db.Shares.CreateOrUpdate(record.ID, record)
 			} else {
-				err = self.db.Shares.Update(record)
+				err = db.Shares.Update(record)
 			}
 
 			if err != nil {
@@ -80,7 +80,7 @@ func (self *API) handleSaveShare(w http.ResponseWriter, req *http.Request) {
 }
 
 func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, httputil.QBool(req, `stats`)); err == nil {
+	if s, err := shares.GetShares(client, httputil.QBool(req, `stats`)); err == nil {
 		Respond(w, s)
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -88,7 +88,7 @@ func (self *API) handleGetShares(w http.ResponseWriter, req *http.Request, clien
 }
 
 func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, httputil.QBool(req, `stats`), vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(client, httputil.QBool(req, `stats`), vestigo.Param(req, `id`)); err == nil {
 		Respond(w, s[0])
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -96,7 +96,7 @@ func (self *API) handleGetShare(w http.ResponseWriter, req *http.Request, client
 }
 
 func (self *API) handleGetShareStats(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		if stats, err := share.GetStats(); err == nil {
@@ -110,7 +110,7 @@ func (self *API) handleGetShareStats(w http.ResponseWriter, req *http.Request, c
 }
 
 func (self *API) handleGetShareEntry(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		if entry, err := share.Get(vestigo.Param(req, `entry`)); err == nil {
@@ -124,7 +124,7 @@ func (self *API) handleGetShareEntry(w http.ResponseWriter, req *http.Request, c
 }
 
 func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		entryId := vestigo.Param(req, `entry`)
@@ -181,7 +181,7 @@ func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request, c
 }
 
 func (self *API) handleGetShareFileIdsToRoot(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		parents := make([]EntryParent, 0)
@@ -218,7 +218,7 @@ func (self *API) handleGetShareFileIdsToRoot(w http.ResponseWriter, req *http.Re
 }
 
 func (self *API) handleQueryAllShares(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, httputil.QBool(req, `stats`)); err == nil {
+	if s, err := shares.GetShares(client, httputil.QBool(req, `stats`)); err == nil {
 		resultsets := make(map[string]interface{})
 
 		for _, share := range s {
@@ -237,7 +237,7 @@ func (self *API) handleQueryAllShares(w http.ResponseWriter, req *http.Request, 
 }
 
 func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(client, false, vestigo.Param(req, `id`)); err == nil {
 		if results, err := self.getResultsetFromShare(&s[0], req); err == nil {
 			Respond(w, results)
 		} else {
@@ -249,7 +249,7 @@ func (self *API) handleQueryShare(w http.ResponseWriter, req *http.Request, clie
 }
 
 func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		if limit, offset, sort, err := getSearchParams(req); err == nil {
@@ -280,7 +280,7 @@ func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, cli
 }
 
 func (self *API) handleShareLandingPage(w http.ResponseWriter, req *http.Request, client peer.Peer) {
-	if s, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `id`)); err == nil {
+	if s, err := shares.GetShares(client, false, vestigo.Param(req, `id`)); err == nil {
 		share := s[0]
 
 		if share.LongDescription != `` {
@@ -300,7 +300,7 @@ func (self *API) handleShareLandingPage(w http.ResponseWriter, req *http.Request
 func (self *API) handleRequestEntryFromShare(w http.ResponseWriter, req *http.Request, client peer.Peer) {
 	// perform the share authorization check on remote peers
 	if !client.IsLocal() {
-		if _, err := shares.GetShares(self.db, client, false, vestigo.Param(req, `share`)); err != nil {
+		if _, err := shares.GetShares(client, false, vestigo.Param(req, `share`)); err != nil {
 			http.Error(w, ``, http.StatusNotFound)
 			return
 		}
@@ -310,9 +310,7 @@ func (self *API) handleRequestEntryFromShare(w http.ResponseWriter, req *http.Re
 	if remotePeer, ok := self.application.LocalPeer.GetSession(client.SessionID()); ok {
 		var entry db.Entry
 
-		if err := self.db.Metadata.Get(vestigo.Param(req, `entry`), &entry); err == nil {
-			entry.SetDatabase(self.db)
-
+		if err := db.Metadata.Get(vestigo.Param(req, `entry`), &entry); err == nil {
 			// get the absolute filesystem path to the entry at :id
 			if absPath, err := entry.GetAbsolutePath(); err == nil {
 				if strings.HasPrefix(path.Base(absPath), QueueTempFileFormat) {

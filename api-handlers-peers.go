@@ -13,7 +13,7 @@ import (
 func (self *API) handleGetPeers(w http.ResponseWriter, req *http.Request) {
 	var peers []peer.AuthorizedPeer
 
-	if err := self.db.AuthorizedPeers.All(&peers); err == nil {
+	if err := db.AuthorizedPeers.All(&peers); err == nil {
 		Respond(w, peers)
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -23,7 +23,7 @@ func (self *API) handleGetPeers(w http.ResponseWriter, req *http.Request) {
 func (self *API) handleGetPeer(w http.ResponseWriter, req *http.Request) {
 	peer := new(peer.AuthorizedPeer)
 
-	if err := self.db.AuthorizedPeers.Get(vestigo.Param(req, `id`), peer); err == nil {
+	if err := db.AuthorizedPeers.Get(vestigo.Param(req, `id`), peer); err == nil {
 		Respond(w, peer)
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -43,7 +43,7 @@ func (self *API) handlePeersList(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if f, err := db.ParseFilter(spec); err == nil {
-		if results, err := self.db.AuthorizedPeers.ListWithFilter(
+		if results, err := db.AuthorizedPeers.ListWithFilter(
 			[]string{field},
 			f,
 		); err == nil {

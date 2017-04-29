@@ -157,7 +157,7 @@ func (self *API) handlePerformAction(w http.ResponseWriter, req *http.Request) {
 			} else if payload.ID != `` {
 				var peer peer.AuthorizedPeer
 
-				if err := self.db.AuthorizedPeers.Get(payload.ID, &peer); err == nil {
+				if err := db.AuthorizedPeers.Get(payload.ID, &peer); err == nil {
 					if addrs := peer.GetAddresses(); len(addrs) > 0 {
 						// TODO: this sucks, does not handle multiple addresses
 						if _, err := self.application.LocalPeer.ConnectTo(addrs[0]); err == nil {

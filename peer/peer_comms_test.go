@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 
 func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	if publicKey, privateKey, err := box.GenerateKey(rand.Reader); err == nil {
-		localPeer := NewLocalPeer(database)
+		localPeer := NewLocalPeer()
 		localPeer.PublicKey = []byte(publicKey[:])
 		localPeer.PrivateKey = []byte(privateKey[:])
 
@@ -50,7 +50,7 @@ func makePeerPair() (peer1 *LocalPeer, peer2 *LocalPeer) {
 	}
 
 	if publicKey, privateKey, err := box.GenerateKey(rand.Reader); err == nil {
-		localPeer := NewLocalPeer(database)
+		localPeer := NewLocalPeer()
 		localPeer.PublicKey = []byte(publicKey[:])
 		localPeer.PrivateKey = []byte(privateKey[:])
 

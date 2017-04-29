@@ -171,6 +171,7 @@ func main() {
 			},
 			Action: func(c *cli.Context) {
 				application.API.UiDirectory = c.String(`ui-dir`)
+				application.LocalPeer.EnableUpnp = c.Bool(`upnp`)
 
 				if err := application.Run(); err != nil {
 					log.Fatal(err)
@@ -199,7 +200,7 @@ func main() {
 			},
 		}, {
 			Name:      `genkeypair`,
-			Usage:     `Generates a new public/private key pair and saves them to files`,
+			Usage:     `Generates a new public/private key pair and saves them to files in the current directory.`,
 			ArgsUsage: `BASENAME`,
 			Action: func(c *cli.Context) {
 				if c.NArg() > 0 {
@@ -232,7 +233,7 @@ func main() {
 				if f, err := db.ParseFilter(strings.Join(c.Args(), `/`)); err == nil {
 					var rs dal.RecordSet
 
-					if err := database.Metadata.Find(f, &rs); err == nil {
+					if err := db.Metadata.Find(f, &rs); err == nil {
 						printWithFormat(c.GlobalString(`format`), rs, func() {
 							tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 
@@ -268,7 +269,7 @@ func main() {
 				}
 			},
 		}, {
-			Name:  `call`,
+			Name:  `api`,
 			Usage: `Perform an HTTP call against the Byteflood API`,
 			Flags: []cli.Flag{
 				cli.StringFlag{
@@ -636,7 +637,7 @@ func main() {
 					Action: func(c *cli.Context) {
 						var shares []shares.Share
 
-						if err := database.Shares.All(&shares); err == nil {
+						if err := db.Shares.All(&shares); err == nil {
 							printWithFormat(c.GlobalString(`format`), shares, func() {
 								tw := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
 

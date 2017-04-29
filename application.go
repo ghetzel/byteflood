@@ -49,7 +49,7 @@ func NewApplication() *Application {
 		running:  make(chan bool),
 	}
 
-	app.LocalPeer = peer.NewLocalPeer(app.Database)
+	app.LocalPeer = peer.NewLocalPeer()
 	app.Queue = NewDownloadQueue(app)
 	app.API = NewAPI(app)
 
@@ -148,7 +148,6 @@ func (self *Application) Initialize() error {
 		db.SystemSchema:             db.Property{},
 	} {
 		schema.SetRecordType(recordInstance)
-		schema.SetInitializer(self.Database.Initializer)
 		schema.NewInstance()
 	}
 
@@ -267,9 +266,9 @@ func (self *Application) Sync(peerNames ...string) error {
 		}
 	}
 
-	if err := self.Database.Subscriptions.All(&subscriptions); err == nil {
+	if err := db.Subscriptions.All(&subscriptions); err == nil {
 		for _, subscription := range subscriptions {
-			subscriptionPeers := peer.ExpandPeerGroup(self.Database, subscription.SourceGroup)
+			subscriptionPeers := peer.ExpandPeerGroup(subscription.SourceGroup)
 
 			if len(peerNames) == 0 || sliceutil.ContainsAnyString(connectedPeers, subscriptionPeers...) {
 				log.Debugf("Scanning subscription %v", subscription)
@@ -299,7 +298,7 @@ func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
 	}); err == nil {
 		var shares []*shares.Share
 
-		if err := self.Database.Shares.Find(f, &shares); err == nil {
+		if err := db.Shares.Find(f, &shares); err == nil {
 			if len(shares) == 1 {
 				return shares[0], true
 			} else if len(shares) > 1 {
@@ -340,10 +339,8 @@ func (self *Application) collectShareStats() {
 	for {
 		var shares []*shares.Share
 
-		if err := self.Database.Shares.All(&shares); err == nil {
+		if err := db.Shares.All(&shares); err == nil {
 			for _, share := range shares {
-				share.SetDatabase(self.Database)
-
 				if err := share.RefreshShareStats(); err != nil {
 					log.Warningf("Failed to refresh stats for share %s: %v", share.ID, err)
 				}
@@ -360,10 +357,8 @@ func (self *Application) collectDatabaseStats() {
 	for {
 		var dirs []*db.Directory
 
-		if err := self.Database.ScannedDirectories.All(&dirs); err == nil {
+		if err := db.ScannedDirectories.All(&dirs); err == nil {
 			for _, dir := range dirs {
-				dir.SetDatabase(self.Database)
-
 				if err := dir.RefreshStats(); err != nil {
 					log.Warningf("Failed to refresh stats for directory %s: %v", dir.ID, err)
 				}

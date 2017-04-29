@@ -476,8 +476,6 @@ func (self *RemotePeer) setupReadWritePipeline() {
 
 func (self *RemotePeer) receiveMessagesIterate(localPeer *LocalPeer) (*Message, error) {
 	if message, err := self.ReceiveMessage(); err == nil {
-		self.badMessageCount = 0
-
 		var replyErr error
 
 		// log.Debugf("[%s] RECV: message-type=%s, payload=%d bytes", self.String(), message.Type.String(), len(message.Data))
@@ -608,8 +606,6 @@ func (self *RemotePeer) receiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 			select {
 			case replyChan <- message:
 			default:
-				log.Warningf("[%s] Message contained a reply nobody was waiting for", self.String())
-
 				// it is normally the caller's responsibility to cleanup the message, but since
 				// nobody was waiting, we'll do it.
 				self.RemoveMessageReply(message.GroupID)
@@ -623,14 +619,7 @@ func (self *RemotePeer) receiveMessagesIterate(localPeer *LocalPeer) (*Message, 
 
 		return nil, io.EOF
 	} else {
-		log.Errorf("[%v] message error (%d/%d): %v", self, self.badMessageCount, BadMessageThreshold, err)
-		self.badMessageCount += 1
-
-		if self.badMessageCount >= BadMessageThreshold {
-			return nil, err
-		}
-
-		return nil, nil
+		return nil, err
 	}
 }
 

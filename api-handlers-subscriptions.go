@@ -2,6 +2,7 @@ package byteflood
 
 import (
 	"fmt"
+	"github.com/ghetzel/byteflood/db"
 	"github.com/husobee/vestigo"
 	"net/http"
 )
@@ -9,7 +10,7 @@ import (
 func (self *API) handleGetSubscriptions(w http.ResponseWriter, req *http.Request) {
 	var subscriptions []*Subscription
 
-	if err := self.db.Subscriptions.All(&subscriptions); err == nil {
+	if err := db.Subscriptions.All(&subscriptions); err == nil {
 		Respond(w, subscriptions)
 	} else {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -19,7 +20,7 @@ func (self *API) handleGetSubscriptions(w http.ResponseWriter, req *http.Request
 func (self *API) handleGetSubscription(w http.ResponseWriter, req *http.Request) {
 	var subscription Subscription
 
-	if err := self.db.Subscriptions.Get(vestigo.Param(req, `id`), &subscription); err == nil {
+	if err := db.Subscriptions.Get(vestigo.Param(req, `id`), &subscription); err == nil {
 		Respond(w, subscription)
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -29,7 +30,7 @@ func (self *API) handleGetSubscription(w http.ResponseWriter, req *http.Request)
 func (self *API) handleActionSubscription(w http.ResponseWriter, req *http.Request) {
 	var subscription Subscription
 
-	if err := self.db.Subscriptions.Get(vestigo.Param(req, `id`), &subscription); err == nil {
+	if err := db.Subscriptions.Get(vestigo.Param(req, `id`), &subscription); err == nil {
 		action := vestigo.Param(req, `action`)
 
 		switch action {

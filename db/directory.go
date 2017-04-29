@@ -26,14 +26,13 @@ type Directory struct {
 	DeepScan             bool         `json:"deep_scan,omitempty"`
 	Directories          []*Directory `json:"-"`
 	FileCount            int          `json:"file_count"`
-	db                   *Database
 	compiledIgnoreList   *ignore.GitIgnore
 }
 
-func GetScannedDirectories(conn *Database) ([]*Directory, error) {
+func GetScannedDirectories() ([]*Directory, error) {
 	var dirs []*Directory
 
-	if err := conn.ScannedDirectories.All(&dirs); err == nil {
+	if err := ScannedDirectories.All(&dirs); err == nil {
 		return dirs, nil
 	} else {
 		return nil, err
@@ -43,10 +42,6 @@ func GetScannedDirectories(conn *Database) ([]*Directory, error) {
 var RootDirectoryName = `root`
 
 type WalkEntryFunc func(entry *Entry) error // {}
-
-func (self *Directory) SetDatabase(conn *Database) {
-	self.db = conn
-}
 
 // Constructor is called when creating a new instance via the mapper.Mapper.NewInstance() method.
 // We're using it here because the ID is calculated from the value of other fields.
@@ -141,7 +136,7 @@ func (self *Directory) Scan() error {
 			// recursive directory handling
 			if entry.IsDir() {
 				if !self.NoRecurseDirectories {
-					dirEntry := NewEntry(self.db, self.ID, self.RootPath, absPath)
+					dirEntry := NewEntry(self.ID, self.RootPath, absPath)
 
 					if subdirectory, ok := ScannedDirectoriesSchema.NewInstance().(*Directory); ok {
 						subdirectory.ID = self.ID
@@ -173,9 +168,9 @@ func (self *Directory) Scan() error {
 							if f, err := ParseFilter(map[string]interface{}{
 								`parent`: subdirectory.Parent,
 							}); err == nil {
-								if values, err := self.db.Metadata.ListWithFilter([]string{`id`}, f); err == nil {
+								if values, err := Metadata.ListWithFilter([]string{`id`}, f); err == nil {
 									if ids, ok := values[`id`]; ok {
-										self.db.Metadata.Delete(ids...)
+										Metadata.Delete(ids...)
 									}
 								} else {
 									log.Errorf("[%s] Failed to cleanup entries under %s: %v", self.ID, subdirectory.Parent, err)
@@ -184,8 +179,8 @@ func (self *Directory) Scan() error {
 								log.Errorf("[%s] Failed to cleanup entries under %s: %v", self.ID, subdirectory.Parent, err)
 							}
 
-							if self.db.Metadata.Exists(dirEntry.ID) {
-								self.db.Metadata.Delete(dirEntry.ID)
+							if Metadata.Exists(dirEntry.ID) {
+								Metadata.Delete(dirEntry.ID)
 							}
 						} else {
 							if _, err := self.scanEntry(absPath, true); err == nil {
@@ -228,7 +223,7 @@ func (self *Directory) Scan() error {
 func (self *Directory) WalkModifiedSince(lastModifiedAt time.Time, entryFn WalkEntryFunc) error {
 	return filepath.Walk(self.Path, func(name string, info os.FileInfo, err error) error {
 		if info.ModTime().After(lastModifiedAt) {
-			return entryFn(NewEntry(self.db, self.ID, self.RootPath, name))
+			return entryFn(NewEntry(self.ID, self.RootPath, name))
 		}
 
 		return nil
@@ -245,7 +240,7 @@ func (self *Directory) RefreshStats() error {
 		if filesFilter, err := f.NewFromMap(map[string]interface{}{
 			`bool:directory`: `false`,
 		}); err == nil {
-			if v, err := self.db.Metadata.Sum(`size`, filesFilter); err == nil {
+			if v, err := Metadata.Sum(`size`, filesFilter); err == nil {
 				stats.Gauge(`byteflood.db.total_bytes`, float64(v), map[string]interface{}{
 					`label`: self.ID,
 				})
@@ -253,7 +248,7 @@ func (self *Directory) RefreshStats() error {
 				return err
 			}
 
-			if v, err := self.db.Metadata.Count(filesFilter); err == nil {
+			if v, err := Metadata.Count(filesFilter); err == nil {
 				stats.Gauge(`byteflood.db.file_count`, float64(v), map[string]interface{}{
 					`label`: self.ID,
 				})
@@ -268,7 +263,7 @@ func (self *Directory) RefreshStats() error {
 		if dirFilter, err := f.NewFromMap(map[string]interface{}{
 			`bool:directory`: `true`,
 		}); err == nil {
-			if v, err := self.db.Metadata.Count(dirFilter); err == nil {
+			if v, err := Metadata.Count(dirFilter); err == nil {
 				stats.Gauge(`byteflood.db.directory_count`, float64(v), map[string]interface{}{
 					`label`: self.ID,
 				})
@@ -297,10 +292,10 @@ func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 	})
 
 	// get entry implementation
-	entry := NewEntry(self.db, self.ID, self.RootPath, name)
+	entry := NewEntry(self.ID, self.RootPath, name)
 
 	// skip the entry if it's in the global exclusions list (case sensitive exact match)
-	if sliceutil.ContainsString(self.db.GlobalExclusions, path.Base(name)) {
+	if sliceutil.ContainsString(Instance.GlobalExclusions, path.Base(name)) {
 		return entry, nil
 	}
 
@@ -315,7 +310,7 @@ func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 		if !self.DeepScan {
 			var existingFile Entry
 
-			if err := self.db.Metadata.Get(entry.ID, &existingFile); err == nil {
+			if err := Metadata.Get(entry.ID, &existingFile); err == nil {
 				if entry.LastModifiedAt == existingFile.LastModifiedAt {
 					return &existingFile, nil
 				}
@@ -364,7 +359,7 @@ func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 	tm = stats.NewTiming()
 
 	// persist the entry record
-	if err := self.db.Metadata.CreateOrUpdate(entry.ID, entry); err != nil {
+	if err := Metadata.CreateOrUpdate(entry.ID, entry); err != nil {
 		return nil, err
 	}
 
@@ -390,12 +385,10 @@ func (self *Directory) cleanupMissingEntries(query interface{}) error {
 	var entries []Entry
 
 	if f, err := ParseFilter(query); err == nil {
-		if err := self.db.Metadata.Find(f, &entries); err == nil {
+		if err := Metadata.Find(f, &entries); err == nil {
 			entriesToDelete := make([]interface{}, 0)
 
 			for _, entry := range entries {
-				entry.SetDatabase(self.db)
-
 				if self.compiledIgnoreList != nil {
 					if self.compiledIgnoreList.MatchesPath(entry.RelativePath) {
 						entriesToDelete = append(entriesToDelete, entry.ID)
@@ -432,7 +425,7 @@ func (self *Directory) cleanupMissingEntries(query interface{}) error {
 }
 
 func (self *Directory) cleanup(entries ...interface{}) error {
-	if err := self.db.Metadata.Delete(entries...); err == nil {
+	if err := Metadata.Delete(entries...); err == nil {
 		return nil
 	} else {
 		return err

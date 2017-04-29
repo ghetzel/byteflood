@@ -23,7 +23,6 @@ type API struct {
 	Address       string `json:"address,omitempty"`
 	UiDirectory   string `json:"ui_directory,omitempty"`
 	application   *Application
-	db            *db.Database
 	eventUpgrader websocket.Upgrader
 	eventStreams  cmap.ConcurrentMap
 	events        chan *Event
@@ -38,19 +37,18 @@ func NewAPI(application *Application) *API {
 		Address:      DefaultApiAddress,
 		UiDirectory:  DefaultUiDirectory,
 		application:  application,
-		db:           application.Database,
 		eventStreams: cmap.New(),
 		events:       make(chan *Event),
 	}
 }
 
 func (self *API) Initialize() error {
-	endpointModelMap[`directories`] = self.db.ScannedDirectories
-	endpointModelMap[`downloads`] = self.db.Downloads
-	endpointModelMap[`peers`] = self.db.AuthorizedPeers
-	endpointModelMap[`shares`] = self.db.Shares
-	endpointModelMap[`subscriptions`] = self.db.Subscriptions
-	endpointModelMap[`properties`] = self.db.System
+	endpointModelMap[`directories`] = db.ScannedDirectories
+	endpointModelMap[`downloads`] = db.Downloads
+	endpointModelMap[`peers`] = db.AuthorizedPeers
+	endpointModelMap[`shares`] = db.Shares
+	endpointModelMap[`subscriptions`] = db.Subscriptions
+	endpointModelMap[`properties`] = db.System
 
 	self.eventUpgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,

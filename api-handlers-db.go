@@ -17,13 +17,13 @@ type DatabaseScanRequest struct {
 }
 
 func (self *API) handleGetDatabase(w http.ResponseWriter, req *http.Request) {
-	Respond(w, self.db)
+	Respond(w, db.Instance)
 }
 
 func (self *API) handleGetDatabaseItem(w http.ResponseWriter, req *http.Request) {
 	var record dal.Record
 
-	if err := self.db.Metadata.Get(vestigo.Param(req, `id`), &record); err == nil {
+	if err := db.Metadata.Get(vestigo.Param(req, `id`), &record); err == nil {
 		Respond(w, record)
 	} else {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -43,7 +43,7 @@ func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request) {
 
 			var recordset dal.RecordSet
 
-			if err := self.db.Metadata.Find(f, &recordset); err == nil {
+			if err := db.Metadata.Find(f, &recordset); err == nil {
 				Respond(w, recordset)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -77,7 +77,7 @@ func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request) 
 
 			var recordset dal.RecordSet
 
-			if err := self.db.Metadata.Find(f, &recordset); err == nil {
+			if err := db.Metadata.Find(f, &recordset); err == nil {
 				Respond(w, recordset)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -101,7 +101,7 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 	fields := strings.Split(fV, `/`)
 
 	if v := httputil.Q(req, `q`); v == `` {
-		if rs, err := self.db.Metadata.List(fields); err == nil {
+		if rs, err := db.Metadata.List(fields); err == nil {
 			Respond(w, rs)
 			return
 		} else {
@@ -110,7 +110,7 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 		}
 	} else {
 		if f, err := db.ParseFilter(v); err == nil {
-			if rs, err := self.db.Metadata.ListWithFilter(fields, f); err == nil {
+			if rs, err := db.Metadata.ListWithFilter(fields, f); err == nil {
 				Respond(w, rs)
 				return
 			} else {
@@ -138,10 +138,10 @@ func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request) 
 			}
 		}
 
-		go self.db.Scan(payload.DeepScan, payload.Labels...)
+		go db.Instance.Scan(payload.DeepScan, payload.Labels...)
 
 	case `cleanup`:
-		go self.db.Cleanup()
+		go db.Instance.Cleanup()
 
 	default:
 		http.Error(w, ``, http.StatusNotFound)

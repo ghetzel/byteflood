@@ -2,7 +2,6 @@ package byteflood
 
 import (
 	"fmt"
-	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/stats"
 	"github.com/satori/go.uuid"
 	"io"
@@ -49,7 +48,6 @@ type QueuedDownload struct {
 	Rate             uint64    `json:"rate"`
 	customDownloader DownloadFunc
 	app              *Application
-	db               *db.Database
 	tempFile         *os.File
 	destinationFile  io.Reader
 	destinationPath  string
@@ -267,10 +265,6 @@ func (self *QueuedDownload) SetStatus(status string) {
 
 func (self *QueuedDownload) SetApplication(app *Application) {
 	self.app = app
-}
-
-func (self *QueuedDownload) SetDatabase(conn *db.Database) {
-	self.db = conn
 }
 
 func (self *QueuedDownload) verifyPath(name string) (string, error) {

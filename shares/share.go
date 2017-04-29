@@ -34,14 +34,13 @@ type Share struct {
 	Blocklist            string `json:"blocklist,omitempty"`
 	Allowlist            string `json:"allowlist,omitempty"`
 	Stats                *Stats `json:"stats,omitempty"`
-	db                   *db.Database
 }
 
-func GetShares(conn *db.Database, requestingPeer peer.Peer, stats bool, ids ...string) ([]Share, error) {
+func GetShares(requestingPeer peer.Peer, stats bool, ids ...string) ([]Share, error) {
 	var shares []Share
 	output := make([]Share, 0)
 
-	if err := conn.Shares.All(&shares); err == nil {
+	if err := db.Shares.All(&shares); err == nil {
 		for _, share := range shares {
 			if len(ids) == 0 || sliceutil.ContainsString(ids, share.ID) {
 				if share.IsPeerPermitted(requestingPeer) {
@@ -74,10 +73,6 @@ func GetShares(conn *db.Database, requestingPeer peer.Peer, stats bool, ids ...s
 	}
 }
 
-func (self *Share) SetDatabase(conn *db.Database) {
-	self.db = conn
-}
-
 func (self *Share) GetQuery(filters ...string) string {
 	if self.BaseFilter == `` {
 		self.BaseFilter = fmt.Sprintf("label%s%s", filter.FieldTermSeparator, stringutil.Underscore(self.ID))
@@ -103,7 +98,7 @@ func (self *Share) IsPeerPermitted(p peer.Peer) bool {
 	blocks := util.SplitMulti.Split(self.Blocklist, -1)
 	allows := util.SplitMulti.Split(self.Allowlist, -1)
 
-	if ap, err := peer.GetAuthorizedPeer(self.db, p.GetID()); err == nil {
+	if ap, err := peer.GetAuthorizedPeer(p.GetID()); err == nil {
 		permit := true
 
 		for _, block := range blocks {
@@ -165,7 +160,7 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 
 		var recordset dal.RecordSet
 
-		if err := self.db.Metadata.Find(f, &recordset); err == nil {
+		if err := db.Metadata.Find(f, &recordset); err == nil {
 			return &recordset, nil
 		} else {
 			return nil, err
@@ -186,7 +181,7 @@ func (self *Share) List(field string, filterString string, limit int, offset int
 			f.Sort = sort
 		}
 
-		if results, err := self.db.Metadata.ListWithFilter([]string{field}, f); err == nil {
+		if results, err := db.Metadata.ListWithFilter([]string{field}, f); err == nil {
 			if v, ok := results[field]; ok {
 				return v, nil
 			} else {
@@ -201,11 +196,9 @@ func (self *Share) List(field string, filterString string, limit int, offset int
 }
 
 func (self *Share) Get(id string) (*db.Entry, error) {
-	entry := db.NewEntry(self.db, ``, ``, ``)
+	entry := db.NewEntry(``, ``, ``)
 
-	if err := self.db.Metadata.Get(id, entry); err == nil {
-		entry.SetDatabase(self.db)
-
+	if err := db.Metadata.Get(id, entry); err == nil {
 		return entry, nil
 	} else {
 		return nil, err
@@ -253,7 +246,7 @@ func (self *Share) RefreshShareStats() error {
 		if filesFilter, err := f.NewFromMap(map[string]interface{}{
 			`bool:directory`: `false`,
 		}); err == nil {
-			if v, err := self.db.Metadata.Sum(`size`, filesFilter); err == nil {
+			if v, err := db.Metadata.Sum(`size`, filesFilter); err == nil {
 				stats.Gauge(`byteflood.shares.total_bytes`, float64(v), map[string]interface{}{
 					`share`: self.ID,
 				})
@@ -261,7 +254,7 @@ func (self *Share) RefreshShareStats() error {
 				return err
 			}
 
-			if v, err := self.db.Metadata.Count(filesFilter); err == nil {
+			if v, err := db.Metadata.Count(filesFilter); err == nil {
 				stats.Gauge(`byteflood.shares.file_count`, float64(v), map[string]interface{}{
 					`share`: self.ID,
 				})
@@ -276,7 +269,7 @@ func (self *Share) RefreshShareStats() error {
 		if dirFilter, err := f.NewFromMap(map[string]interface{}{
 			`bool:directory`: `true`,
 		}); err == nil {
-			if v, err := self.db.Metadata.Count(dirFilter); err == nil {
+			if v, err := db.Metadata.Count(dirFilter); err == nil {
 				stats.Gauge(`byteflood.shares.directory_count`, float64(v), map[string]interface{}{
 					`share`: self.ID,
 				})
@@ -300,11 +293,7 @@ func (self *Share) Children(filterString ...string) ([]*db.Entry, error) {
 
 		files := make([]*db.Entry, 0)
 
-		if err := self.db.Metadata.Find(f, &files); err == nil {
-			for _, file := range files {
-				file.SetDatabase(self.db)
-			}
-
+		if err := db.Metadata.Find(f, &files); err == nil {
 			return files, nil
 		} else {
 			return nil, err

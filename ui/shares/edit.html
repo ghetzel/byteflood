@@ -74,17 +74,27 @@ defaults:
                 <div class="form-group row">
                     <label class="col-sm-3 col-form-label" for="_directory">Folder Path</label>
 
-                    <div class="col-sm-9">
+                    <div class="col-sm-7">
                         <select
-                            class="form-control combobox"
+                            class="form-control"
                             name="_directory"
                             aria-describedby="_directoryHelp"
                             oninput="document.forms['shares'].elements['filter'].value=event.target.value; _shares_filter_update()"
+                            onchange="document.forms['shares'].elements['filter'].value=event.target.value; _shares_filter_update()"
                         >
                         {{ range .bindings.directories }}
                             <option value="label={{ .id }}"{{ if eqx (qs `id`) .id }} selected{{ end }}>{{ .path }}</option>
                         {{ end }}
                         </select>
+                    </div>
+
+                    <div class="col-sm-2">
+                        <button
+                            type="button"
+                            class="btn btn-success"
+                        >
+                            <i class="fa fa-folder"></i> New
+                        </button>
                     </div>
                 </div>
 
