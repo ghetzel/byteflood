@@ -273,7 +273,7 @@ func (self *Application) Sync(peerNames ...string) error {
 			if subscriptionPeers, err := peer.ExpandPeerGroup(subscription.SourceGroup); err == nil {
 				// if any of the peers in that group are currently connected...
 				if len(peerNames) == 0 || sliceutil.ContainsAnyString(connectedPeers, subscriptionPeers...) {
-					log.Debugf("Scanning subscription %v", subscription)
+					log.Debugf("Sync subscription %v", subscription)
 
 					// sync the subscription, as we have a source for the data
 					if err := subscription.Sync(self); err != nil {
