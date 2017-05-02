@@ -2,6 +2,11 @@ package byteflood
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+	"time"
+
 	"github.com/fatih/set"
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
@@ -15,10 +20,6 @@ import (
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
-	"io/ioutil"
-	"os"
-	"path"
-	"time"
 )
 
 var log = logging.MustGetLogger(`byteflood`)

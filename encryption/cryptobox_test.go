@@ -3,10 +3,11 @@ package encryption
 import (
 	"bytes"
 	"crypto/rand"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/nacl/box"
 	"io"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/nacl/box"
 )
 
 func makeTestEncDecPair() (Encrypter, Decrypter) {

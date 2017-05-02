@@ -1,11 +1,12 @@
 package byteflood
 
 import (
-	"github.com/ghetzel/byteflood/stats"
-	"github.com/urfave/negroni"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/ghetzel/byteflood/stats"
+	"github.com/urfave/negroni"
 )
 
 type RequestLogger struct {

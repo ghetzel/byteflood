@@ -3,6 +3,13 @@ package peer
 import (
 	"bytes"
 	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"os/user"
+	"strings"
+	"time"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/stats"
@@ -11,12 +18,6 @@ import (
 	"github.com/jbenet/go-base58"
 	"github.com/op/go-logging"
 	"github.com/orcaman/concurrent-map"
-	"net"
-	"net/http"
-	"os"
-	"os/user"
-	"strings"
-	"time"
 )
 
 const (

@@ -2,11 +2,12 @@ package byteflood
 
 import (
 	"fmt"
-	"github.com/ghetzel/byteflood/db"
-	"github.com/husobee/vestigo"
 	"io"
 	"net/http"
 	"os"
+
+	"github.com/ghetzel/byteflood/db"
+	"github.com/husobee/vestigo"
 )
 
 func (self *API) handleGetQueue(w http.ResponseWriter, req *http.Request) {

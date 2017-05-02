@@ -2,11 +2,12 @@ package byteflood
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"io"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestQueue(t *testing.T) {

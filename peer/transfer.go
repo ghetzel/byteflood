@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"fmt"
-	"github.com/satori/go.uuid"
 	"hash"
 	"io"
 	"time"
+
+	"github.com/satori/go.uuid"
 )
 
 var TransferWriteTimeout = 10 * time.Second

@@ -1,9 +1,10 @@
 package util
 
 import (
-	"github.com/op/go-logging"
 	"io"
 	"strings"
+
+	"github.com/op/go-logging"
 )
 
 type LogProxy struct {

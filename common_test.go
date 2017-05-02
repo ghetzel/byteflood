@@ -2,15 +2,16 @@ package byteflood
 
 import (
 	"crypto/rand"
-	"github.com/ghetzel/byteflood/db"
-	"github.com/ghetzel/byteflood/encryption"
-	"github.com/ghetzel/byteflood/shares"
-	"github.com/stretchr/testify/require"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/byteflood/encryption"
+	"github.com/ghetzel/byteflood/shares"
+	"github.com/stretchr/testify/require"
 )
 
 var testMusicDirectory = map[string]int64{

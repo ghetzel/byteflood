@@ -2,11 +2,12 @@ package byteflood
 
 import (
 	"fmt"
+	"path"
+	"time"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/go-stockutil/sliceutil"
-	"path"
-	"time"
 )
 
 type WantedItem struct {

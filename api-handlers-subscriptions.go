@@ -2,9 +2,10 @@ package byteflood
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/husobee/vestigo"
-	"net/http"
 )
 
 func (self *API) handleGetSubscriptions(w http.ResponseWriter, req *http.Request) {

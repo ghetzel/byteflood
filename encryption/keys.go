@@ -4,11 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/pem"
 	"fmt"
+	"io/ioutil"
+	"os"
+
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/op/go-logging"
 	"golang.org/x/crypto/nacl/box"
-	"io/ioutil"
-	"os"
 )
 
 var log = logging.MustGetLogger(`byteflood/encryption`)

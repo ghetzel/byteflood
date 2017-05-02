@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	"io"
+
 	"github.com/jbenet/go-base58"
 	"gopkg.in/vmihailenco/msgpack.v2"
-	"io"
 )
 
 var PeeringRequestMaxInitialRead = 32768

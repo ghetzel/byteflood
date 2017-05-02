@@ -3,10 +3,11 @@ package peer
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/satori/go.uuid"
-	"gopkg.in/vmihailenco/msgpack.v2"
 	"io"
 	"reflect"
+
+	"github.com/satori/go.uuid"
+	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
 type MessageType int

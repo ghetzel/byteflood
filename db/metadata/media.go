@@ -3,11 +3,12 @@ package metadata
 import (
 	"encoding/xml"
 	"fmt"
-	"github.com/fatih/structs"
-	"github.com/ghetzel/go-stockutil/stringutil"
 	"os"
 	"path"
 	"strings"
+
+	"github.com/fatih/structs"
+	"github.com/ghetzel/go-stockutil/stringutil"
 )
 
 type nfoActor struct {

@@ -2,8 +2,6 @@ package byteflood
 
 import (
 	"fmt"
-	"github.com/ghetzel/byteflood/stats"
-	"github.com/satori/go.uuid"
 	"io"
 	"io/ioutil"
 	"os"
@@ -11,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/ghetzel/byteflood/stats"
+	"github.com/satori/go.uuid"
 )
 
 var QueueTempFileFormat = ".byteflood-"

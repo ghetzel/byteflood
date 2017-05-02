@@ -1,9 +1,10 @@
 package metadata
 
 import (
-	"github.com/ghetzel/go-stockutil/stringutil"
 	"regexp"
 	"strings"
+
+	"github.com/ghetzel/go-stockutil/stringutil"
 )
 
 var RegexpPatterns []*regexp.Regexp

@@ -3,11 +3,12 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/go-stockutil/typeutil"
 	"github.com/ghetzel/pivot/dal"
-	"strings"
 )
 
 func (self *Client) GetShares(peerOrSession string, stats bool) (output []*shares.Share, err error) {

@@ -2,14 +2,15 @@ package byteflood
 
 import (
 	"fmt"
-	"github.com/ghetzel/byteflood/db"
-	"github.com/ghetzel/go-stockutil/httputil"
-	"github.com/husobee/vestigo"
-	"github.com/sabhiram/go-gitignore"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/go-stockutil/httputil"
+	"github.com/husobee/vestigo"
+	"github.com/sabhiram/go-gitignore"
 )
 
 func (self *API) handleGetScannedDirectories(w http.ResponseWriter, req *http.Request) {

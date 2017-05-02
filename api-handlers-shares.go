@@ -3,6 +3,12 @@ package byteflood
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"math/rand"
+	"net/http"
+	"path"
+	"strings"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
@@ -13,11 +19,6 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
 	"github.com/satori/go.uuid"
-	"io"
-	"math/rand"
-	"net/http"
-	"path"
-	"strings"
 )
 
 type EntryParent struct {

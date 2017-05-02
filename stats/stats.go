@@ -1,13 +1,14 @@
 package stats
 
 import (
+	"os"
+	"time"
+
 	"github.com/alexcesaro/statsd"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/mobius"
 	"github.com/op/go-logging"
-	"os"
-	"time"
 )
 
 var log = logging.MustGetLogger(`byteflood/stats`)

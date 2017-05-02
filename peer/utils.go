@@ -2,10 +2,11 @@ package peer
 
 import (
 	"fmt"
-	"github.com/ghetzel/go-stockutil/stringutil"
 	"io"
 	"net"
 	"strings"
+
+	"github.com/ghetzel/go-stockutil/stringutil"
 )
 
 const (

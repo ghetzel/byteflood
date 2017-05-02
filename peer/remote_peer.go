@@ -4,13 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/ghetzel/byteflood/db"
-	"github.com/ghetzel/byteflood/encryption"
-	"github.com/ghetzel/byteflood/stats"
-	"github.com/ghetzel/byteflood/util"
-	"github.com/jbenet/go-base58"
-	"github.com/orcaman/concurrent-map"
-	"github.com/satori/go.uuid"
 	"io"
 	"net"
 	"net/http"
@@ -18,6 +11,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/byteflood/encryption"
+	"github.com/ghetzel/byteflood/stats"
+	"github.com/ghetzel/byteflood/util"
+	"github.com/jbenet/go-base58"
+	"github.com/orcaman/concurrent-map"
+	"github.com/satori/go.uuid"
 )
 
 var BadMessageThreshold = 10

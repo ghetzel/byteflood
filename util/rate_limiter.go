@@ -2,9 +2,10 @@ package util
 
 import (
 	"fmt"
-	"golang.org/x/time/rate"
 	"io"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 type RateLimitingReadWriter struct {

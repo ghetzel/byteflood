@@ -3,12 +3,6 @@ package byteflood
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ghetzel/byteflood/db"
-	"github.com/ghetzel/byteflood/peer"
-	"github.com/ghetzel/go-stockutil/pathutil"
-	"github.com/ghetzel/pivot/dal"
-	"github.com/ghetzel/pivot/mapper"
-	"github.com/husobee/vestigo"
 	"math/rand"
 	"net/http"
 	"os"
@@ -16,6 +10,13 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/byteflood/peer"
+	"github.com/ghetzel/go-stockutil/pathutil"
+	"github.com/ghetzel/pivot/dal"
+	"github.com/ghetzel/pivot/mapper"
+	"github.com/husobee/vestigo"
 )
 
 // populated in API.Initialize()

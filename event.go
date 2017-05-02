@@ -2,8 +2,9 @@ package byteflood
 
 import (
 	"fmt"
-	"github.com/op/go-logging"
 	"time"
+
+	"github.com/op/go-logging"
 )
 
 type EventType string

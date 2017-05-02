@@ -1,8 +1,9 @@
 package metadata
 
 import (
-	"github.com/wtolson/go-taglib"
 	"time"
+
+	"github.com/wtolson/go-taglib"
 )
 
 type AudioLoader struct {

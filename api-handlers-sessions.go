@@ -2,10 +2,11 @@ package byteflood
 
 import (
 	"encoding/json"
-	"github.com/husobee/vestigo"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/husobee/vestigo"
 )
 
 type PeerConnectRequest struct {

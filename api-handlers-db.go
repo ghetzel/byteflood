@@ -3,12 +3,13 @@ package byteflood
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/go-stockutil/httputil"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/husobee/vestigo"
-	"net/http"
-	"strings"
 )
 
 type DatabaseScanRequest struct {

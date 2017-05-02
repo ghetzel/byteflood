@@ -2,9 +2,10 @@ package byteflood
 
 import (
 	"bytes"
+	"io"
+
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
-	"io"
 )
 
 type Postprocessor interface {

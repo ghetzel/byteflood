@@ -7,17 +7,18 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"math/big"
+	"os"
+	"path"
+	"strings"
+
 	"github.com/ghetzel/byteflood/db/metadata"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/go-stockutil/typeutil"
 	"github.com/spaolacci/murmur3"
-	"io"
-	"math/big"
-	"os"
-	"path"
-	"strings"
 )
 
 const FileFingerprintSize = 16777216

@@ -2,6 +2,10 @@ package db
 
 import (
 	"fmt"
+	"os"
+	"regexp"
+	"strings"
+
 	"github.com/ghetzel/byteflood/db/metadata"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
@@ -11,9 +15,6 @@ import (
 	"github.com/ghetzel/pivot/filter"
 	"github.com/ghetzel/pivot/mapper"
 	"github.com/op/go-logging"
-	"os"
-	"regexp"
-	"strings"
 )
 
 var log = logging.MustGetLogger(`byteflood/db`)

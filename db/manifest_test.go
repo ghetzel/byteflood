@@ -2,13 +2,14 @@ package db
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func createManifestTestDestination(prefix string) (string, error) {

@@ -2,10 +2,11 @@ package peer
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/sliceutil"
-	"strings"
 )
 
 type AuthorizedPeer struct {

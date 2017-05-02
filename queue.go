@@ -3,16 +3,17 @@ package byteflood
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"path/filepath"
+	"sync"
+	"time"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/orcaman/concurrent-map"
-	"io"
-	"path/filepath"
-	"sync"
-	"time"
 )
 
 var EmptyPollInterval = 3 * time.Second

@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
-	"golang.org/x/crypto/nacl/box"
 	"io"
 	"sync"
+
+	"golang.org/x/crypto/nacl/box"
 )
 
 type CryptoboxEncryption struct {

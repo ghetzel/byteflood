@@ -2,12 +2,13 @@ package peer
 
 import (
 	"fmt"
-	"github.com/huin/goupnp"
-	"github.com/huin/goupnp/dcps/internetgateway1"
-	"github.com/huin/goupnp/dcps/internetgateway2"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/huin/goupnp"
+	"github.com/huin/goupnp/dcps/internetgateway1"
+	"github.com/huin/goupnp/dcps/internetgateway2"
 )
 
 type igdClient interface {

@@ -3,13 +3,14 @@ package byteflood
 import (
 	"github.com/ghetzel/byteflood/db"
 	// "github.com/ghetzel/byteflood/peer"
+	"os"
+	"sort"
+	"testing"
+
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/op/go-logging"
 	"github.com/stretchr/testify/require"
-	"os"
-	"sort"
-	"testing"
 	// "time"
 )
 

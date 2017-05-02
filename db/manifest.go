@@ -3,12 +3,13 @@ package db
 import (
 	"bufio"
 	"fmt"
-	"github.com/ghetzel/go-stockutil/stringutil"
-	"github.com/ghetzel/go-stockutil/typeutil"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/go-stockutil/typeutil"
 )
 
 type ManifestItemType string

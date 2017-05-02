@@ -1,9 +1,10 @@
 package byteflood
 
 import (
+	"net/http"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/husobee/vestigo"
-	"net/http"
 )
 
 func (self *API) handleGetSystemProperties(w http.ResponseWriter, req *http.Request) {

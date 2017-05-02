@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/op/go-logging"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/op/go-logging"
 )
 
 var log = logging.MustGetLogger(`byteflood/client`)

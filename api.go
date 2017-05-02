@@ -4,6 +4,11 @@ package byteflood
 
 import (
 	"fmt"
+	"net/http"
+	"path"
+	"strings"
+	"time"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/diecast"
@@ -13,10 +18,6 @@ import (
 	"github.com/husobee/vestigo"
 	"github.com/orcaman/concurrent-map"
 	"github.com/urfave/negroni"
-	"net/http"
-	"path"
-	"strings"
-	"time"
 )
 
 type API struct {

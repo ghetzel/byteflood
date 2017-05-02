@@ -2,16 +2,17 @@ package db
 
 import (
 	"fmt"
-	"github.com/ghetzel/byteflood/stats"
-	"github.com/ghetzel/go-stockutil/pathutil"
-	"github.com/ghetzel/go-stockutil/sliceutil"
-	"github.com/sabhiram/go-gitignore"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/ghetzel/byteflood/stats"
+	"github.com/ghetzel/go-stockutil/pathutil"
+	"github.com/ghetzel/go-stockutil/sliceutil"
+	"github.com/sabhiram/go-gitignore"
 )
 
 type Directory struct {

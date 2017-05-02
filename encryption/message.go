@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+
 	"golang.org/x/crypto/nacl/box"
 )
 

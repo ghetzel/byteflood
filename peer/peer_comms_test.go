@@ -3,14 +3,15 @@ package peer
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"github.com/ghetzel/byteflood/db"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/nacl/box"
 	"io/ioutil"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/ghetzel/byteflood/db"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/nacl/box"
 )
 
 var database *db.Database

@@ -2,12 +2,13 @@ package byteflood
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/go-stockutil/httputil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/husobee/vestigo"
-	"net/http"
 )
 
 func (self *API) handleGetPeers(w http.ResponseWriter, req *http.Request) {

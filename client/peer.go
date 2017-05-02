@@ -2,10 +2,11 @@ package client
 
 import (
 	"fmt"
-	"github.com/ghetzel/byteflood/peer"
-	"github.com/ghetzel/go-stockutil/typeutil"
 	"strings"
 	"time"
+
+	"github.com/ghetzel/byteflood/peer"
+	"github.com/ghetzel/go-stockutil/typeutil"
 )
 
 type Peer struct {

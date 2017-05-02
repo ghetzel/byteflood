@@ -2,6 +2,10 @@ package db
 
 import (
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
@@ -9,9 +13,6 @@ import (
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/filter"
 	"github.com/sabhiram/go-gitignore"
-	"os"
-	"strings"
-	"time"
 )
 
 var MetadataSchema = &dal.Collection{

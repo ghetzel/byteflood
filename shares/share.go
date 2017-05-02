@@ -2,6 +2,9 @@ package shares
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/stats"
@@ -12,8 +15,6 @@ import (
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/filter"
 	"github.com/op/go-logging"
-	"strings"
-	"time"
 )
 
 var log = logging.MustGetLogger(`byteflood/shares`)
