@@ -7,6 +7,7 @@ import (
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/go-stockutil/typeutil"
 	"github.com/ghetzel/pivot/dal"
+	"github.com/ghetzel/pivot/filter"
 	"github.com/sabhiram/go-gitignore"
 	"os"
 	"strings"
@@ -72,6 +73,14 @@ var SharesSchema = &dal.Collection{
 		{
 			Name: `filter`,
 			Type: dal.StringType,
+			Validator: func(value interface{}) error {
+				if !typeutil.IsZero(value) {
+					_, err := filter.Parse(fmt.Sprintf("%v", value))
+					return err
+				}
+
+				return nil
+			},
 		}, {
 			Name: `description`,
 			Type: dal.StringType,

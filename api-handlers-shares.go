@@ -14,6 +14,7 @@ import (
 	"github.com/russross/blackfriday"
 	"github.com/satori/go.uuid"
 	"io"
+	"math/rand"
 	"net/http"
 	"path"
 	"strings"
@@ -52,13 +53,25 @@ func (self *API) handleSaveShare(w http.ResponseWriter, req *http.Request) {
 
 			// if a scanned directory path was given, and if it doesn't already exist, create it
 			if v := record.Get(`scanned_directory_path`, nil); !typeutil.IsEmpty(v) {
-				if existing := db.Instance.GetDirectoriesByFile(fmt.Sprintf("%v", v)); len(existing) == 0 {
-					// TODO: create scanned directory
+				scanPath := fmt.Sprintf("%v", v)
+
+				if existing := db.Instance.GetDirectoriesByFile(scanPath); len(existing) == 0 {
+					// create the directory
+					autolabel := fmt.Sprintf("%v_%x", path.Base(scanPath), rand.Int31())
+
+					if err := db.ScannedDirectories.Create(&db.Directory{
+						ID:   autolabel,
+						Path: scanPath,
+					}); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+
+					record.Set(`filter`, fmt.Sprintf("label=%v", autolabel))
+				} else {
+					record.Set(`filter`, fmt.Sprintf("label=%v", existing[0].ID))
 				}
 
-				if q := record.Get(`filter`, nil); typeutil.IsEmpty(q) {
-					// TODO: update filter if empty
-				}
 			}
 
 			if req.Method == `POST` {
