@@ -79,13 +79,21 @@ func (self *Client) createOrUpdate(isCreate bool, objType string, from interface
 
 	if from != nil {
 		if schema, ok := objToSchema[objType]; ok {
-			if record, err := schema.MakeRecord(from); err == nil {
-				log.Debugf("Record: %+v %+v", record, from)
+			var record *dal.Record
 
-				if err := json.NewEncoder(&requestBody).Encode(dal.NewRecordSet(record)); err != nil {
+			if r, ok := from.(*dal.Record); ok {
+				record = r
+			} else {
+				if r, err := schema.MakeRecord(from); err == nil {
+					record = r
+				} else {
 					return err
 				}
-			} else {
+			}
+
+			log.Debugf("Record: %T(%+v) %T(%+v)", record, record, from, from)
+
+			if err := json.NewEncoder(&requestBody).Encode(dal.NewRecordSet(record)); err != nil {
 				return err
 			}
 		} else {

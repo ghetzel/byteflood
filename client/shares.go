@@ -37,9 +37,8 @@ func (self *Client) GetShare(shareID string, peerOrSession string) (output *shar
 	return
 }
 
-func (self *Client) CreateShare(id string, config *shares.Share) error {
+func (self *Client) CreateShare(input shares.Share) error {
 	var share *shares.Share
-
 	v := db.SharesSchema.NewInstance()
 
 	if vS, ok := v.(*shares.Share); ok {
@@ -48,31 +47,39 @@ func (self *Client) CreateShare(id string, config *shares.Share) error {
 		return fmt.Errorf("Failed to instantiate share")
 	}
 
-	if !typeutil.IsEmpty(id) {
-		share.ID = id
-	} else {
+	if typeutil.IsEmpty(input.ID) {
 		return fmt.Errorf("%q cannot be empty", `id`)
+	} else {
+		share.ID = input.ID
 	}
 
-	if config != nil {
-		if !typeutil.IsEmpty(config.IconName) {
-			share.IconName = config.IconName
-		}
-
-		if !typeutil.IsZero(config.BaseFilter) {
-			share.BaseFilter = config.BaseFilter
-		}
-
-		if !typeutil.IsZero(config.Description) {
-			share.Description = config.Description
-		}
-
-		if !typeutil.IsZero(config.LongDescription) {
-			share.LongDescription = config.LongDescription
-		}
+	if !typeutil.IsEmpty(input.IconName) {
+		share.IconName = input.IconName
 	}
 
-	return self.Create(`shares`, share)
+	if !typeutil.IsZero(input.BaseFilter) {
+		share.BaseFilter = input.BaseFilter
+	}
+
+	if !typeutil.IsZero(input.Description) {
+		share.Description = input.Description
+	}
+
+	if !typeutil.IsZero(input.LongDescription) {
+		share.LongDescription = input.LongDescription
+	}
+
+	if !typeutil.IsZero(input.ScannedDirectoryPath) {
+		share.ScannedDirectoryPath = input.ScannedDirectoryPath
+	}
+
+	if record, err := db.SharesSchema.MakeRecord(share); err == nil {
+		record.Set(`scanned_directory_path`, share.ScannedDirectoryPath)
+
+		return self.Create(`shares`, record)
+	} else {
+		return err
+	}
 }
 
 func (self *Client) RemoveShare(id string) error {

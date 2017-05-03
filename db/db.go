@@ -89,7 +89,7 @@ func (self *Database) Initialize() error {
 	filter.FieldTermSeparator = `=`
 	filter.QueryUnescapeValues = true
 
-	// reuse the "json:" struct tag for loading dal.Record into/out of structs
+	// reuse the "json:" struct tag for loading pivot/dal.Record into/out of structs
 	dal.RecordStructTag = `json`
 
 	if v, err := pathutil.ExpandUser(self.BaseDirectory); err == nil {

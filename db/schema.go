@@ -224,6 +224,7 @@ var ScannedDirectoriesSchema = &dal.Collection{
 			Name:        `path`,
 			Description: `A local filesystem path that will be scanned for files.`,
 			Type:        dal.StringType,
+			Required:    true,
 			Formatter: func(value interface{}, op dal.FieldOperation) (interface{}, error) {
 				if expanded, err := pathutil.ExpandUser(fmt.Sprintf("%v", value)); err == nil {
 					return expanded, nil

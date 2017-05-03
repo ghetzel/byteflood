@@ -67,7 +67,7 @@ func subcommandsShares() []cli.Command {
 				}, {
 					Name:      `create`,
 					Usage:     `Create a share to expose files to peers.`,
-					ArgsUsage: `ID`,
+					ArgsUsage: `ID [DIRECTORY]`,
 					Flags: []cli.Flag{
 						cli.StringFlag{
 							Name:  `base-filter, F`,
@@ -84,8 +84,10 @@ func subcommandsShares() []cli.Command {
 						},
 					},
 					Action: func(c *cli.Context) {
-						id := c.Args().First()
 						var longDesc string
+						baseFilter := c.String(`base-filter`)
+
+						id := c.Args().First()
 
 						if stat, _ := os.Stdin.Stat(); (stat.Mode() & os.ModeCharDevice) == 0 {
 							if data, err := ioutil.ReadAll(os.Stdin); err == nil {
@@ -95,15 +97,17 @@ func subcommandsShares() []cli.Command {
 							}
 						}
 
-						if err := api.CreateShare(id, &shares.Share{
-							BaseFilter:      c.String(`base-filter`),
-							Description:     c.String(`title`),
-							IconName:        c.String(`icon`),
-							LongDescription: longDesc,
+						if err := api.CreateShare(shares.Share{
+							ID:                   id,
+							BaseFilter:           baseFilter,
+							Description:          c.String(`title`),
+							IconName:             c.String(`icon`),
+							LongDescription:      longDesc,
+							ScannedDirectoryPath: c.Args().Get(1),
 						}); err == nil {
-							log.Noticef("Share %s created successfully.", id)
+							log.Noticef("Share %q created successfully.", id)
 						} else {
-							log.Fatalf("Failed to create share %s: %v", id, err)
+							log.Fatalf("Failed to create share %q: %v", id, err)
 						}
 					},
 				}, {
@@ -118,7 +122,11 @@ func subcommandsShares() []cli.Command {
 						}
 
 						if err := api.RemoveShare(id); err == nil {
-							log.Noticef("Share ID %q access has been revoked.", id)
+							if err := api.Cleanup(); err == nil {
+								log.Noticef("Share %q has been removed.", id)
+							} else {
+								log.Warningf("Share %q has been removed, but the cleanup request failed.", id)
+							}
 						} else if client.IsNotFound(err) {
 							log.Warningf("Share ID %q does not exist.", id)
 						} else {

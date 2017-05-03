@@ -24,16 +24,15 @@ func subcommandsDB() []cli.Command {
 				},
 			},
 			Action: func(c *cli.Context) {
-				if err := application.Scan(c.Bool(`deep`), c.Args()...); err != nil {
+				if err := api.Scan(c.Bool(`deep`), c.Args()...); err != nil {
 					log.Fatalf("Failed to scan: %v", err)
 				}
-
 			},
 		}, {
 			Name:  `cleanup`,
 			Usage: `Cleanup the metadata database.`,
 			Action: func(c *cli.Context) {
-				if err := application.Database.Cleanup(); err != nil {
+				if err := api.Cleanup(); err != nil {
 					log.Fatal(err)
 				}
 			},

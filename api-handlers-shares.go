@@ -62,7 +62,7 @@ func (self *API) handleSaveShare(w http.ResponseWriter, req *http.Request) {
 					// try to find an existing directory for this path
 					if existing := db.Instance.GetDirectoriesByFile(scanPath); len(existing) == 0 {
 						// create the directory
-						autolabel := fmt.Sprintf("%v_%x", path.Base(scanPath), rand.Int31())
+						autolabel := fmt.Sprintf("%v_%x", record.ID, rand.Int31())
 
 						if err := db.ScannedDirectories.Create(&db.Directory{
 							ID:   autolabel,

@@ -38,8 +38,6 @@ func (self *Client) Request(method string, path string, params map[string]string
 		Timeout: self.Timeout,
 	}
 
-	log.Debugf("%+v", body)
-
 	if request, err := http.NewRequest(
 		strings.ToUpper(method),
 		fmt.Sprintf("%s://%s%s", self.Scheme, self.Address, path),
@@ -59,23 +57,29 @@ func (self *Client) Request(method string, path string, params map[string]string
 
 		request.URL.RawQuery = qs.Encode()
 
-		log.Debugf("Request: %s %s", request.Method, request.URL.String())
-
 		// perform request
-		return client.Do(request)
+		if response, err := client.Do(request); err == nil {
+			return response, self.getResponseError(response)
+		} else {
+			return nil, err
+		}
 	} else {
 		return nil, err
 	}
 }
 
 func (self *Client) getResponseError(response *http.Response) error {
-	msg := `Unknown Error`
+	if response.StatusCode >= 400 {
+		msg := `Unknown Error`
 
-	if body, err := ioutil.ReadAll(response.Body); err == nil {
-		msg = fmt.Sprintf("%v", string(body[:]))
+		if body, err := ioutil.ReadAll(response.Body); err == nil {
+			msg = fmt.Sprintf("%v", string(body[:]))
+		}
+
+		return fmt.Errorf("%s: %v", response.Status, msg)
+	} else {
+		return nil
 	}
-
-	return fmt.Errorf("%s: %v", response.Status, msg)
 }
 
 func ParseResponse(response *http.Response) (map[string]interface{}, error) {
