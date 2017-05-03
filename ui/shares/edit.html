@@ -55,7 +55,7 @@ defaults:
                     Folder
                 </a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item" id="shares_filter_query">
                 <a class="nav-link" data-toggle="tab" href="#query" role="tab">
                     <i class="fa fa-fw fa-search"></i>
                     Query
@@ -74,27 +74,58 @@ defaults:
                 <div class="form-group row">
                     <label class="col-sm-3 col-form-label" for="_directory">Folder Path</label>
 
-                    <div class="col-sm-7">
-                        <select
-                            class="form-control"
-                            name="_directory"
-                            aria-describedby="_directoryHelp"
-                            oninput="document.forms['shares'].elements['filter'].value=event.target.value; _shares_filter_update()"
-                            onchange="document.forms['shares'].elements['filter'].value=event.target.value; _shares_filter_update()"
-                        >
-                        {{ range .bindings.directories }}
-                            <option value="label={{ .id }}"{{ if eqx (qs `id`) .id }} selected{{ end }}>{{ .path }}</option>
-                        {{ end }}
-                        </select>
-                    </div>
+                    <div class="col-sm-9" id="share_directory" data-mode="select">
+                        <div id="share_directory_select">
+                            <div class="input-group">
+                                <select
+                                    class="form-control"
+                                    name="_directory"
+                                    aria-describedby="_directoryHelp"
+                                    oninput="document.forms['shares'].elements['filter'].value=event.target.value; _shares_filter_update()"
+                                    onchange="document.forms['shares'].elements['filter'].value=event.target.value; _shares_filter_update()"
+                                >
+                                {{ range .bindings.directories }}
+                                    <option value="label={{ .id }}"{{ if eqx (qs `id`) .id }} selected{{ end }}>{{ .path }}</option>
+                                {{ end }}
+                                </select>
 
-                    <div class="col-sm-2">
-                        <button
-                            type="button"
-                            class="btn btn-success"
-                        >
-                            <i class="fa fa-folder"></i> New
-                        </button>
+                                <span class="input-group-btn">
+                                    <button
+                                        class="btn btn-success"
+                                        type="button"
+                                        onclick="_shares_update_directory_toggle()"
+                                    >
+                                        <i class="fa fa-plus"></i>
+                                        New
+                                    </button>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div id="share_directory_create" style="display: none;">
+                            <div class="input-group">
+                                <input
+                                    class="form-control typeahead w-100"
+                                    type="text"
+                                    name="scanned_directory_path"
+                                    autocomplete="off"
+                                    data-typeahead-url="/api/browse/{}"
+                                    required
+                                >
+                                </input>
+
+                                <span class="input-group-btn">
+                                    <button
+                                        class="btn btn-danger"
+                                        type="button"
+                                        onclick="_shares_update_directory_toggle()"
+                                    >
+                                        <i class="fa fa-remove"></i>
+                                        Cancel
+                                    </button>
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1072,6 +1103,59 @@ $(function(){
         );
     };
 
+    window._shares_update_directory_toggle = function(){
+        if($('#share_directory').data('mode') == 'select') {
+            $('#share_directory').data('mode', 'create');
+        } else {
+            $('#share_directory').data('mode', 'select');
+        }
+
+        _shares_update_directory_input();
+    };
+
+    window._shares_update_directory_input = function(){
+        var mode = $('#share_directory').data('mode');
+
+        switch(mode) {
+        case 'select':
+            $('#share_directory_select select')
+                .removeAttr('disabled');
+
+            $('#share_directory_create input')
+                .attr('disabled', true)
+                .removeAttr('required');
+
+            // (re) enable submission of the "filter" field
+            document.forms['shares'].elements['filter'].disabled = false;
+            $('#shares_filter_query > a')
+                .removeClass('disabled')
+                .removeAttr('title');
+
+            $('#share_directory_create').hide();
+            $('#share_directory_select').show();
+
+            break;
+
+        case 'create':
+            $('#share_directory_select select')
+                .attr('disabled', 'disabled');
+
+            $('#share_directory_create input')
+                .removeAttr('disabled')
+                .attr('required', true);
+
+            // prevent submission of the "filter" field
+            document.forms['shares'].elements['filter'].disabled = true;
+            $('#shares_filter_query > a').addClass('disabled').attr('title', 'Queries cannot be specified when creating a new directory.');
+
+            $('#share_directory_create').show();
+            $('#share_directory_select').hide();
+            $('#share_directory_create input').focus();
+
+            break;
+        }
+    };
+
     window._shares_icon_update = function(icon) {
         if(!icon) {
             icon = document.forms['shares'].elements['icon_name'].value;
@@ -1098,5 +1182,6 @@ $(function(){
     _shares_filter_update();
     _shares_icon_update('{{ or .bindings.share.icon_name `folder` }}');
     _shares_long_description_setup();
+    _shares_update_directory_input();
 });
 </script>

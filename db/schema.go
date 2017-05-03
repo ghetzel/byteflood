@@ -249,7 +249,11 @@ var ScannedDirectoriesSchema = &dal.Collection{
 			Description: `A gitignore-style set of rules that specifies which files to exclude from scans.`,
 			Type:        dal.StringType,
 			Formatter: func(value interface{}, op dal.FieldOperation) (interface{}, error) {
-				return strings.TrimSpace(fmt.Sprintf("%v", value)), nil
+				if !typeutil.IsZero(value) {
+					return strings.TrimSpace(fmt.Sprintf("%v", value)), nil
+				} else {
+					return ``, nil
+				}
 			},
 			Validator: func(value interface{}) error {
 				_, err := ignore.CompileIgnoreLines(strings.Split(fmt.Sprintf("%v", value), "\n")...)

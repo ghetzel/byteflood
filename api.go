@@ -157,8 +157,8 @@ func (self *API) Serve() error {
 
 	// share management endpoints
 	router.Get(`/api/shares`, self.wrapHandlerWithLocalPeer(self.handleGetShares))
-	router.Post(`/api/shares`, self.handleSaveModel)
-	router.Put(`/api/shares`, self.handleSaveModel)
+	router.Post(`/api/shares`, self.handleSaveShare)
+	router.Put(`/api/shares`, self.handleSaveShare)
 	router.Delete(`/api/shares/:id`, self.handleDeleteModel)
 	router.Get(`/api/shares/new`, self.handleGetNewModelInstance)
 	router.Get(`/api/shares/_all/query/*`, self.wrapHandlerWithLocalPeer(self.handleQueryAllShares))

@@ -250,6 +250,7 @@ func (self *Application) Scan(deep bool, labels ...string) error {
 	backends.BleveBatchFlushCount = 25
 	defer func() {
 		backends.BleveBatchFlushCount = 1
+		self.collectShareStats(time.Duration(0))
 	}()
 
 	return self.Database.Scan(deep, labels...)
@@ -335,13 +336,21 @@ func (self *Application) startPeriodicMonitoring() {
 
 func (self *Application) collectQueueStats(interval time.Duration) {
 	for {
-		time.Sleep(interval)
+		if interval == 0 {
+			return
+		} else {
+			time.Sleep(interval)
+		}
 	}
 }
 
 func (self *Application) collectPeerStats(interval time.Duration) {
 	for {
-		time.Sleep(interval)
+		if interval == 0 {
+			return
+		} else {
+			time.Sleep(interval)
+		}
 	}
 }
 
@@ -359,7 +368,11 @@ func (self *Application) collectShareStats(interval time.Duration) {
 			log.Warningf("Failed to refresh share stats: %v", err)
 		}
 
-		time.Sleep(interval)
+		if interval == 0 {
+			return
+		} else {
+			time.Sleep(interval)
+		}
 	}
 }
 
@@ -377,7 +390,11 @@ func (self *Application) collectDatabaseStats(interval time.Duration) {
 			log.Warningf("Failed to refresh directory stats: %v", err)
 		}
 
-		time.Sleep(interval)
+		if interval == 0 {
+			return
+		} else {
+			time.Sleep(interval)
+		}
 	}
 }
 

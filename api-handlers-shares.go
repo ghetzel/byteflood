@@ -13,6 +13,7 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/go-stockutil/httputil"
+	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/typeutil"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/husobee/vestigo"
@@ -54,25 +55,33 @@ func (self *API) handleSaveShare(w http.ResponseWriter, req *http.Request) {
 
 			// if a scanned directory path was given, and if it doesn't already exist, create it
 			if v := record.Get(`scanned_directory_path`, nil); !typeutil.IsEmpty(v) {
-				scanPath := fmt.Sprintf("%v", v)
+				v := fmt.Sprintf("%v", v)
 
-				if existing := db.Instance.GetDirectoriesByFile(scanPath); len(existing) == 0 {
-					// create the directory
-					autolabel := fmt.Sprintf("%v_%x", path.Base(scanPath), rand.Int31())
+				// make sure we expand ~
+				if scanPath, err := pathutil.ExpandUser(v); err == nil {
+					// try to find an existing directory for this path
+					if existing := db.Instance.GetDirectoriesByFile(scanPath); len(existing) == 0 {
+						// create the directory
+						autolabel := fmt.Sprintf("%v_%x", path.Base(scanPath), rand.Int31())
 
-					if err := db.ScannedDirectories.Create(&db.Directory{
-						ID:   autolabel,
-						Path: scanPath,
-					}); err != nil {
-						http.Error(w, err.Error(), http.StatusInternalServerError)
-						return
+						if err := db.ScannedDirectories.Create(&db.Directory{
+							ID:   autolabel,
+							Path: scanPath,
+						}); err == nil {
+							go self.application.Scan(true, autolabel)
+						} else {
+							http.Error(w, err.Error(), http.StatusInternalServerError)
+							return
+						}
+
+						record.Set(`filter`, fmt.Sprintf("label=%v", autolabel))
+					} else {
+						record.Set(`filter`, fmt.Sprintf("label=%v", existing[0].ID))
 					}
-
-					record.Set(`filter`, fmt.Sprintf("label=%v", autolabel))
 				} else {
-					record.Set(`filter`, fmt.Sprintf("label=%v", existing[0].ID))
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
 				}
-
 			}
 
 			if req.Method == `POST` {
