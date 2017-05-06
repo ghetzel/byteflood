@@ -19,9 +19,6 @@ import (
 	"github.com/husobee/vestigo"
 )
 
-// populated in API.Initialize()
-var endpointModelMap = map[string]mapper.Mapper{}
-
 var endpointInstanceMap = map[string]*dal.Collection{
 	`directories`:   db.ScannedDirectoriesSchema,
 	`downloads`:     db.DownloadsSchema,
@@ -100,6 +97,10 @@ func (self *API) handleSaveModel(w http.ResponseWriter, req *http.Request) {
 					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
+			}
+
+			if postFn, ok := endpointPostSave[modelName]; ok {
+				defer postFn(self.application, recordset, req)
 			}
 
 			http.Error(w, ``, http.StatusNoContent)

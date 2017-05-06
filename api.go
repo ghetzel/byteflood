@@ -14,6 +14,8 @@ import (
 	"github.com/ghetzel/diecast"
 	"github.com/ghetzel/go-stockutil/httputil"
 	"github.com/ghetzel/mobius"
+	"github.com/ghetzel/pivot/dal"
+	"github.com/ghetzel/pivot/mapper"
 	"github.com/gorilla/websocket"
 	"github.com/husobee/vestigo"
 	"github.com/orcaman/concurrent-map"
@@ -33,6 +35,12 @@ var DefaultApiAddress = `:11984`
 var DefaultResultLimit = 25
 var DefaultUiDirectory = `embedded`
 
+// populated in API.Initialize()
+type PostSaveFunc func(app *Application, recordset dal.RecordSet, req *http.Request) // {}
+
+var endpointModelMap = map[string]mapper.Mapper{}
+var endpointPostSave = map[string]PostSaveFunc{}
+
 func NewAPI(application *Application) *API {
 	return &API{
 		Address:      DefaultApiAddress,
@@ -45,6 +53,18 @@ func NewAPI(application *Application) *API {
 
 func (self *API) Initialize() error {
 	endpointModelMap[`directories`] = db.ScannedDirectories
+	endpointPostSave[`directories`] = func(app *Application, recordset dal.RecordSet, req *http.Request) {
+		labels := make([]string, 0)
+
+		for _, record := range recordset.Records {
+			labels = append(labels, fmt.Sprintf("%v", record.ID))
+		}
+
+		if len(labels) > 0 {
+			go app.Scan(false, labels...)
+		}
+	}
+
 	endpointModelMap[`downloads`] = db.Downloads
 	endpointModelMap[`peers`] = db.AuthorizedPeers
 	endpointModelMap[`shares`] = db.Shares

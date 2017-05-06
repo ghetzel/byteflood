@@ -100,9 +100,13 @@ func (self *Directory) Scan() error {
 		for _, entry := range entries {
 			absPath := path.Join(self.Path, entry.Name())
 			relPath := strings.TrimPrefix(absPath, self.RootPath)
+			dirEntry := NewEntry(self.ID, self.RootPath, absPath)
 
 			if pathutil.IsSymlink(entry.Mode()) {
+				nukeEverythingUnderSymlink := false
+
 				if self.FollowSymlinks {
+					// verify the symlink is readabled, expanded, and ready to scan
 					if realpath, err := os.Readlink(absPath); err == nil {
 						if realAbsPath, err := filepath.Abs(path.Join(self.Path, realpath)); err == nil {
 							if realstat, err := os.Stat(realAbsPath); err == nil {
@@ -110,18 +114,25 @@ func (self *Directory) Scan() error {
 								entry = realstat
 							} else {
 								log.Warningf("[%s] Error reading target of symbolic link %s: %v", self.ID, realAbsPath, err)
-								continue
+								nukeEverythingUnderSymlink = true
 							}
 						} else {
 							log.Warningf("[%s] Error following symbolic link %s: %v", self.ID, realpath, err)
-							continue
+							nukeEverythingUnderSymlink = true
 						}
 					} else {
 						log.Warningf("[%s] Error reading symbolic link %s: %v", self.ID, entry.Name(), err)
-						continue
+						nukeEverythingUnderSymlink = true
 					}
 				} else {
 					log.Infof("[%s] Skipping symbolic link %s", self.ID, absPath)
+					nukeEverythingUnderSymlink = true
+				}
+
+				// if there was an error reading the symlink, consider it dead/missing and cleanup the database under it
+				if nukeEverythingUnderSymlink {
+					self.cleanupMissingEntriesUnderParent(dirEntry.ID, true)
+					self.cleanupMissingEntries(map[string]interface{}{`id`: dirEntry.ID}, true)
 					continue
 				}
 			}
@@ -130,6 +141,7 @@ func (self *Directory) Scan() error {
 			if self.compiledIgnoreList != nil {
 				if self.compiledIgnoreList.MatchesPath(relPath) {
 					log.Debugf("[%s] Ignoring entry %s", self.ID, relPath)
+					self.cleanupMissingEntries(map[string]interface{}{`id`: self.ID}, true)
 					continue
 				}
 			}
@@ -137,8 +149,6 @@ func (self *Directory) Scan() error {
 			// recursive directory handling
 			if entry.IsDir() {
 				if !self.NoRecurseDirectories {
-					dirEntry := NewEntry(self.ID, self.RootPath, absPath)
-
 					if subdirectory, ok := ScannedDirectoriesSchema.NewInstance().(*Directory); ok {
 						subdirectory.ID = self.ID
 						subdirectory.Path = absPath
@@ -186,9 +196,7 @@ func (self *Directory) Scan() error {
 						} else {
 							if _, err := self.scanEntry(absPath, true); err == nil {
 								// cleanup entries for whom we are the parent
-								if err := self.cleanupMissingEntries(map[string]interface{}{
-									`parent`: subdirectory.Parent,
-								}); err != nil {
+								if err := self.cleanupMissingEntriesUnderParent(subdirectory.Parent, false); err != nil {
 									log.Errorf("[%s] Failed to cleanup entries under %s: %v", self.ID, subdirectory.Parent, err)
 								}
 							} else {
@@ -382,7 +390,7 @@ func reportEntryDeletionStats(parentLabel string, entry *Entry) {
 	})
 }
 
-func (self *Directory) cleanupMissingEntries(query interface{}) error {
+func (self *Directory) cleanupMissingEntries(query interface{}, force bool) error {
 	var entries []Entry
 
 	if f, err := ParseFilter(query); err == nil {
@@ -390,6 +398,12 @@ func (self *Directory) cleanupMissingEntries(query interface{}) error {
 			entriesToDelete := make([]interface{}, 0)
 
 			for _, entry := range entries {
+				if force {
+					entriesToDelete = append(entriesToDelete, entry.ID)
+					reportEntryDeletionStats(self.ID, &entry)
+					continue
+				}
+
 				if self.compiledIgnoreList != nil {
 					if self.compiledIgnoreList.MatchesPath(entry.RelativePath) {
 						entriesToDelete = append(entriesToDelete, entry.ID)
@@ -423,6 +437,13 @@ func (self *Directory) cleanupMissingEntries(query interface{}) error {
 	} else {
 		return err
 	}
+}
+
+func (self *Directory) cleanupMissingEntriesUnderParent(parent string, force bool) error {
+	// cleanup entries for whom we are the parent
+	return self.cleanupMissingEntries(map[string]interface{}{
+		`parent`: parent,
+	}, force)
 }
 
 func (self *Directory) cleanup(entries ...interface{}) error {

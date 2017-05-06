@@ -54,8 +54,9 @@ func (self *API) handleSaveShare(w http.ResponseWriter, req *http.Request) {
 			var err error
 
 			// if a scanned directory path was given, and if it doesn't already exist, create it
-			if v := record.Get(`scanned_directory_path`, nil); !typeutil.IsEmpty(v) {
+			if v := record.Get(`scanned_directory_path`, nil); !typeutil.IsZero(v) {
 				v := fmt.Sprintf("%v", v)
+				log.Infof("Auto-creating directory %q", v)
 
 				// make sure we expand ~
 				if scanPath, err := pathutil.ExpandUser(v); err == nil {

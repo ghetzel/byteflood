@@ -32,6 +32,7 @@ var DefaultGlobalExclusions = []string{
 
 var DefaultBaseDirectory = `~/.config/byteflood`
 var labelToPath = make(map[string]string)
+var CleanupIterations = 256
 
 type Database struct {
 	BaseDirectory      string            `json:"base_dir"`
@@ -196,12 +197,19 @@ func (self *Database) Scan(deep bool, labels ...string) error {
 
 				if err := directory.Scan(); err == nil {
 					defer directory.RefreshStats()
-					return nil
 				} else {
-					return err
+					if len(scannedDirectories) == 1 {
+						return err
+					} else {
+						log.Errorf("Error scanning directory %q: %v", directory.ID, err)
+					}
 				}
 			} else {
-				return err
+				if len(scannedDirectories) == 1 {
+					return err
+				} else {
+					log.Errorf("Error scanning directory %q: %v", directory.ID, err)
+				}
 			}
 		}
 	} else {
@@ -248,15 +256,15 @@ func (self *Database) Cleanup() error {
 		return err
 	}
 
-	entriesToDelete := make([]interface{}, 0)
-
 	log.Debugf("Cleaning up...")
 
+	// cleanup files whose parent label no longer exists
 	if f, err := ParseFilter(map[string]interface{}{
 		`label`: fmt.Sprintf("not:%s", strings.Join(ids, `|`)),
 	}); err == nil {
 		f.Limit = -1
 
+		totalRemoved := 0
 		backend := Metadata.GetBackend()
 		indexer := backend.WithSearch(``)
 
@@ -264,36 +272,59 @@ func (self *Database) Cleanup() error {
 			log.Warningf("Remove missing labels failed: %v", err)
 		}
 
-		allQuery := filter.Copy(&filter.All)
-		allQuery.Fields = []string{`id`, `name`, `label`}
+		cleanupFn := func() int {
+			entriesToDelete := make([]interface{}, 0)
+			allQuery := filter.Copy(&filter.All)
+			allQuery.Fields = []string{`id`, `name`, `label`, `parent`}
 
-		if err := Metadata.FindFunc(allQuery, Entry{}, func(entryI interface{}, err error) {
-			if err == nil {
-				if entry, ok := entryI.(*Entry); ok {
-					if absPath, err := entry.GetAbsolutePath(); err == nil {
-						if _, err := os.Stat(absPath); os.IsNotExist(err) {
+			if err := Metadata.FindFunc(allQuery, Entry{}, func(entryI interface{}, err error) {
+				if err == nil {
+					if entry, ok := entryI.(*Entry); ok {
+						// make sure the file actually exists
+						if absPath, err := entry.GetAbsolutePath(); err == nil {
+							if _, err := os.Stat(absPath); os.IsNotExist(err) {
+								entriesToDelete = append(entriesToDelete, entry.ID)
+								reportEntryDeletionStats(entry.Label, entry)
+								return
+							}
+						}
+
+						// make sure the entry's parent exists
+						if entry.Parent != `root` && !Metadata.Exists(entry.Parent) {
 							entriesToDelete = append(entriesToDelete, entry.ID)
 							reportEntryDeletionStats(entry.Label, entry)
+							return
 						}
+					}
+				} else {
+					log.Warningf("Error cleaning up database entries: %v", err)
+				}
+			}); err == nil {
+				if l := len(entriesToDelete); l > 0 {
+					if err := Metadata.Delete(entriesToDelete...); err == nil {
+						log.Debugf("Removed %d entries", l)
+						return l
+					} else {
+						log.Warningf("Error cleaning up database: %v", err)
 					}
 				}
 			} else {
-				log.Warningf("%v", err)
-			}
-		}); err == nil {
-			if l := len(entriesToDelete); l > 0 {
-				if err := Metadata.Delete(entriesToDelete...); err == nil {
-					log.Infof("Removed %d entries", l)
-				} else {
-					log.Warningf("Failed to cleanup missing entries: %v", err)
-				}
+				log.Warningf("Failed to cleanup database: %v", err)
 			}
 
-			log.Infof("Database cleanup finished, deleted %d entries.", len(entriesToDelete))
-
-		} else {
-			log.Warningf("Failed to cleanup database: %v", err)
+			return -1
 		}
+
+		// cleanup until there's nothing left, an error occurs, or we've exceeded our CleanupIterations
+		for i := 0; i < CleanupIterations; i++ {
+			if removed := cleanupFn(); removed > 0 {
+				totalRemoved += removed
+			} else {
+				break
+			}
+		}
+
+		log.Infof("Database cleanup finished, deleted %d entries.", totalRemoved)
 	} else {
 		return err
 	}
