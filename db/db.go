@@ -42,6 +42,7 @@ type Database struct {
 	GlobalExclusions   []string          `json:"global_exclusions,omitempty"`
 	ScanInProgress     bool              `json:"scan_in_progress"`
 	ExtractFields      []string          `json:"extract_fields,omitempty"`
+	SkipMigrate        bool              `json:"skip_migrate"`
 	db                 backends.Backend
 }
 
@@ -342,6 +343,14 @@ func (self *Database) setupSchemata() error {
 	Subscriptions = mapper.NewModel(self.db, SubscriptionsSchema)
 	System = mapper.NewModel(self.db, SystemSchema)
 
+	Models[`directories`] = ScannedDirectories
+	Models[`downloads`] = Downloads
+	Models[`peers`] = AuthorizedPeers
+	Models[`shares`] = Shares
+	Models[`subscriptions`] = Subscriptions
+	Models[`properties`] = System
+	Models[`metadata`] = Metadata
+
 	// set global default DB instance to us
 	Instance = self
 
@@ -355,9 +364,11 @@ func (self *Database) setupSchemata() error {
 		System,
 	}
 
-	for _, model := range models {
-		if err := model.Migrate(); err != nil {
-			return err
+	if !self.SkipMigrate {
+		for _, model := range models {
+			if err := model.Migrate(); err != nil {
+				return err
+			}
 		}
 	}
 

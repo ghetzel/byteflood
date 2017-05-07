@@ -23,8 +23,14 @@ const DEFAULT_FORMAT = `text`
 
 var log = logging.MustGetLogger(`main`)
 var DefaultLogLevel = map[string]logging.Level{
-	`run`: logging.DEBUG,
-	``:    logging.NOTICE,
+	`run`:    logging.DEBUG,
+	`export`: logging.NOTICE,
+	`import`: logging.NOTICE,
+	``:       logging.NOTICE,
+}
+
+var SubcommandsThatSkipTheDatabase = []string{
+	`genkeypair`,
 }
 
 var application *byteflood.Application
@@ -87,6 +93,10 @@ func main() {
 			Name:  `collect-stats`,
 			Usage: `Whether to collect and store statistics within the application data directory.`,
 		},
+		cli.BoolFlag{
+			Name:  `skip-db-checks`,
+			Usage: `Bypass the ordinary startup verification of the database schema.`,
+		},
 	}
 
 	app.Before = func(c *cli.Context) error {
@@ -124,9 +134,7 @@ func main() {
 
 		log.Infof("Starting %s %s", c.App.Name, c.App.Version)
 
-		if !sliceutil.ContainsString([]string{
-			`genkeypair`,
-		}, c.Args().First()) {
+		if !sliceutil.ContainsString(SubcommandsThatSkipTheDatabase, c.Args().First()) {
 			if a, err := createApplication(c); err == nil {
 				application = a
 				database = a.Database
@@ -160,6 +168,8 @@ func createApplication(c *cli.Context) (*byteflood.Application, error) {
 		if c.GlobalIsSet(`private-key`) {
 			app.PublicKeyPath = c.GlobalString(`private-key`)
 		}
+
+		app.Database.SkipMigrate = c.Bool(`skip-db-checks`)
 
 		if err := app.Initialize(); err == nil {
 			signalChan := make(chan os.Signal, 1)
@@ -213,5 +223,13 @@ func printWithFormat(format string, data interface{}, fallbackFunc ...func()) {
 		fmt.Println(string(output[:]))
 	} else {
 		log.Fatal(err)
+	}
+}
+
+func errAndMaybeQuit(c *cli.Context, format string, values ...interface{}) {
+	log.Errorf(format, values...)
+
+	if !c.Bool(`ignore-errors`) {
+		os.Exit(1)
 	}
 }

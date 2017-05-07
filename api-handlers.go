@@ -19,15 +19,6 @@ import (
 	"github.com/husobee/vestigo"
 )
 
-var endpointInstanceMap = map[string]*dal.Collection{
-	`directories`:   db.ScannedDirectoriesSchema,
-	`downloads`:     db.DownloadsSchema,
-	`peers`:         db.AuthorizedPeersSchema,
-	`shares`:        db.SharesSchema,
-	`subscriptions`: db.SubscriptionsSchema,
-	`properties`:    db.SystemSchema,
-}
-
 type AuthenticatedHandlerFunc func(http.ResponseWriter, *http.Request, peer.Peer) // {}
 
 type ActionPeerConnect struct {
@@ -58,7 +49,7 @@ func (self *API) handleGetNewModelInstance(w http.ResponseWriter, req *http.Requ
 	if len(parts) >= 3 {
 		modelName := parts[2]
 
-		if schema, ok := endpointInstanceMap[modelName]; ok {
+		if schema, ok := db.Schema[modelName]; ok {
 			Respond(w, schema.NewInstance())
 		} else {
 			http.Error(w, fmt.Sprintf("Unknown model '%s'", modelName), http.StatusNotFound)
