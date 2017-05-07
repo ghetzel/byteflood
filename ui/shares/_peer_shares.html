@@ -8,87 +8,24 @@ bindings:
     sort:   '{{ .request.url.query.sort }}'
 ---
 {{ if .bindings.shares }}
-<div class="input-group mt-2 mb-2">
-    <input
-        type="text"
-        class="form-control"
-        placeholder="Search..."
-        oninput="
-        if(this._doneTyping){
-            clearTimeout(this._doneTyping)
-        }
-
-        this._doneTyping = setTimeout(function(){
-            this._doneTyping = null;
-
-            if(this.value.length) {
-                byteflood.loadInto('#share-browser', '/shares/_peer_query_files', {
-                    'params': {
-                        'query': this.value,
-                        {{ if qs `session` -}}
-                        'session': '{{ qs `session` }}',
-                        {{ end }}
-                    },
-                });
-            } else {
-                $('#share-browser').empty();
-            }
-        }.bind(this), 400)"
+{{ range .bindings.shares }}
+    {{ $current := print (qs `session` `local`) `_` .id }}
+<li class="nav-item">
+    <a
+        class="nav-link{{ if eqx $current (qs `active`) }} active{{ end }}"
+        href="/shares/?share={{ .id }}{{ if qs `session` }}&amp;session={{ qs `session` }}&amp;peer={{ qs `peer` }}{{ end }}"
+        role="button"
     >
-    </input>
-    <div class="input-group-addon">
-        <i class="fa fa-search"></i>
-    </div>
-</div>
-{{ end }}
-
-<div class="list-group">
-    {{ if .bindings.shares }}
-    {{ range .bindings.shares }}
-        {{ $current := print (qs `session` `local`) `_` .id }}
-    <button
-        type="button"
-        class="list-group-item list-group-item-action{{ if eqx $current (qs `active`) }} active{{ end }} justify-content-between"
-        {{ if not (qs `session`) }}
-        title="Right-click to edit"
-        oncontextmenu="event.preventDefault(); location.href='/shares/edit?id={{ .id }}'"
-        {{ end }}
-        onclick="location.href='/shares/?share={{ .id }}{{ if qs `session` }}&amp;session={{ qs `session` }}&amp;peer={{ qs `peer` }}{{ end }}'"
-    >
-        <span class="align-items-start">
-            <i class="fa fa-fw fa-{{ or .icon_name `folder-o` }} mr-1"></i>
-            {{ or .description .id }}
-        </span>
-
-        <div class="d-flex align-items-end">
-            <script type="text/javascript" id="share_{{ $current }}_stats">
-                byteflood.replaceWith(
-                    '#share_{{ $current }}_stats',
-                    '/shares/_peer_share_stats?session={{ qs `session` }}&share={{ .id }}'
-                );
-            </script>
-
-            <div class="bf-share-actions d-flex flex-column align-self-start justify-content-between">
-                {{ if not (qs `session`) }}
-                <i
-                    class="align-self-center action action-remove fa fa-fw fa-remove"
-                    title="Delete"
-                    onclick="byteflood.delete('shares', '{{ .id }}')"
-                ></i>
-                {{ end }}
-
-                {{ if .blocklist }}
-                <i class="align-self-center fa fa-fw fa-lock"
-                    title="Access to this share is restricted by a blocklist."
-                ></i>
-                {{ end }}
-            </div>
-        </div>
-    </button>
-    {{ end }}
-    {{ else }}
-    <a class="list-group-item disabled">
-        <i>No shares available.</i>
+        <i class="fa fa-fw fa-{{ or .icon_name `folder-o` }} mr-1"></i>
+        {{ or .description .id }}
     </a>
-    {{ end }}
-</div>
+    <div class="dropdown-menu">
+        <a class="dropdown-item" href="#">Local</a>
+        <div class="dropdown-divider"></div>
+        {{ range .bindings.sessions }}
+        <a class="dropdown-item" href="#">{{ .name }}</a>
+        {{ end }}
+    </div>
+</li>
+{{ end }}
+{{ end }}

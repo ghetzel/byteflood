@@ -45,93 +45,8 @@ $(function(){
 });
 </script>
 
-<div class="w-100 d-flex align-items-baseline justify-content-between">
-  <nav class="d-flex align-items-baseline">
-    {{ if .bindings.results.total_pages }}
-    {{ if gt (asInt .bindings.results.total_pages) 1 }}
-    <ul class="pagination pagination-sm" aria-label="Share page navigation">
-      <li class="page-item{{ if eqx $page 1 }} disabled{{ end }}">
-        <a
-          class="page-link"
-          aria-label="Previous"
-          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ subtract $page 1 }}{{ if $parent }}&amp;parent={{ $parent }}{{ end }}{{ if $grandparent }}&amp;grandparent={{ $grandparent }}{{ end }}"
-          tabindex="-1"
-        >
-          &laquo;
-        </a>
-      </li>
-      {{ range $index, $i := sequence .bindings.results.total_pages }}
-      <li class="page-item{{ if eqx $page (add $index 1) }} active{{ end }}">
-        <a
-          class="page-link"
-          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $index 1 }}{{ if $parent }}&amp;parent={{ $parent }}{{ end }}{{ if $grandparent }}&amp;grandparent={{ $grandparent }}{{ end }}"
-        >
-          {{ if eqx $page (add $index 1) }}
-          <span class="sr-only">(current)</span>
-          {{ end }}
-          {{ add $index 1 }}
-        </a>
-      </li>
-      {{ end }}
-
-      <li class="page-item{{ if eqx (add $page 1) (add .bindings.results.total_pages 1) }} disabled{{ end }}">
-        <a
-          class="page-link"
-          aria-label="Next"
-          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $page 1 }}{{ if $parent }}&amp;parent={{ $parent }}{{ end }}{{ if $grandparent }}&amp;grandparent={{ $grandparent }}{{ end }}"
-          tabindex="-1"
-        >
-          &raquo;
-        </a>
-      </li>
-    </ul>
-    {{ end }}
-    {{ end }}
-
-    {{ if .bindings.results }}
-    {{ if .bindings.results.records }}
-    <ul class="navbar">
-      <li class="navbar-text">
-        Showing {{ len .bindings.results.records }}{{ if gt (asInt .bindings.results.total_pages) 1 }} of {{ .bindings.results.result_count }}{{ end }} results
-      </li>
-    </ul>
-    {{ end }}
-    {{ end }}
-  </nav>
-
-  <nav class="navbar navbar-light">
-    <ul class="navbar-nav flex-row">
-      {{ if not $session }}
-      <li class="nav-item">
-        <a
-          class="nav-link"
-          href="/shares/edit?id={{ $share }}"
-          title="Edit this share."
-        >
-          <i class="fa fa-pencil"></i>
-          Edit
-        </a>
-      </li>
-
-      <li class="nav-item">
-        <a
-          class="nav-link"
-          href="#"
-
-          title="Delete this share."
-        >
-          <i class="fa fa-remove"></i>
-          Delete
-        </a>
-      </li>
-      {{ end }}
-    </ul>
-  </nav>
-</div>
-
-{{ if .bindings.results }}
-<div class="card">
-  <div class="card-header">
+<div class="w-100 d-flex">
+  <span class="navbar-text">
     <b>
       Browsing: <a href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}{{ end }}">{{ or .bindings.share.description .bindings.share.id }}</a>
       {{ if $parent }}
@@ -145,51 +60,78 @@ $(function(){
         {{ end }}
       {{ end }}
     </b>
-  </div>
+  </span>
+</div>
 
-  <nav class="navbar navbar-light bg-faded flex-row justify-content-between">
-    <ul class="navbar-nav flex-row">
-      {{ if $parent }}
-      <li class="nav-item">
-        <a
-          class="nav-link"
-          href="/shares/?share={{ $share }}{{ if $grandparent }}&amp;parent={{ $grandparent }}{{ end }}{{ if $session }}&amp;session={{ $session }}{{ end }}"
-          title="Navigate to the directory above this one."
-        >
-          <i class="fa fa-fw fa-level-up"></i>
-          Up
-        </a>
-      </li>
-      {{ end }}
-    </ul>
+<nav class="navbar navbar-light d-flex flex-row justify-content-between">
+  <ul class="navbar-nav flex-row">
+    <li class="nav-item">
+      <a
+        class="nav-link{{ if not $parent }} disabled{{ end }}"
+        {{ if $parent }}
+        href="/shares/?share={{ $share }}{{ if $grandparent }}&amp;parent={{ $grandparent }}{{ end }}{{ if $session }}&amp;session={{ $session }}{{ end }}"
+        {{ end }}
+        title="Navigate to the directory above this one."
+      >
+        <i class="fa fa-fw fa-level-up"></i>
+        Up
+      </a>
+    </li>
+    {{ if $session }}
+    <li class="nav-item">
+      <a
+        class="nav-link"
+        href="/subscriptions/edit?id=new&amp;name={{ $share }}&amp;source={{ $peer }}"
+        title="Download this directory and monitor it for changes on an ongoing basis."
+      >
+        <i class="fa fa-fw fa-plus-square"></i>
+        Subscribe
+      </a>
+    </li>
+    {{ end }}
 
-    <ul class="navbar-nav flex-row">
-      {{ if $session }}
-      <li class="nav-item">
-        <a
-          class="nav-link"
-          href="/subscriptions/edit?id=new&amp;name={{ $share }}&amp;source={{ $peer }}"
-          title="Download this directory and monitor it for changes on an ongoing basis."
-        >
-          <i class="fa fa-fw fa-plus-square"></i>
-          Subscribe
-        </a>
-      </li>
-      {{ end }}
+    <li class="nav-item">
+      <a
+        class="nav-link disabled"
+        href="#"
+        title="Perform a one-time download of this directory."
+      >
+        <i class="fa fa-fw fa-cloud-download"></i>
+        Fetch
+      </a>
+    </li>
+  </ul>
 
-      <li class="nav-item">
-        <a
-          class="nav-link disabled"
-          href="#"
-          title="Perform a one-time download of this directory."
-        >
-          <i class="fa fa-fw fa-cloud-download"></i>
-          Fetch
-        </a>
-      </li>
-    </ul>
-  </nav>
+  {{ if not $session }}
+  <ul class="navbar-nav flex-row">
+    <li class="nav-item">
+      <a
+        class="nav-link"
+        href="/shares/edit?id={{ $share }}"
+        title="Edit this share."
+      >
+        <i class="fa fa-pencil"></i>
+        Edit
+      </a>
+    </li>
 
+    <li class="nav-item">
+      <a
+        class="nav-link"
+        href="#"
+
+        title="Delete this share."
+      >
+        <i class="fa fa-remove"></i>
+        Delete
+      </a>
+    </li>
+  </ul>
+  {{ end }}
+</nav>
+
+{{ if .bindings.results }}
+<div class="card">
   {{ if .bindings.results.records }}
     {{ $page := .bindings.results.page }}
     {{ $perPage := .bindings.results.records_per_page }}
@@ -205,7 +147,14 @@ $(function(){
     <tbody>
       {{ range .bindings.results.records }}
       <tr>
-        <td {{ if .fields.directory }}class="cursor-pointer" onclick="window.location='/shares/?share={{ $share }}&amp;parent={{ .id }}&amp;session={{ $session }}&amp;grandparent={{ $parent }}'"{{ end }}>
+        <td
+          class="clickable"
+          {{ if .fields.directory }}
+          onclick="location.href='/shares/?share={{ $share }}&amp;parent={{ .id }}&amp;session={{ $session }}&amp;grandparent={{ $parent }}'"
+          {{ else }}
+          onclick="location.href='/api{{ if $session }}/sessions/{{ $session }}{{ end }}/files/{{ .id }}?mimetype={{ .fields.metadata.file.mime.type }}&amp;inline=true'"
+          {{ end }}
+        >
           {{ if .fields.directory }}
           <i class="fa fa-fw fa-folder"></i>
           <a href="/shares/?share={{ $share }}&amp;parent={{ .id }}&amp;session={{ $session }}&amp;grandparent={{ $parent }}">{{ .fields.metadata.file.name }}</a>
@@ -224,7 +173,7 @@ $(function(){
             <i class="fa fa-fw fa-file-o"></i>
           {{ end }}
 
-          {{ .fields.metadata.file.name }}
+            {{ .fields.metadata.file.name }}
           {{ end }}
         </td>
         <td class="hidden-md-down">
@@ -272,7 +221,57 @@ $(function(){
     </tbody>
   </table>
 
-  <div class="card-footer d-flex justify-content-between">
+  <div class="card-footer w-100 d-flex justify-content-between pb-0inlin">
+    {{ if .bindings.results.total_pages }}
+    {{ if gt (asInt .bindings.results.total_pages) 1 }}
+    <ul class="pagination pagination-sm" aria-label="Share page navigation">
+      <li class="page-item{{ if eqx $page 1 }} disabled{{ end }}">
+        <a
+          class="page-link"
+          aria-label="Previous"
+          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ subtract $page 1 }}{{ if $parent }}&amp;parent={{ $parent }}{{ end }}{{ if $grandparent }}&amp;grandparent={{ $grandparent }}{{ end }}"
+          tabindex="-1"
+        >
+          &laquo;
+        </a>
+      </li>
+      {{ range $index, $i := sequence .bindings.results.total_pages }}
+      <li class="page-item{{ if eqx $page (add $index 1) }} active{{ end }}">
+        <a
+          class="page-link"
+          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $index 1 }}{{ if $parent }}&amp;parent={{ $parent }}{{ end }}{{ if $grandparent }}&amp;grandparent={{ $grandparent }}{{ end }}"
+        >
+          {{ if eqx $page (add $index 1) }}
+          <span class="sr-only">(current)</span>
+          {{ end }}
+          {{ add $index 1 }}
+        </a>
+      </li>
+      {{ end }}
+
+      <li class="page-item{{ if eqx (add $page 1) (add .bindings.results.total_pages 1) }} disabled{{ end }}">
+        <a
+          class="page-link"
+          aria-label="Next"
+          href="/shares/?share={{ $share }}{{ if $session }}&amp;session={{ $session }}&amp;peer={{ $peer }}{{ end }}&amp;page={{ add $page 1 }}{{ if $parent }}&amp;parent={{ $parent }}{{ end }}{{ if $grandparent }}&amp;grandparent={{ $grandparent }}{{ end }}"
+          tabindex="-1"
+        >
+          &raquo;
+        </a>
+      </li>
+    </ul>
+    {{ end }}
+    {{ end }}
+
+    {{ if .bindings.results }}
+    {{ if .bindings.results.records }}
+    <ul class="m-0 p-0">
+      <li class="navbar-text">
+        Showing {{ len .bindings.results.records }}{{ if gt (asInt .bindings.results.total_pages) 1 }} of {{ .bindings.results.result_count }}{{ end }} results
+      </li>
+    </ul>
+    {{ end }}
+    {{ end }}
   </div>
   {{ else }}
   <div class="card-block">

@@ -109,6 +109,7 @@ $(function(){
                         element.attr('bf-load'), {
                             'interval': element.attr('bf-interval'),
                             'onload': element.attr('bf-onload'),
+                            'replace': (element.attr('bf-replace') === 'true'),
                             'params': params,
                         });
 
@@ -394,33 +395,31 @@ $(function(){
 
         load: function(){
             if(this.url) {
-                var params = '';
+                $.ajax(this.url, {
+                    method:  (this.options.method || 'get'),
+                    data:    this.options.params,
+                    success: function(body, status, xhr){
+                        var el = $(this.element);
 
-                if($.isPlainObject(this.options.params)){
-                    var qs = [];
+                        if(xhr.status < 400){
+                            if(this.options.onload){
+                                eval(this.options.onload);
+                            }
 
-                    $.each(this.options.params, function(k, v){
-                        qs.push(k + '=' + encodeURIComponent(v));
-                    })
-
-                    if(qs.length) {
-                        params = '?' + qs.join('&');
-                    }
-                }
-
-                $(this.element).load(this.url+params, null, function(response, status, xhr){
-                    if(xhr.status < 400){
-                        if(this.options.onload){
-                            eval(this.options.onload);
-                        }
-                    }else{
-                        if(this.options.onerror){
-                            eval(this.options.onerror);
+                            if(this.options.replace === true){
+                                el.replaceWith(body);
+                            }else{
+                                el.html(body)
+                            }
                         }else{
-                            this.clear();
+                            if(this.options.onerror){
+                                eval(this.options.onerror);
+                            }else{
+                                this.clear();
+                            }
                         }
-                    }
-                }.bind(this));
+                    }.bind(this),
+                });
             }
         },
 

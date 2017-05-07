@@ -34,7 +34,9 @@ bindings:
       <tbody>
         {{ range $results.records }}
         <tr>
-          <td>
+          <td
+            onclick="location.href='/api{{ if $session }}/sessions/{{ $session }}{{ end }}/files/{{ .id }}?mimetype={{ .fields.metadata.file.mime.type }}&amp;inline=true'"
+          >
             {{ if .fields.directory }}
             <i class="fa fa-fw fa-folder"></i>
             {{ .fields.name }}

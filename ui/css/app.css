@@ -288,3 +288,7 @@ form label.required {
             user-select: none; /* Non-prefixed version, currently
                                   supported by Chrome and Opera */
 }
+
+.clickable {
+    cursor: pointer;
+}
