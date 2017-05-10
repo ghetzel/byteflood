@@ -169,7 +169,10 @@ func createApplication(c *cli.Context) (*byteflood.Application, error) {
 			app.PublicKeyPath = c.GlobalString(`private-key`)
 		}
 
-		app.Database.SkipMigrate = c.Bool(`skip-db-checks`)
+		if c.Bool(`skip-db-checks`) {
+			app.Database.SkipMigrate = true
+			log.Warning("Database schema integrity checks are being skipped.")
+		}
 
 		if err := app.Initialize(); err == nil {
 			signalChan := make(chan os.Signal, 1)
