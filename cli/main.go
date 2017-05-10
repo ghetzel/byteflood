@@ -140,7 +140,7 @@ func main() {
 				database = a.Database
 				application.LocalPeer.Address = c.String(`peer-address`)
 			} else {
-				return err
+				log.Fatal(err)
 			}
 		}
 
