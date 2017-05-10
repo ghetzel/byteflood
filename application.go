@@ -136,6 +136,8 @@ func (self *Application) Initialize() error {
 
 	// initialize and open database
 	// --------------------------------------------------------------------------------------------
+	log.Debugf("Initializing database...")
+
 	if err := self.Database.Initialize(); err != nil {
 		return err
 	}
