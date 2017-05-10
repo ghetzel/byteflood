@@ -16,10 +16,10 @@ defaults:
                 </a>
                 <div class="dropdown-menu">
                     <h6 class="dropdown-header">Available Peers</h6>
-                    <a class="dropdown-item" href="#">Local</a>
+                    <a class="dropdown-item" href="/shares/">Local</a>
                     <div class="dropdown-divider"></div>
                     {{ range .bindings.sessions }}
-                    <a class="dropdown-item" href="#">{{ .name }}</a>
+                    <a class="dropdown-item" href="/shares/?session={{ .session_id }}">{{ .name }}</a>
                     {{ end }}
                 </div>
             </li>
@@ -29,6 +29,8 @@ defaults:
                 bf-replace="true"
                 bf-param-share="{{ qs `share` }}"
                 bf-param-active="{{ $active }}"
+                bf-param-session="{{ qs `session` }}"
+                bf-param-peer="{{ qs `peer` }}"
             >
             </div>
         </ul>

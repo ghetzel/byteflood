@@ -27,7 +27,7 @@ bindings:
           {{ $i := indexOf (pluck .bindings.stats "name") "byteflood.db.total_bytes" }}
           {{ if gt $i 0 }}
             {{ $s := index .bindings.stats $i }}
-            {{ autobyte (or $s.statistics.sum 0) "%.1f" }}
+            {{ autobyte (or $s.statistics.last 0) "%.1f" }}
           {{ end }}
         </h3>
       </div>
@@ -42,7 +42,7 @@ bindings:
           {{ $i := indexOf (pluck .bindings.stats "name") "byteflood.db.file_count" }}
           {{ if gt $i 0 }}
             {{ $s := index .bindings.stats $i }}
-            {{ thousandify (or $s.statistics.sum 0) }}
+            {{ thousandify (or $s.statistics.last 0) }}
           {{ end }}
         </h3>
       </div>
