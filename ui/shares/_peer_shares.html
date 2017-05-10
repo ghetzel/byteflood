@@ -28,4 +28,11 @@ bindings:
     </div>
 </li>
 {{ end }}
+{{ if not (qs `session`) }}
+<li class="nav-item">
+    <a class="nav-link" href="/shares/edit">
+      <i class="fa fa-plus"></i>
+    </a>
+</li>
+{{ end }}
 {{ end }}

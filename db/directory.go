@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/ghetzel/byteflood/stats"
+	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
-	"github.com/sabhiram/go-gitignore"
 )
 
 type Directory struct {
@@ -27,7 +27,7 @@ type Directory struct {
 	DeepScan             bool         `json:"deep_scan,omitempty"`
 	Directories          []*Directory `json:"-"`
 	FileCount            int          `json:"file_count"`
-	compiledIgnoreList   *ignore.GitIgnore
+	compiledIgnoreList   *util.GitIgnore
 }
 
 func GetScannedDirectories() ([]*Directory, error) {
@@ -75,15 +75,6 @@ func (self *Directory) Initialize() error {
 		self.Parent = RootDirectoryName
 	}
 
-	// file pattern matching
-	if self.FilePattern != `` {
-		if ig, err := ignore.CompileIgnoreLines(strings.Split(self.FilePattern, "\n")...); err == nil {
-			self.compiledIgnoreList = ig
-		} else {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -96,6 +87,15 @@ func (self *Directory) ContainsPath(name string) bool {
 }
 
 func (self *Directory) Scan() error {
+	// file pattern matching
+	if self.FilePattern != `` {
+		if ig, err := util.NewGitIgnoreLines(strings.Split(self.FilePattern, "\n")); err == nil {
+			self.compiledIgnoreList = ig
+		} else {
+			return err
+		}
+	}
+
 	if entries, err := ioutil.ReadDir(self.Path); err == nil {
 		for _, entry := range entries {
 			absPath := path.Join(self.Path, entry.Name())
@@ -139,7 +139,7 @@ func (self *Directory) Scan() error {
 
 			// if an ignore list is in effect for this directory
 			if self.compiledIgnoreList != nil {
-				if self.compiledIgnoreList.MatchesPath(relPath) {
+				if !self.compiledIgnoreList.ShouldKeep(relPath, entry.Mode().IsDir()) {
 					log.Debugf("[%s] Ignoring entry %s", self.ID, relPath)
 					self.cleanupMissingEntries(map[string]interface{}{`id`: self.ID}, true)
 					continue
@@ -405,7 +405,7 @@ func (self *Directory) cleanupMissingEntries(query interface{}, force bool) erro
 				}
 
 				if self.compiledIgnoreList != nil {
-					if self.compiledIgnoreList.MatchesPath(entry.RelativePath) {
+					if !self.compiledIgnoreList.ShouldKeep(entry.RelativePath, entry.IsDirectory) {
 						entriesToDelete = append(entriesToDelete, entry.ID)
 						reportEntryDeletionStats(self.ID, &entry)
 						continue

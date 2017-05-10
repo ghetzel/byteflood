@@ -14,13 +14,17 @@ var ScannedDirectories mapper.Mapper
 var Subscriptions mapper.Mapper
 
 var Schema = map[string]*dal.Collection{
-	`directories`:   ScannedDirectoriesSchema,
-	`downloads`:     DownloadsSchema,
-	`peers`:         AuthorizedPeersSchema,
-	`shares`:        SharesSchema,
-	`subscriptions`: SubscriptionsSchema,
-	`properties`:    SystemSchema,
-	`metadata`:      MetadataSchema,
+	`shares`:              SharesSchema,
+	`metadata`:            MetadataSchema,
+	`downloads`:           DownloadsSchema,
+	`authorized_peers`:    AuthorizedPeersSchema,
+	`system`:              SystemSchema,
+	`scanned_directories`: ScannedDirectoriesSchema,
+	`subscriptions`:       SubscriptionsSchema,
+	// aliases
+	`directories`: ScannedDirectoriesSchema,
+	`peers`:       AuthorizedPeersSchema,
+	`properties`:  SystemSchema,
 }
 
 var Models = map[string]mapper.Mapper{}

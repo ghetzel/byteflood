@@ -343,13 +343,18 @@ func (self *Database) setupSchemata() error {
 	Subscriptions = mapper.NewModel(self.db, SubscriptionsSchema)
 	System = mapper.NewModel(self.db, SystemSchema)
 
-	Models[`directories`] = ScannedDirectories
-	Models[`downloads`] = Downloads
-	Models[`peers`] = AuthorizedPeers
 	Models[`shares`] = Shares
-	Models[`subscriptions`] = Subscriptions
-	Models[`properties`] = System
 	Models[`metadata`] = Metadata
+	Models[`downloads`] = Downloads
+	Models[`authorized_peers`] = AuthorizedPeers
+	Models[`system`] = System
+	Models[`scanned_directories`] = ScannedDirectories
+	Models[`subscriptions`] = Subscriptions
+
+	// aliases
+	Models[`directories`] = ScannedDirectories
+	Models[`peers`] = AuthorizedPeers
+	Models[`properties`] = System
 
 	// set global default DB instance to us
 	Instance = self

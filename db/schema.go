@@ -12,7 +12,6 @@ import (
 	"github.com/ghetzel/go-stockutil/typeutil"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/filter"
-	"github.com/sabhiram/go-gitignore"
 )
 
 var MetadataSchema = &dal.Collection{
@@ -257,7 +256,7 @@ var ScannedDirectoriesSchema = &dal.Collection{
 				}
 			},
 			Validator: func(value interface{}) error {
-				_, err := ignore.CompileIgnoreLines(strings.Split(fmt.Sprintf("%v", value), "\n")...)
+				_, err := util.NewGitIgnoreLines(strings.Split(fmt.Sprintf("%v", value), "\n"))
 				return err
 			},
 		}, {
