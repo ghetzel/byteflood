@@ -20,7 +20,7 @@ func subcommandsShares() []cli.Command {
 			Usage: `Manage shared files`,
 			Subcommands: []cli.Command{
 				{
-					Name:      `show`,
+					Name:      `list`,
 					ArgsUsage: `[NAME ..]`,
 					Usage:     `List shares.`,
 					Action: func(c *cli.Context) {

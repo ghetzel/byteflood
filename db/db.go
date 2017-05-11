@@ -257,6 +257,10 @@ func (self *Database) Cleanup() error {
 		return err
 	}
 
+	if len(ids) == 0 {
+		return fmt.Errorf("Preventing cleanup of empty directory set.")
+	}
+
 	log.Debugf("Cleaning up...")
 
 	// cleanup files whose parent label no longer exists

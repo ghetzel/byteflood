@@ -6,7 +6,6 @@ bindings:
 defaults:
   view: files
 ---
-{{ $active := print (qs `session` `local`) `_` (qs `share`) }}
 <div class="row">
     <div class="col-sm-12 col-lg-9">
         <ul class="nav nav-tabs">
@@ -28,7 +27,7 @@ defaults:
                 bf-load="/shares/_peer_shares"
                 bf-replace="true"
                 bf-param-share="{{ qs `share` }}"
-                bf-param-active="{{ $active }}"
+                bf-param-active="{{ print (qs `session` `local`) `_` (qs `share`) }}"
                 bf-param-session="{{ qs `session` }}"
                 bf-param-peer="{{ qs `peer` }}"
             >
@@ -76,20 +75,24 @@ defaults:
 {{ if qs `share` }}
 <script type="text/javascript">
   $(function(){
-    qs = {
-      'limit': 25,
+    window.reloadShareBrowser = function() {
+        qs = {
+          'limit': 25,
+        };
+
+        location.search.slice(1).split('&').map(function(i){
+          var x = i.split('=');
+          qs[x[0]] = x.splice(1).join('=');
+          return [x[0], x.splice(1).join('=')];
+        });
+
+        byteflood.loadInto('#share-browser', '/shares/_peer_browse_{{ qs `view` }}', {
+          params: qs,
+          error:  false,
+        });
     };
 
-    location.search.slice(1).split('&').map(function(i){
-      var x = i.split('=');
-      qs[x[0]] = x.splice(1).join('=');
-      return [x[0], x.splice(1).join('=')];
-    });
-
-    byteflood.loadInto('#share-browser', '/shares/_peer_browse_{{ qs `view` }}', {
-      params: qs,
-      error:  false,
-    });
+    reloadShareBrowser();
   })
 </script>
 {{ end }}

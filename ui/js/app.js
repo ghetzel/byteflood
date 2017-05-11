@@ -45,6 +45,8 @@ $(function(){
 
     var Byteflood = Stapes.subclass({
         constructor: function(){
+            window.location.url = new Url;
+
             // prevent normal form submissions, we'll handle them here
             $('form').on('submit', function(e){
                 this.submitForm(e);

@@ -19,6 +19,10 @@ func subcommandsApp() []cli.Command {
 					Usage: `The path to the UI directory.`,
 					Value: byteflood.DefaultUiDirectory,
 				},
+				cli.BoolTFlag{
+					Name:  `scan-on-start, S`,
+					Usage: `Perform a database scan on application startup.`,
+				},
 				cli.BoolFlag{
 					Name:  `upnp, u`,
 					Usage: `Automatically forward this port using UPnP`,
@@ -35,6 +39,12 @@ func subcommandsApp() []cli.Command {
 			Action: func(c *cli.Context) {
 				application.API.UiDirectory = c.String(`ui-dir`)
 				application.LocalPeer.EnableUpnp = c.Bool(`upnp`)
+
+				if c.Bool(`scan-on-start`) {
+					if err := application.Scan(false); err != nil {
+						log.Errorf("Startup scan failed: %v", err)
+					}
+				}
 
 				if err := application.Run(); err != nil {
 					log.Fatal(err)

@@ -11,7 +11,7 @@ func subcommandsSubscriptions() []cli.Command {
 			Usage: `Manage subscriptions to other peer's content.`,
 			Subcommands: []cli.Command{
 				{
-					Name:      `show`,
+					Name:      `list`,
 					ArgsUsage: `[NAME ..]`,
 					Usage:     `List subscriptions`,
 					Action: func(c *cli.Context) {

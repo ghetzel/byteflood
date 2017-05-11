@@ -109,8 +109,6 @@ func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
 
 					switch req.Method {
 					case `GET`:
-						log.Debugf("User-Agent: %v", req.Header.Get(`User-Agent`))
-
 						// actually write the data to the response
 						if _, err := io.Copy(outputWriter, osFile); err != nil {
 							log.Error(err)

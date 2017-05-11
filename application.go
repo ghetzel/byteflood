@@ -330,8 +330,8 @@ func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
 func (self *Application) startPeriodicMonitoring() {
 	go self.collectQueueStats(2 * time.Second)
 	go self.collectPeerStats(10 * time.Second)
-	go self.collectShareStats(5 * time.Minute)
-	go self.collectDatabaseStats(5 * time.Minute)
+	go self.collectShareStats(1 * time.Minute)
+	go self.collectDatabaseStats(1 * time.Minute)
 
 	select {}
 }

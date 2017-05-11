@@ -8,11 +8,21 @@ bindings:
     sort:   '{{ .request.url.query.sort }}'
 ---
 {{ if .bindings.shares }}
-{{ range .bindings.shares }}
-    {{ $current := print (qs `session` `local`) `_` .id }}
+{{   if not (qs `share`) }}
+{{     $share := (index .bindings.shares 0).id }}
+{{     if $share }}
+    <script type="text/javascript">
+        location.href = '/shares/?share={{ $share }}&session={{ qs `session` }}&peer={{ qs `peer` }}';
+    </script>
+{{     else }}
+    No shares available.
+{{     end }}
+{{   else }}
+{{     range .bindings.shares }}
+    {{ $_current := print (qs `session` `local`) `_` .id }}
 <li class="nav-item">
     <a
-        class="nav-link{{ if eqx $current (qs `active`) }} active{{ end }}"
+        class="nav-link{{ if eqx $_current (qs `active`) }} active{{ end }}"
         href="/shares/?share={{ .id }}{{ if qs `session` }}&amp;session={{ qs `session` }}&amp;peer={{ qs `peer` }}{{ end }}"
         role="button"
     >
@@ -27,12 +37,13 @@ bindings:
         {{ end }}
     </div>
 </li>
-{{ end }}
-{{ if not (qs `session`) }}
+{{     end }}
+{{     if not (qs `session`) }}
 <li class="nav-item">
     <a class="nav-link" href="/shares/edit">
       <i class="fa fa-plus"></i>
     </a>
 </li>
-{{ end }}
+{{     end }}
+{{   end }}
 {{ end }}

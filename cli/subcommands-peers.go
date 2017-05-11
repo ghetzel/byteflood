@@ -22,7 +22,7 @@ func subcommandsPeers() []cli.Command {
 			Usage: `Manage peer authorizations and access.`,
 			Subcommands: []cli.Command{
 				{
-					Name:      `show`,
+					Name:      `list`,
 					ArgsUsage: `[NAME ..]`,
 					Usage:     `List authorized peers`,
 					Action: func(c *cli.Context) {
@@ -209,7 +209,7 @@ func subcommandsPeers() []cli.Command {
 
 									if len(parts) > 1 {
 										if rs, err := api.QueryShare(shareID, map[string]interface{}{
-											`name`: fmt.Sprintf("/%s", strings.Join(parts[1:], `/`)),
+											`parent`: fmt.Sprintf("/%s", strings.Join(parts[1:], `/`)),
 										}, 1, 0, []string{
 											`-directory`,
 											`name`,
