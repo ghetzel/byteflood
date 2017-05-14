@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/ghetzel/byteflood/db/metadata"
 	"github.com/ghetzel/go-stockutil/maputil"
@@ -50,6 +51,7 @@ func NewEntry(label string, root string, name string) *Entry {
 
 	return &Entry{
 		ID:           FileIdFromName(label, normFileName),
+		Label:        label,
 		RelativePath: normFileName,
 		Metadata:     make(map[string]interface{}),
 		InitialPath:  name,
@@ -58,6 +60,14 @@ func NewEntry(label string, root string, name string) *Entry {
 
 func (self *Entry) Info() os.FileInfo {
 	return self.info
+}
+
+func (self *Entry) LastModifiedTime() time.Time {
+	if self.LastModifiedAt == 0 {
+		return time.Time{}
+	} else {
+		return time.Unix(0, self.LastModifiedAt)
+	}
 }
 
 func (self *Entry) LoadMetadata() error {

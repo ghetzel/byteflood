@@ -233,6 +233,8 @@ func (self *Application) Run() error {
 	// setup periodic share stats calculaton
 	go self.startPeriodicMonitoring()
 
+	go self.Database.PollDirectories()
+
 	stats.Increment(`byteflood.app.started`)
 
 	select {

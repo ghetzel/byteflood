@@ -5,8 +5,10 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/ghetzel/byteflood/db/metadata"
+	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/pivot"
@@ -382,4 +384,46 @@ func (self *Database) setupSchemata() error {
 	}
 
 	return nil
+}
+
+func (self *Database) PollDirectories() {
+	for {
+		if !self.ScanInProgress {
+			var scannedDirectories []Directory
+
+			if err := ScannedDirectories.All(&scannedDirectories); err == nil {
+				for _, dir := range scannedDirectories {
+					lastCheckedAt := util.StartedAt
+
+					if tm := dir.GetLatestModifyTime(); !tm.IsZero() {
+						lastCheckedAt = tm
+					}
+
+					// log.Debugf("[%v] Checking for file changes since %v", dir.ID, lastCheckedAt)
+
+					if err := dir.WalkModifiedSince(lastCheckedAt, func(entry *Entry, isNew bool) error {
+						if absPath, err := entry.GetAbsolutePath(); err == nil {
+							if isNew {
+								log.Noticef("[%v] Created: %v (%v)", dir.ID, absPath, entry.LastModifiedTime())
+							} else {
+								log.Infof("[%v] Changed: %v (%v)", dir.ID, absPath, entry.LastModifiedTime())
+							}
+
+							if err := dir.ScanPath(absPath); err != nil {
+								log.Warningf("[%v] Error scanning %v: %v", dir.ID, absPath, err)
+							}
+						} else {
+							log.Warningf("[%v] %v", dir.ID, err)
+						}
+
+						return nil
+					}); err != nil {
+						log.Warningf("Failed to traverse %v: %v", dir.ID, err)
+					}
+				}
+			}
+		}
+
+		time.Sleep(10 * time.Second)
+	}
 }

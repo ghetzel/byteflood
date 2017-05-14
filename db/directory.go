@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -30,6 +31,8 @@ type Directory struct {
 	compiledIgnoreList   *util.GitIgnore
 }
 
+var SkipEntry = errors.New("skip entry")
+
 func GetScannedDirectories() ([]*Directory, error) {
 	var dirs []*Directory
 
@@ -42,13 +45,23 @@ func GetScannedDirectories() ([]*Directory, error) {
 
 var RootDirectoryName = `root`
 
-type WalkEntryFunc func(entry *Entry) error // {}
+type WalkEntryFunc func(entry *Entry, isNew bool) error // {}
 
 // Constructor is called when creating a new instance via the mapper.Mapper.NewInstance() method.
 // We're using it here because the ID is calculated from the value of other fields.
 func (self *Directory) Constructor() interface{} {
 	if self.ID == `` && self.Path != `` {
 		self.ID = path.Base(self.Path)
+	}
+
+	if self.RootPath == `` {
+		self.RootPath = self.Path
+	}
+
+	self.RootPath = strings.TrimSuffix(self.RootPath, `/`)
+
+	if self.Parent == `` {
+		self.Parent = RootDirectoryName
 	}
 
 	return self
@@ -65,161 +78,240 @@ func (self *Directory) Initialize() error {
 		}
 	}
 
-	if self.RootPath == `` {
-		self.RootPath = self.Path
+	self.Constructor()
+
+	return nil
+}
+
+func (self *Directory) ContainsPath(absPath string, fileStats ...os.FileInfo) bool {
+	relPath := strings.TrimPrefix(absPath, self.RootPath)
+
+	// perform a simple "does this path start with this directory's path" check before symlink deref
+	if !strings.HasPrefix(path.Clean(absPath), path.Clean(self.Path)) {
+		return false
 	}
 
-	self.RootPath = strings.TrimSuffix(self.RootPath, `/`)
+	fileStat, err := variadicStatPath(absPath, fileStats)
 
-	if self.Parent == `` {
-		self.Parent = RootDirectoryName
+	if err != nil {
+		return false
+	}
+
+	// if we're following symlinks, dereference it first to make sure we can.
+	if pathutil.IsSymlink(fileStat.Mode()) {
+		if self.FollowSymlinks {
+			// verify the symlink is readabled, expanded, and ready to scan
+			if realpath, err := os.Readlink(absPath); err == nil {
+				if realAbsPath, err := filepath.Abs(path.Join(self.Path, realpath)); err == nil {
+					if realstat, err := os.Stat(realAbsPath); err == nil {
+						log.Infof("[%s] Following symbolic link %s -> %s", self.ID, absPath, realAbsPath)
+						fileStat = realstat
+					} else {
+						log.Warningf("[%s] Error reading target of symbolic link %s: %v", self.ID, realAbsPath, err)
+						return false
+					}
+				} else {
+					log.Warningf("[%s] Error following symbolic link %s: %v", self.ID, realpath, err)
+					return false
+				}
+			} else {
+				log.Warningf("[%s] Error reading symbolic link %s: %v", self.ID, fileStat.Name(), err)
+				return false
+			}
+		} else {
+			log.Infof("[%s] Skipping symbolic link %s", self.ID, absPath)
+			return false
+		}
+	}
+
+	self.populateIgnoreList()
+
+	// if an ignore list is in effect for this directory, verify our file isn't in it
+	if self.compiledIgnoreList != nil {
+		if !self.compiledIgnoreList.ShouldKeep(relPath, fileStat.Mode().IsDir()) {
+			return false
+		}
+	}
+
+	// if we just got though all that, we belong here
+	return true
+}
+
+func (self *Directory) GetLatestModifyTime() time.Time {
+	if f, err := ParseFilter(map[string]interface{}{
+		`label`: self.ID,
+	}); err == nil {
+		if epochNs, err := Metadata.Maximum(`last_modified_at`, f); err == nil {
+			return time.Unix(0, int64(epochNs))
+		} else {
+			panic(err.Error())
+		}
+	} else {
+		panic(err.Error())
+	}
+
+	return time.Time{}
+}
+
+func (self *Directory) GetParentFromPath(relPath string) (string, error) {
+	parentName := strings.TrimPrefix(path.Dir(relPath), self.Path)
+
+	if parentName == `/` {
+		parentName = RootDirectoryName
+	}
+
+	if f, err := ParseFilter(map[string]interface{}{
+		`label`: self.ID,
+		`name`:  fmt.Sprintf("is:%v", parentName),
+	}); err == nil {
+		var results []*Entry
+
+		if err := Metadata.Find(f, &results); err == nil {
+			if l := len(results); l == 1 {
+				return fmt.Sprintf("%v", results[0].ID), nil
+			} else {
+				return ``, fmt.Errorf("Failed to get parent ID: expected 1 result, got: %d", l)
+			}
+		} else {
+			return ``, fmt.Errorf("Failed to get parent ID: %v", err)
+		}
+	} else {
+		return ``, fmt.Errorf("Failed to get parent ID: %v", err)
+	}
+}
+
+func (self *Directory) populateIgnoreList() error {
+	// file pattern matching
+	if self.FilePattern != `` {
+		if self.compiledIgnoreList == nil {
+			if ig, err := util.NewGitIgnoreLines(strings.Split(self.FilePattern, "\n")); err == nil {
+				self.compiledIgnoreList = ig
+			} else {
+				return err
+			}
+		}
 	}
 
 	return nil
 }
 
-func (self *Directory) ContainsPath(name string) bool {
-	if strings.HasPrefix(path.Clean(name), path.Clean(self.Path)) {
-		return true
+func (self *Directory) Scan() error {
+	if err := self.populateIgnoreList(); err != nil {
+		return err
 	}
 
-	return false
+	if stats, err := ioutil.ReadDir(self.Path); err == nil {
+		for _, fileStat := range stats {
+			if err := self.ScanPath(
+				path.Join(self.Path, fileStat.Name()),
+				fileStat,
+			); err == SkipEntry {
+				continue
+			} else if err != nil {
+				return err
+			}
+		}
+	} else {
+		return err
+	}
+
+	return nil
 }
 
-func (self *Directory) Scan() error {
-	// file pattern matching
-	if self.FilePattern != `` {
-		if ig, err := util.NewGitIgnoreLines(strings.Split(self.FilePattern, "\n")); err == nil {
-			self.compiledIgnoreList = ig
+func (self *Directory) ScanPath(absPath string, fileStats ...os.FileInfo) error {
+	if fileStat, err := variadicStatPath(absPath, fileStats); err == nil {
+		relPath := strings.TrimPrefix(absPath, self.RootPath)
+		var parent string
+
+		if p, err := self.GetParentFromPath(relPath); err == nil {
+			parent = p
 		} else {
-			return err
+			parent = self.Parent
 		}
-	}
 
-	if entries, err := ioutil.ReadDir(self.Path); err == nil {
-		for _, entry := range entries {
-			absPath := path.Join(self.Path, entry.Name())
-			relPath := strings.TrimPrefix(absPath, self.RootPath)
-			dirEntry := NewEntry(self.ID, self.RootPath, absPath)
+		dirEntry := NewEntry(self.ID, self.RootPath, absPath)
 
-			if pathutil.IsSymlink(entry.Mode()) {
-				nukeEverythingUnderSymlink := false
+		if !self.ContainsPath(absPath, fileStat) {
+			log.Debugf("[%s] Ignoring entry %s", self.ID, relPath)
+			self.cleanupMissingEntriesUnderParent(dirEntry.ID, true)
+			self.cleanupMissingEntries(map[string]interface{}{`id`: dirEntry.ID}, true)
+			self.cleanupMissingEntries(map[string]interface{}{`id`: self.ID}, true)
+			return SkipEntry
+		}
 
-				if self.FollowSymlinks {
-					// verify the symlink is readabled, expanded, and ready to scan
-					if realpath, err := os.Readlink(absPath); err == nil {
-						if realAbsPath, err := filepath.Abs(path.Join(self.Path, realpath)); err == nil {
-							if realstat, err := os.Stat(realAbsPath); err == nil {
-								log.Infof("[%s] Following symbolic link %s -> %s", self.ID, absPath, realAbsPath)
-								entry = realstat
-							} else {
-								log.Warningf("[%s] Error reading target of symbolic link %s: %v", self.ID, realAbsPath, err)
-								nukeEverythingUnderSymlink = true
-							}
-						} else {
-							log.Warningf("[%s] Error following symbolic link %s: %v", self.ID, realpath, err)
-							nukeEverythingUnderSymlink = true
-						}
-					} else {
-						log.Warningf("[%s] Error reading symbolic link %s: %v", self.ID, entry.Name(), err)
-						nukeEverythingUnderSymlink = true
-					}
-				} else {
-					log.Infof("[%s] Skipping symbolic link %s", self.ID, absPath)
-					nukeEverythingUnderSymlink = true
-				}
+		// recursive directory handling
+		if fileStat.IsDir() {
+			if !self.NoRecurseDirectories {
+				if subdirectory, ok := ScannedDirectoriesSchema.NewInstance().(*Directory); ok {
+					subdirectory.ID = self.ID
+					subdirectory.Path = absPath
+					subdirectory.Parent = dirEntry.ID
+					subdirectory.RootPath = self.RootPath
+					subdirectory.FilePattern = self.FilePattern
+					subdirectory.NoRecurseDirectories = self.NoRecurseDirectories
+					subdirectory.FileMinimumSize = self.FileMinimumSize
+					subdirectory.FollowSymlinks = self.FollowSymlinks
+					subdirectory.DeepScan = self.DeepScan
+					subdirectory.compiledIgnoreList = self.compiledIgnoreList
 
-				// if there was an error reading the symlink, consider it dead/missing and cleanup the database under it
-				if nukeEverythingUnderSymlink {
-					self.cleanupMissingEntriesUnderParent(dirEntry.ID, true)
-					self.cleanupMissingEntries(map[string]interface{}{`id`: dirEntry.ID}, true)
-					continue
-				}
-			}
+					if err := subdirectory.Initialize(); err == nil {
+						log.Infof("[%s] %16s: Scanning subdirectory %s", self.ID, subdirectory.Parent, relPath)
 
-			// if an ignore list is in effect for this directory
-			if self.compiledIgnoreList != nil {
-				if !self.compiledIgnoreList.ShouldKeep(relPath, entry.Mode().IsDir()) {
-					log.Debugf("[%s] Ignoring entry %s", self.ID, relPath)
-					self.cleanupMissingEntries(map[string]interface{}{`id`: self.ID}, true)
-					continue
-				}
-			}
-
-			// recursive directory handling
-			if entry.IsDir() {
-				if !self.NoRecurseDirectories {
-					if subdirectory, ok := ScannedDirectoriesSchema.NewInstance().(*Directory); ok {
-						subdirectory.ID = self.ID
-						subdirectory.Path = absPath
-						subdirectory.Parent = dirEntry.ID
-						subdirectory.RootPath = self.RootPath
-						subdirectory.FilePattern = self.FilePattern
-						subdirectory.NoRecurseDirectories = self.NoRecurseDirectories
-						subdirectory.FileMinimumSize = self.FileMinimumSize
-						subdirectory.FollowSymlinks = self.FollowSymlinks
-						subdirectory.DeepScan = self.DeepScan
-						subdirectory.compiledIgnoreList = self.compiledIgnoreList
-
-						if err := subdirectory.Initialize(); err == nil {
-							log.Infof("[%s] %16s: Scanning subdirectory %s", self.ID, subdirectory.Parent, relPath)
-
-							if err := subdirectory.Scan(); err == nil {
-								self.FileCount = subdirectory.FileCount
-								self.Directories = append(self.Directories, subdirectory)
-							} else {
-								return err
-							}
+						if err := subdirectory.Scan(); err == nil {
+							self.FileCount = subdirectory.FileCount
+							self.Directories = append(self.Directories, subdirectory)
 						} else {
 							return err
 						}
+					} else {
+						return err
+					}
 
-						if self.FileCount == 0 {
-							// cleanup entries for whom we are the parent
-							if f, err := ParseFilter(map[string]interface{}{
-								`parent`: subdirectory.Parent,
-							}); err == nil {
-								if values, err := Metadata.ListWithFilter([]string{`id`}, f); err == nil {
-									if ids, ok := values[`id`]; ok {
-										Metadata.Delete(ids...)
-									}
-								} else {
-									log.Errorf("[%s] Failed to cleanup entries under %s: %v", self.ID, subdirectory.Parent, err)
+					if self.FileCount == 0 {
+						// cleanup entries for whom we are the parent
+						if f, err := ParseFilter(map[string]interface{}{
+							`parent`: subdirectory.Parent,
+						}); err == nil {
+							if values, err := Metadata.ListWithFilter([]string{`id`}, f); err == nil {
+								if ids, ok := values[`id`]; ok {
+									Metadata.Delete(ids...)
 								}
 							} else {
 								log.Errorf("[%s] Failed to cleanup entries under %s: %v", self.ID, subdirectory.Parent, err)
 							}
-
-							if Metadata.Exists(dirEntry.ID) {
-								Metadata.Delete(dirEntry.ID)
-							}
 						} else {
-							if _, err := self.scanEntry(absPath, true); err == nil {
-								// cleanup entries for whom we are the parent
-								if err := self.cleanupMissingEntriesUnderParent(subdirectory.Parent, false); err != nil {
-									log.Errorf("[%s] Failed to cleanup entries under %s: %v", self.ID, subdirectory.Parent, err)
-								}
-							} else {
-								return err
-							}
+							log.Errorf("[%s] Failed to cleanup entries under %s: %v", self.ID, subdirectory.Parent, err)
+						}
+
+						if Metadata.Exists(dirEntry.ID) {
+							Metadata.Delete(dirEntry.ID)
 						}
 					} else {
-						return fmt.Errorf("Failed to instantiate new Directory")
+						if _, err := self.scanEntry(absPath, subdirectory.Parent, true); err == nil {
+							// cleanup entries for whom we are the parent
+							if err := self.cleanupMissingEntriesUnderParent(subdirectory.Parent, false); err != nil {
+								log.Errorf("[%s] Failed to cleanup entries under %s: %v", self.ID, subdirectory.Parent, err)
+							}
+						} else {
+							return err
+						}
 					}
-				}
-			} else {
-				// if we've specified a minimum file size, and this file is less than that,
-				// then skip it
-				if self.FileMinimumSize > 0 && entry.Size() < int64(self.FileMinimumSize) {
-					continue
-				}
-
-				// scan the entry as a sharable asset
-				if _, err := self.scanEntry(absPath, false); err == nil {
-					self.FileCount += 1
 				} else {
-					return err
+					return fmt.Errorf("Failed to instantiate new Directory")
 				}
+			}
+		} else {
+			// if we've specified a minimum file size, and this file is less than that,
+			// then skip it
+			if self.FileMinimumSize > 0 && fileStat.Size() < int64(self.FileMinimumSize) {
+				return SkipEntry
+			}
+
+			// scan the entry as a sharable asset
+			if _, err := self.scanEntry(absPath, parent, false); err == nil {
+				self.FileCount += 1
+			} else {
+				return err
 			}
 		}
 	} else {
@@ -230,9 +322,29 @@ func (self *Directory) Scan() error {
 }
 
 func (self *Directory) WalkModifiedSince(lastModifiedAt time.Time, entryFn WalkEntryFunc) error {
+
 	return filepath.Walk(self.Path, func(name string, info os.FileInfo, err error) error {
-		if info.ModTime().After(lastModifiedAt) {
-			return entryFn(NewEntry(self.ID, self.RootPath, name))
+		if err == nil {
+			if self.ContainsPath(name) {
+				if !info.Mode().IsDir() {
+					if info.ModTime().Add(-1 * time.Second).After(lastModifiedAt) {
+						if entry := NewEntry(self.ID, self.Path, name); Metadata.Exists(entry.ID) {
+							if err := Metadata.Get(entry.ID, entry); err == nil {
+								return entryFn(entry, false)
+							} else {
+								log.Warningf("Failed to retrieve entry %v: %v", entry.ID, err)
+							}
+						} else {
+							return entryFn(entry, true)
+						}
+					}
+				}
+			} else {
+				// if this is a directory not contained in the current
+				if info.Mode().IsDir() {
+					return filepath.SkipDir
+				}
+			}
 		}
 
 		return nil
@@ -289,7 +401,7 @@ func (self *Directory) RefreshStats() error {
 	}
 }
 
-func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
+func (self *Directory) scanEntry(name string, parent string, isDir bool) (*Entry, error) {
 	defer stats.NewTiming().Send(`byteflood.db.entry.scan_time`, map[string]interface{}{
 		`label`:     self.ID,
 		`directory`: isDir,
@@ -329,9 +441,9 @@ func (self *Directory) scanEntry(name string, isDir bool) (*Entry, error) {
 
 	// Deep Scan only from here on...
 	// --------------------------------------------------------------------------------------------
-	log.Infof("[%s] %16s: Scanning entry %s", self.ID, self.Parent, name)
+	log.Infof("[%s] %16s: Scanning entry %s", self.ID, parent, name)
 
-	entry.Parent = self.Parent
+	entry.Parent = parent
 	entry.Label = self.ID
 	entry.IsDirectory = isDir
 
@@ -452,4 +564,16 @@ func (self *Directory) cleanup(entries ...interface{}) error {
 	} else {
 		return err
 	}
+}
+
+func variadicStatPath(absPath string, fileStats []os.FileInfo) (os.FileInfo, error) {
+	if len(fileStats) == 0 {
+		if stat, err := os.Stat(absPath); err == nil {
+			fileStats = append(fileStats, stat)
+		} else {
+			return nil, err
+		}
+	}
+
+	return fileStats[0], nil
 }
