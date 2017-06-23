@@ -8,6 +8,7 @@ import (
 
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/go-stockutil/httputil"
+	"github.com/ghetzel/metabase"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/husobee/vestigo"
 )
@@ -33,7 +34,7 @@ func (self *API) handleGetDatabaseItem(w http.ResponseWriter, req *http.Request)
 
 func (self *API) handleQueryDatabase(w http.ResponseWriter, req *http.Request) {
 	if limit, offset, sort, err := getSearchParams(req); err == nil {
-		if f, err := db.ParseFilter(vestigo.Param(req, `_name`)); err == nil {
+		if f, err := metabase.ParseFilter(vestigo.Param(req, `_name`)); err == nil {
 			f.Limit = limit
 			f.Offset = offset
 			f.Sort = sort
@@ -62,12 +63,12 @@ func (self *API) handleBrowseDatabase(w http.ResponseWriter, req *http.Request) 
 		query := ``
 
 		if parent := vestigo.Param(req, `parent`); parent == `` {
-			query = fmt.Sprintf("parent=%s", db.RootDirectoryName)
+			query = fmt.Sprintf("parent=%s", metabase.RootGroupName)
 		} else {
 			query = fmt.Sprintf("parent=%s", strings.TrimPrefix(parent, `/`))
 		}
 
-		if f, err := db.ParseFilter(query); err == nil {
+		if f, err := metabase.ParseFilter(query); err == nil {
 			f.Limit = limit
 			f.Offset = offset
 			f.Sort = sort
@@ -110,7 +111,7 @@ func (self *API) handleListValuesInDatabase(w http.ResponseWriter, req *http.Req
 			return
 		}
 	} else {
-		if f, err := db.ParseFilter(v); err == nil {
+		if f, err := metabase.ParseFilter(v); err == nil {
 			if rs, err := db.Metadata.ListWithFilter(fields, f); err == nil {
 				Respond(w, rs)
 				return

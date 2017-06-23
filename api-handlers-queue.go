@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/metabase"
 	"github.com/husobee/vestigo"
 )
 
@@ -98,7 +99,7 @@ func (self *API) handleDownloadFile(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	} else {
-		var entry db.Entry
+		var entry metabase.Entry
 
 		if err := db.Metadata.Get(entryId, &entry); err == nil {
 			if absPath, err := entry.GetAbsolutePath(); err == nil {

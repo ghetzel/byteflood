@@ -1,356 +1,35 @@
 package db
 
 import (
-	"fmt"
-	"os"
-	"regexp"
-	"strings"
-	"time"
-
-	"github.com/ghetzel/byteflood/db/metadata"
-	"github.com/ghetzel/byteflood/util"
-	"github.com/ghetzel/go-stockutil/pathutil"
-	"github.com/ghetzel/go-stockutil/stringutil"
-	"github.com/ghetzel/pivot"
-	"github.com/ghetzel/pivot/backends"
-	"github.com/ghetzel/pivot/dal"
-	"github.com/ghetzel/pivot/filter"
+	"github.com/ghetzel/metabase"
 	"github.com/ghetzel/pivot/mapper"
-	"github.com/op/go-logging"
 )
 
-var log = logging.MustGetLogger(`byteflood/db`)
+var Instance *metabase.DB
 
-var DefaultGlobalExclusions = []string{
-	`._.DS_Store`,
-	`._.Trashes`,
-	`.DS_Store`,
-	`.Spotlight-V100`,
-	`.Trashes`,
-	`desktop.ini`,
-	`lost+found`,
-	`Thumbs.db`,
-}
+func GetScannedDirectories() ([]metabase.Group, error) {
+	var dirs []metabase.Group
 
-var DefaultBaseDirectory = `~/.config/byteflood`
-var labelToPath = make(map[string]string)
-var CleanupIterations = 256
-
-type Database struct {
-	BaseDirectory      string            `json:"base_dir"`
-	URI                string            `json:"uri,omitempty"`
-	Indexer            string            `json:"indexer,omitempty"`
-	AdditionalIndexers map[string]string `json:"additional_indexers,omitempty"`
-	GlobalExclusions   []string          `json:"global_exclusions,omitempty"`
-	ScanInProgress     bool              `json:"scan_in_progress"`
-	ExtractFields      []string          `json:"extract_fields,omitempty"`
-	SkipMigrate        bool              `json:"skip_migrate"`
-	db                 backends.Backend
-}
-
-type Property struct {
-	Key   string      `json:"key,identity"`
-	Value interface{} `json:"value"`
-	db    *Database
-}
-
-var Instance *Database
-
-func NewDatabase() *Database {
-	db := &Database{
-		BaseDirectory:      DefaultBaseDirectory,
-		GlobalExclusions:   DefaultGlobalExclusions,
-		AdditionalIndexers: make(map[string]string),
-	}
-
-	return db
-}
-
-func ParseFilter(spec interface{}, fmtvalues ...interface{}) (filter.Filter, error) {
-	if fmt.Sprintf("%v", spec) == `all` {
-		return filter.All, nil
-	}
-
-	switch spec.(type) {
-	case []string:
-		return filter.Parse(strings.Join(spec.([]string), filter.CriteriaSeparator))
-	case map[string]interface{}:
-		return filter.FromMap(spec.(map[string]interface{}))
-	case string, interface{}:
-		if len(fmtvalues) > 0 {
-			return filter.Parse(fmt.Sprintf(fmt.Sprintf("%v", spec), fmtvalues...))
-		} else {
-			return filter.Parse(fmt.Sprintf("%v", spec))
-		}
-	default:
-		return filter.Filter{}, fmt.Errorf("Invalid argument type %T", spec)
-	}
-}
-
-// Initialize the Database by opening the underlying database
-func (self *Database) Initialize() error {
-	filter.CriteriaSeparator = `;`
-	filter.FieldTermSeparator = `=`
-	filter.QueryUnescapeValues = true
-
-	// reuse the "json:" struct tag for loading pivot/dal.Record into/out of structs
-	dal.RecordStructTag = `json`
-
-	if v, err := pathutil.ExpandUser(self.BaseDirectory); err == nil {
-		self.BaseDirectory = v
+	if err := ScannedDirectories.All(&dirs); err == nil {
+		return dirs, nil
 	} else {
-		return err
+		return nil, err
 	}
-
-	if self.URI == `` {
-		self.URI = fmt.Sprintf("sqlite:///%s/info.db", self.BaseDirectory)
-	}
-
-	// if _, ok := self.AdditionalIndexers[`metadata`]; !ok {
-	// 	self.AdditionalIndexers[`metadata`] = fmt.Sprintf("bleve:///%s/index", self.BaseDirectory)
-	// }
-
-	if db, err := pivot.NewDatabaseWithOptions(self.URI, backends.ConnectOptions{
-		Indexer:            self.Indexer,
-		AdditionalIndexers: self.AdditionalIndexers,
-	}); err == nil {
-		self.db = db
-	} else {
-		return err
-	}
-
-	if err := self.setupSchemata(); err != nil {
-		return err
-	}
-
-	for _, pattern := range self.ExtractFields {
-		if rx, err := regexp.Compile(pattern); err == nil {
-			metadata.RegexpPatterns = append(metadata.RegexpPatterns, rx)
-		} else {
-			return err
-		}
-	}
-
-	if err := self.refreshLabelPathCache(); err != nil {
-		return err
-	}
-
-	return nil
 }
 
-// Update the label-to-realpath map (used by Entry.GetAbsolutePath)
-func (self *Database) refreshLabelPathCache() error {
-	var scannedDirectories []Directory
+func SetupSchemata(db *metabase.DB) error {
+	pivotBackend := db.GetPivotDatabase()
 
-	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
-		for _, directory := range scannedDirectories {
-			labelToPath[directory.ID] = directory.Path
-		}
-	} else {
-		return err
-	}
-
-	return nil
-}
-
-func (self *Database) AddGlobalExclusions(patterns ...string) {
-	self.GlobalExclusions = append(self.GlobalExclusions, patterns...)
-}
-
-func (self *Database) Scan(deep bool, labels ...string) error {
-	if self.ScanInProgress {
-		log.Warningf("Another scan is already running")
-		return fmt.Errorf("Scan already running")
-	} else {
-		self.ScanInProgress = true
-
-		defer func() {
-			self.Cleanup()
-			self.ScanInProgress = false
-		}()
-	}
-
-	var scannedDirectories []Directory
-
-	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
-		for _, directory := range scannedDirectories {
-			// update our label-to-realpath map (used by Entry.GetAbsolutePath)
-			labelToPath[directory.ID] = directory.Path
-
-			directory.DeepScan = deep
-
-			if len(labels) > 0 {
-				skip := true
-
-				for _, label := range labels {
-					if directory.ID == stringutil.Underscore(label) {
-						skip = false
-						break
-					}
-				}
-
-				if skip {
-					log.Debugf("Skipping directory %s [%s]", directory.Path, directory.ID)
-					continue
-				}
-			}
-
-			if err := directory.Initialize(); err == nil {
-				log.Debugf("Scanning directory %s [%s]", directory.Path, directory.ID)
-
-				if err := directory.Scan(); err == nil {
-					defer directory.RefreshStats()
-				} else {
-					if len(scannedDirectories) == 1 {
-						return err
-					} else {
-						log.Errorf("Error scanning directory %q: %v", directory.ID, err)
-					}
-				}
-			} else {
-				if len(scannedDirectories) == 1 {
-					return err
-				} else {
-					log.Errorf("Error scanning directory %q: %v", directory.ID, err)
-				}
-			}
-		}
-	} else {
-		return err
-	}
-
-	return nil
-}
-
-func (self *Database) GetDirectoriesByFile(filename string) []Directory {
-	var scannedDirectories []Directory
-	foundDirectories := make([]Directory, 0)
-
-	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
-		for _, dir := range scannedDirectories {
-			if dir.ContainsPath(filename) {
-				foundDirectories = append(foundDirectories, dir)
-			}
-		}
-
-		return foundDirectories
-	}
-
-	return nil
-}
-
-func (self *Database) Cleanup() error {
-	if !self.ScanInProgress {
-		self.ScanInProgress = true
-
-		defer func() {
-			self.ScanInProgress = false
-		}()
-	}
-
-	var scannedDirectories []Directory
-	var ids []string
-
-	if err := ScannedDirectories.All(&scannedDirectories); err == nil {
-		for _, dir := range scannedDirectories {
-			ids = append(ids, dir.ID)
-		}
-	} else {
-		return err
-	}
-
-	if len(ids) == 0 {
-		return fmt.Errorf("Preventing cleanup of empty directory set.")
-	}
-
-	log.Debugf("Cleaning up...")
-
-	// cleanup files whose parent label no longer exists
-	if f, err := ParseFilter(map[string]interface{}{
-		`label`: fmt.Sprintf("not:%s", strings.Join(ids, `|`)),
-	}); err == nil {
-		f.Limit = -1
-
-		totalRemoved := 0
-		backend := Metadata.GetBackend()
-		indexer := backend.WithSearch(``)
-
-		if err := indexer.DeleteQuery(MetadataSchema.Name, f); err != nil {
-			log.Warningf("Remove missing labels failed: %v", err)
-		}
-
-		cleanupFn := func() int {
-			entriesToDelete := make([]interface{}, 0)
-			allQuery := filter.Copy(&filter.All)
-			allQuery.Fields = []string{`id`, `name`, `label`, `parent`}
-
-			if err := Metadata.FindFunc(allQuery, Entry{}, func(entryI interface{}, err error) {
-				if err == nil {
-					if entry, ok := entryI.(*Entry); ok {
-						// make sure the file actually exists
-						if absPath, err := entry.GetAbsolutePath(); err == nil {
-							if _, err := os.Stat(absPath); os.IsNotExist(err) {
-								entriesToDelete = append(entriesToDelete, entry.ID)
-								reportEntryDeletionStats(entry.Label, entry)
-								return
-							}
-						}
-
-						// make sure the entry's parent exists
-						if entry.Parent != `root` && !Metadata.Exists(entry.Parent) {
-							entriesToDelete = append(entriesToDelete, entry.ID)
-							reportEntryDeletionStats(entry.Label, entry)
-							return
-						}
-					}
-				} else {
-					log.Warningf("Error cleaning up database entries: %v", err)
-				}
-			}); err == nil {
-				if l := len(entriesToDelete); l > 0 {
-					if err := Metadata.Delete(entriesToDelete...); err == nil {
-						log.Debugf("Removed %d entries", l)
-						return l
-					} else {
-						log.Warningf("Error cleaning up database: %v", err)
-					}
-				}
-			} else {
-				log.Warningf("Failed to cleanup database: %v", err)
-			}
-
-			return -1
-		}
-
-		// cleanup until there's nothing left, an error occurs, or we've exceeded our CleanupIterations
-		for i := 0; i < CleanupIterations; i++ {
-			if removed := cleanupFn(); removed > 0 {
-				totalRemoved += removed
-			} else {
-				break
-			}
-		}
-
-		log.Infof("Database cleanup finished, deleted %d entries.", totalRemoved)
-	} else {
-		return err
-	}
-
-	return nil
-}
-
-func (self *Database) setupSchemata() error {
 	// register global mapper.Model instances to this database
-	AuthorizedPeers = mapper.NewModel(self.db, AuthorizedPeersSchema)
-	Downloads = mapper.NewModel(self.db, DownloadsSchema)
-	Metadata = mapper.NewModel(self.db, MetadataSchema)
-	ScannedDirectories = mapper.NewModel(self.db, ScannedDirectoriesSchema)
-	Shares = mapper.NewModel(self.db, SharesSchema)
-	Subscriptions = mapper.NewModel(self.db, SubscriptionsSchema)
-	System = mapper.NewModel(self.db, SystemSchema)
+	AuthorizedPeers = mapper.NewModel(pivotBackend, AuthorizedPeersSchema)
+	Downloads = mapper.NewModel(pivotBackend, DownloadsSchema)
+	ScannedDirectories = mapper.NewModel(pivotBackend, ScannedDirectoriesSchema)
+	Shares = mapper.NewModel(pivotBackend, SharesSchema)
+	Subscriptions = mapper.NewModel(pivotBackend, SubscriptionsSchema)
+	System = mapper.NewModel(pivotBackend, SystemSchema)
 
 	Models[`shares`] = Shares
-	Models[`metadata`] = Metadata
+	Models[`metadata`] = metabase.Metadata
 	Models[`downloads`] = Downloads
 	Models[`authorized_peers`] = AuthorizedPeers
 	Models[`system`] = System
@@ -363,67 +42,26 @@ func (self *Database) setupSchemata() error {
 	Models[`properties`] = System
 
 	// set global default DB instance to us
-	Instance = self
+	Instance = db
 
 	models := []mapper.Mapper{
+		metabase.Metadata,
 		AuthorizedPeers,
 		Downloads,
-		Metadata,
 		ScannedDirectories,
 		Shares,
 		Subscriptions,
 		System,
 	}
 
-	if !self.SkipMigrate {
-		for _, model := range models {
-			if err := model.Migrate(); err != nil {
-				return err
-			}
+	for _, model := range models {
+		if err := model.Migrate(); err != nil {
+			return err
 		}
 	}
+
+	db.GroupLister = GetScannedDirectories
+	// db.Initializer
 
 	return nil
-}
-
-func (self *Database) PollDirectories() {
-	for {
-		if !self.ScanInProgress {
-			var scannedDirectories []Directory
-
-			if err := ScannedDirectories.All(&scannedDirectories); err == nil {
-				for _, dir := range scannedDirectories {
-					lastCheckedAt := util.StartedAt
-
-					if tm := dir.GetLatestModifyTime(); !tm.IsZero() {
-						lastCheckedAt = tm
-					}
-
-					// log.Debugf("[%v] Checking for file changes since %v", dir.ID, lastCheckedAt)
-
-					if err := dir.WalkModifiedSince(lastCheckedAt, func(entry *Entry, isNew bool) error {
-						if absPath, err := entry.GetAbsolutePath(); err == nil {
-							if isNew {
-								log.Noticef("[%v] Created: %v (%v)", dir.ID, absPath, entry.LastModifiedTime())
-							} else {
-								log.Infof("[%v] Changed: %v (%v)", dir.ID, absPath, entry.LastModifiedTime())
-							}
-
-							if err := dir.ScanPath(absPath); err != nil {
-								log.Warningf("[%v] Error scanning %v: %v", dir.ID, absPath, err)
-							}
-						} else {
-							log.Warningf("[%v] %v", dir.ID, err)
-						}
-
-						return nil
-					}); err != nil {
-						log.Warningf("Failed to traverse %v: %v", dir.ID, err)
-					}
-				}
-			}
-		}
-
-		time.Sleep(10 * time.Second)
-	}
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/metabase"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/orcaman/concurrent-map"
 )
@@ -47,11 +48,11 @@ func (self *DownloadQueue) Add(sessionID string, shareID string, entryID string,
 	if remotePeer, ok := self.app.LocalPeer.GetSession(sessionID); ok {
 		// get file record from peer
 		if response, err := remotePeer.ServiceRequest(`GET`, fmt.Sprintf("/shares/%s/view/%s", shareID, entryID), nil, nil); err == nil {
-			entry := db.NewEntry(``, ``, ``)
+			entry := metabase.NewEntry(``, ``, ``)
 
 			// parse and load record
 			if err := json.NewDecoder(response.Body).Decode(entry); err == nil {
-				if entry.IsDirectory {
+				if entry.IsGroup {
 					return self.enqueueDirectory(remotePeer, shareID, entryID, destination)
 				} else {
 					return self.enqueueFile(remotePeer, shareID, entry, destination)
@@ -94,7 +95,7 @@ func (self *DownloadQueue) enqueueDirectory(remotePeer *peer.RemotePeer, shareID
 	}
 }
 
-func (self *DownloadQueue) enqueueFile(remotePeer *peer.RemotePeer, shareID string, entry *db.Entry, destination string) error {
+func (self *DownloadQueue) enqueueFile(remotePeer *peer.RemotePeer, shareID string, entry *metabase.Entry, destination string) error {
 	now := time.Now()
 
 	var size uint64
@@ -245,7 +246,7 @@ func (self *DownloadQueue) DownloadAll() {
 }
 
 func (self *DownloadQueue) NextDownload() *QueuedDownload {
-	if f, err := db.ParseFilter(map[string]interface{}{
+	if f, err := metabase.ParseFilter(map[string]interface{}{
 		`status`: `idle`,
 	}); err == nil {
 		f.Sort = []string{`-priority`}
@@ -288,7 +289,7 @@ func (self *DownloadQueue) Clear(statuses ...string) error {
 	}
 
 	for _, status := range statuses {
-		if f, err := db.ParseFilter(map[string]interface{}{
+		if f, err := metabase.ParseFilter(map[string]interface{}{
 			`status`: status,
 		}); err == nil {
 			f.Fields = []string{`id`}

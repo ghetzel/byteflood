@@ -10,55 +10,10 @@ import (
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/go-stockutil/typeutil"
+	metautil "github.com/ghetzel/metabase/util"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/filter"
 )
-
-var MetadataSchema = &dal.Collection{
-	Name:              `metadata`,
-	IdentityFieldType: dal.StringType,
-	Fields: []dal.Field{
-		{
-			Name:     `name`,
-			Type:     dal.StringType,
-			Required: true,
-		}, {
-			Name:     `parent`,
-			Type:     dal.StringType,
-			Required: true,
-		}, {
-			Name:      `size`,
-			Type:      dal.IntType,
-			Validator: dal.ValidatePositiveOrZeroInteger,
-		}, {
-			Name: `checksum`,
-			Type: dal.StringType,
-		}, {
-			Name:     `label`,
-			Type:     dal.StringType,
-			Required: true,
-		}, {
-			Name:     `directory`,
-			Type:     dal.BooleanType,
-			Required: true,
-		}, {
-			Name:      `children`,
-			Type:      dal.IntType,
-			Validator: dal.ValidatePositiveOrZeroInteger,
-		}, {
-			Name:      `descendants`,
-			Type:      dal.IntType,
-			Validator: dal.ValidatePositiveOrZeroInteger,
-		}, {
-			Name:     `last_modified_at`,
-			Type:     dal.IntType,
-			Required: true,
-		}, {
-			Name: `metadata`,
-			Type: dal.ObjectType,
-		},
-	},
-}
 
 var SharesSchema = &dal.Collection{
 	Name:              `shares`,
@@ -256,7 +211,7 @@ var ScannedDirectoriesSchema = &dal.Collection{
 				}
 			},
 			Validator: func(value interface{}) error {
-				_, err := util.NewGitIgnoreLines(strings.Split(fmt.Sprintf("%v", value), "\n"))
+				_, err := metautil.NewGitIgnoreLines(strings.Split(fmt.Sprintf("%v", value), "\n"))
 				return err
 			},
 		}, {

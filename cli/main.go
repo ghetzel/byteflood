@@ -9,12 +9,12 @@ import (
 
 	"github.com/ghetzel/byteflood"
 	"github.com/ghetzel/byteflood/client"
-	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/metabase"
 	"github.com/ghodss/yaml"
 	"github.com/op/go-logging"
 )
@@ -34,7 +34,7 @@ var SubcommandsThatSkipTheDatabase = []string{
 }
 
 var application *byteflood.Application
-var database *db.Database
+var database *metabase.DB
 var api *client.Client
 
 func main() {

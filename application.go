@@ -16,6 +16,7 @@ import (
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
+	"github.com/ghetzel/metabase"
 	"github.com/ghetzel/pivot/backends"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghodss/yaml"
@@ -34,7 +35,7 @@ type Stats struct {
 
 type Application struct {
 	LocalPeer      *peer.LocalPeer `json:"local,omitempty"`
-	Database       *db.Database    `json:"database,omitempty"`
+	Database       *metabase.DB    `json:"database,omitempty"`
 	Stats          Stats           `json:"stats,omitempty"`
 	PublicKeyPath  string          `json:"public_key,omitempty"`
 	PrivateKeyPath string          `json:"private_key,omitempty"`
@@ -45,10 +46,14 @@ type Application struct {
 
 // Create a new, unconfigured application instance.
 func NewApplication() *Application {
+	metabase.DefaultBaseDirectory = `~/.config/byteflood`
+
 	app := &Application{
-		Database: db.NewDatabase(),
+		Database: metabase.NewDB(),
 		running:  make(chan bool),
 	}
+
+	db.Instance = app.Database
 
 	app.LocalPeer = peer.NewLocalPeer()
 	app.Queue = NewDownloadQueue(app)
@@ -142,15 +147,19 @@ func (self *Application) Initialize() error {
 		return err
 	}
 
+	if err := db.SetupSchemata(self.Database); err != nil {
+		return err
+	}
+
 	// register types to schemata,set model initializers and perform test instantiation of instances
 	for schema, recordInstance := range map[*dal.Collection]interface{}{
 		db.AuthorizedPeersSchema:    peer.AuthorizedPeer{},
 		db.DownloadsSchema:          QueuedDownload{},
-		db.MetadataSchema:           db.Entry{},
-		db.ScannedDirectoriesSchema: db.Directory{},
+		metabase.MetadataSchema:     metabase.Entry{},
+		db.ScannedDirectoriesSchema: metabase.Group{},
 		db.SharesSchema:             shares.Share{},
 		db.SubscriptionsSchema:      Subscription{},
-		db.SystemSchema:             db.Property{},
+		db.SystemSchema:             metabase.Property{},
 	} {
 		schema.SetRecordType(recordInstance)
 		schema.NewInstance()
@@ -308,7 +317,7 @@ func (self *Application) Sync(peerNames ...string) error {
 
 // Retrieve a share by name.
 func (self *Application) GetShareByName(name string) (*shares.Share, bool) {
-	if f, err := db.ParseFilter(map[string]interface{}{
+	if f, err := metabase.ParseFilter(map[string]interface{}{
 		`name`: name,
 	}); err == nil {
 		var shares []*shares.Share
@@ -382,7 +391,7 @@ func (self *Application) collectShareStats(interval time.Duration) {
 
 func (self *Application) collectDatabaseStats(interval time.Duration) {
 	for {
-		var dirs []*db.Directory
+		var dirs []*metabase.Group
 
 		if err := db.ScannedDirectories.All(&dirs); err == nil {
 			for _, dir := range dirs {

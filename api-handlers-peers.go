@@ -8,6 +8,7 @@ import (
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/go-stockutil/httputil"
 	"github.com/ghetzel/go-stockutil/sliceutil"
+	"github.com/ghetzel/metabase"
 	"github.com/husobee/vestigo"
 )
 
@@ -43,7 +44,7 @@ func (self *API) handlePeersList(w http.ResponseWriter, req *http.Request) {
 		spec = `all`
 	}
 
-	if f, err := db.ParseFilter(spec); err == nil {
+	if f, err := metabase.ParseFilter(spec); err == nil {
 		if results, err := db.AuthorizedPeers.ListWithFilter(
 			[]string{field},
 			f,

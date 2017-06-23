@@ -13,6 +13,7 @@ import (
 	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/diecast"
 	"github.com/ghetzel/go-stockutil/httputil"
+	"github.com/ghetzel/metabase"
 	"github.com/ghetzel/mobius"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/mapper"
@@ -290,7 +291,7 @@ func (self *API) startEventDispatcher() {
 // and modification timestamps.  The function will return whether the actual content should be written to
 // the client (true) or not.  If the function returns false, the calling handler should return immediately.
 //
-func writeHttpHeadersForEntry(w http.ResponseWriter, req *http.Request, entry *db.Entry) bool {
+func writeHttpHeadersForEntry(w http.ResponseWriter, req *http.Request, entry *metabase.Entry) bool {
 	ifNoneMatch := strings.Trim(
 		strings.TrimPrefix(req.Header.Get(`If-None-Match`), `W/`),
 		`"`,

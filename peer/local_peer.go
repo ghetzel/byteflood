@@ -15,6 +15,7 @@ import (
 	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/metabase"
 	"github.com/jbenet/go-base58"
 	"github.com/op/go-logging"
 	"github.com/orcaman/concurrent-map"
@@ -357,7 +358,7 @@ func (self *LocalPeer) GetPeersInGroup(nameOrGroup string) ([]*RemotePeer, error
 		query[`name`] = nameOrGroup
 	}
 
-	if f, err := db.ParseFilter(query); err == nil {
+	if f, err := metabase.ParseFilter(query); err == nil {
 		if err := db.AuthorizedPeers.Find(f, &authPeersInGroup); err == nil {
 			for _, remotePeer := range self.GetPeers() {
 				for _, authPeer := range authPeersInGroup {

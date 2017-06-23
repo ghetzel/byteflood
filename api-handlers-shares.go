@@ -15,6 +15,7 @@ import (
 	"github.com/ghetzel/go-stockutil/httputil"
 	"github.com/ghetzel/go-stockutil/pathutil"
 	"github.com/ghetzel/go-stockutil/typeutil"
+	"github.com/ghetzel/metabase"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/husobee/vestigo"
 	"github.com/microcosm-cc/bluemonday"
@@ -29,7 +30,7 @@ type EntryParent struct {
 	Last   bool   `json:"last,omitempty"`
 }
 
-func writeTsvFileLine(w io.Writer, share *shares.Share, item db.ManifestItem) {
+func writeTsvFileLine(w io.Writer, share *shares.Share, item metabase.ManifestItem) {
 	values := make([]string, len(item.Values))
 	var fieldset string
 
@@ -65,7 +66,7 @@ func (self *API) handleSaveShare(w http.ResponseWriter, req *http.Request) {
 						// create the directory
 						autolabel := fmt.Sprintf("%v_%x", record.ID, rand.Int31())
 
-						if err := db.ScannedDirectories.Create(&db.Directory{
+						if err := db.ScannedDirectories.Create(&metabase.Group{
 							ID:   autolabel,
 							Path: scanPath,
 						}); err == nil {
@@ -75,9 +76,9 @@ func (self *API) handleSaveShare(w http.ResponseWriter, req *http.Request) {
 							return
 						}
 
-						record.Set(`filter`, fmt.Sprintf("label=%v", autolabel))
+						record.Set(`filter`, fmt.Sprintf("root_group=%v", autolabel))
 					} else {
-						record.Set(`filter`, fmt.Sprintf("label=%v", existing[0].ID))
+						record.Set(`filter`, fmt.Sprintf("root_group=%v", existing[0].ID))
 					}
 				} else {
 					http.Error(w, err.Error(), http.StatusBadRequest)
@@ -152,7 +153,7 @@ func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request, c
 		share := s[0]
 
 		entryId := vestigo.Param(req, `entry`)
-		var entries []*db.Entry
+		var entries []*metabase.Entry
 
 		if entryId == `` {
 			if f, err := share.Children(); err == nil {
@@ -187,7 +188,7 @@ func (self *API) handleShareManifest(w http.ResponseWriter, req *http.Request, c
 			fieldset = "\t" + strings.Join(fields, "\t")
 		}
 
-		fmt.Fprintf(w, strings.Join(db.DefaultManifestFields, "\t")+"%s\n", fieldset)
+		fmt.Fprintf(w, strings.Join(metabase.DefaultManifestFields, "\t")+"%s\n", fieldset)
 
 		for _, entry := range entries {
 			if manifest, err := entry.GetManifest(fields, filterString); err == nil {
@@ -281,7 +282,7 @@ func (self *API) handleBrowseShare(w http.ResponseWriter, req *http.Request, cli
 			query := ``
 
 			if parent := vestigo.Param(req, `parent`); parent == `` {
-				query = fmt.Sprintf("parent=%s", db.RootDirectoryName)
+				query = fmt.Sprintf("parent=%s", metabase.RootGroupName)
 			} else {
 				query = fmt.Sprintf("parent=%s", strings.TrimPrefix(parent, `/`))
 			}
@@ -332,7 +333,7 @@ func (self *API) handleRequestEntryFromShare(w http.ResponseWriter, req *http.Re
 
 	// get remote peer from proxied request
 	if remotePeer, ok := self.application.LocalPeer.GetSession(client.SessionID()); ok {
-		var entry db.Entry
+		var entry metabase.Entry
 
 		if err := db.Metadata.Get(vestigo.Param(req, `entry`), &entry); err == nil {
 			// get the absolute filesystem path to the entry at :id

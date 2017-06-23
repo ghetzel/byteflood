@@ -11,6 +11,7 @@ import (
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/metabase"
 	"github.com/ghetzel/mobius"
 	"github.com/ghetzel/pivot/dal"
 	"github.com/ghetzel/pivot/filter"
@@ -145,7 +146,7 @@ func (self *Share) Length() int {
 }
 
 func (self *Share) Find(filterString string, limit int, offset int, sort []string, fields []string) (*dal.RecordSet, error) {
-	if f, err := db.ParseFilter(self.GetQuery(filterString)); err == nil {
+	if f, err := metabase.ParseFilter(self.GetQuery(filterString)); err == nil {
 		f.Limit = limit
 		f.Offset = offset
 
@@ -172,7 +173,7 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 }
 
 func (self *Share) List(field string, filterString string, limit int, offset int, sort []string) ([]interface{}, error) {
-	if f, err := db.ParseFilter(self.GetQuery(filterString)); err == nil {
+	if f, err := metabase.ParseFilter(self.GetQuery(filterString)); err == nil {
 		f.Limit = limit
 		f.Offset = offset
 
@@ -196,8 +197,8 @@ func (self *Share) List(field string, filterString string, limit int, offset int
 	}
 }
 
-func (self *Share) Get(id string) (*db.Entry, error) {
-	entry := db.NewEntry(``, ``, ``)
+func (self *Share) Get(id string) (*metabase.Entry, error) {
+	entry := metabase.NewEntry(``, ``, ``)
 
 	if err := db.Metadata.Get(id, entry); err == nil {
 		return entry, nil
@@ -238,7 +239,7 @@ func (self *Share) GetStats() (*Stats, error) {
 }
 
 func (self *Share) RefreshShareStats() error {
-	if f, err := db.ParseFilter(self.GetQuery()); err == nil {
+	if f, err := metabase.ParseFilter(self.GetQuery()); err == nil {
 		f.Limit = -1
 		f.Fields = []string{`directory`, `size`}
 		f.Sort = []string{`-directory`, `size`}
@@ -287,12 +288,12 @@ func (self *Share) RefreshShareStats() error {
 	}
 }
 
-func (self *Share) Children(filterString ...string) ([]*db.Entry, error) {
-	if f, err := db.ParseFilter(self.GetQuery(append(filterString, `parent=root`)...)); err == nil {
-		f.Limit = db.MaxChildEntries
+func (self *Share) Children(filterString ...string) ([]*metabase.Entry, error) {
+	if f, err := metabase.ParseFilter(self.GetQuery(append(filterString, `parent=root`)...)); err == nil {
+		f.Limit = metabase.MaxChildEntries
 		f.Sort = []string{`-directory`, `name`}
 
-		files := make([]*db.Entry, 0)
+		files := make([]*metabase.Entry, 0)
 
 		if err := db.Metadata.Find(f, &files); err == nil {
 			return files, nil

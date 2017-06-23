@@ -9,6 +9,7 @@ import (
 
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/go-stockutil/httputil"
+	"github.com/ghetzel/metabase"
 	"github.com/husobee/vestigo"
 	"github.com/sabhiram/go-gitignore"
 )
@@ -22,7 +23,7 @@ func (self *API) handleGetScannedDirectories(w http.ResponseWriter, req *http.Re
 }
 
 func (self *API) handleGetScannedDirectory(w http.ResponseWriter, req *http.Request) {
-	dir := new(db.Directory)
+	dir := new(metabase.Group)
 
 	if err := db.ScannedDirectories.Get(vestigo.Param(req, `id`), dir); err == nil {
 		Respond(w, dir)

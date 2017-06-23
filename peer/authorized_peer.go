@@ -7,6 +7,7 @@ import (
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/go-stockutil/sliceutil"
+	"github.com/ghetzel/metabase"
 )
 
 type AuthorizedPeer struct {
@@ -32,7 +33,7 @@ func ExpandPeerGroup(groupOrName string) ([]string, error) {
 			return nil, err
 		}
 	} else {
-		if nameFilter, err := db.ParseFilter(map[string]interface{}{
+		if nameFilter, err := metabase.ParseFilter(map[string]interface{}{
 			`name`: groupOrName,
 		}); err == nil {
 			var peers []*AuthorizedPeer

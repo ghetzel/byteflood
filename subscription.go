@@ -5,9 +5,9 @@ import (
 	"path"
 	"time"
 
-	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/peer"
 	"github.com/ghetzel/go-stockutil/sliceutil"
+	"github.com/ghetzel/metabase"
 )
 
 type WantedItem struct {
@@ -50,7 +50,7 @@ func (self *Subscription) GetWantedItems(localPeer *peer.LocalPeer) ([]*WantedIt
 
 	items := make([]*WantedItem, 0)
 	requestedPaths := make([]string, 0)
-	policy := db.ChecksumPolicy
+	policy := metabase.ChecksumPolicy
 	var peers []*peer.RemotePeer
 
 	if self.SourceGroup == `` {

@@ -8,6 +8,7 @@ import (
 	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/shares"
 	"github.com/ghetzel/go-stockutil/typeutil"
+	"github.com/ghetzel/metabase"
 	"github.com/ghetzel/pivot/dal"
 )
 
@@ -109,7 +110,7 @@ func (self *Client) QueryShare(
 	sort []string,
 	peerOrSession string,
 ) (*dal.RecordSet, error) {
-	if f, err := db.ParseFilter(filterSpec); err == nil {
+	if f, err := metabase.ParseFilter(filterSpec); err == nil {
 		if limit == 0 {
 			limit = 500
 		}

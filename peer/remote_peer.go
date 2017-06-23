@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/byteflood/util"
+	"github.com/ghetzel/metabase"
 	"github.com/jbenet/go-base58"
 	"github.com/orcaman/concurrent-map"
 	"github.com/satori/go.uuid"
@@ -202,7 +202,7 @@ func (self *RemotePeer) Disconnect() error {
 
 // Retrieves the file manifest of the named share
 //
-func (self *RemotePeer) GetManifest(share string, fields ...string) (*db.Manifest, error) {
+func (self *RemotePeer) GetManifest(share string, fields ...string) (*metabase.Manifest, error) {
 	if response, err := self.ServiceRequest(
 		`GET`,
 		fmt.Sprintf("/shares/%v/manifest", share),
@@ -211,7 +211,7 @@ func (self *RemotePeer) GetManifest(share string, fields ...string) (*db.Manifes
 			`X-Byteflood-Manifest-Fields`: strings.Join(fields, `,`),
 		},
 	); err == nil {
-		manifest := db.NewManifest(``)
+		manifest := metabase.NewManifest(``)
 
 		if err := manifest.LoadTSV(response.Body); err == nil {
 			return manifest, nil

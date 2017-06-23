@@ -10,21 +10,26 @@ import (
 	"time"
 
 	"github.com/ghetzel/byteflood/db"
+	"github.com/ghetzel/metabase"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/nacl/box"
 )
 
-var database *db.Database
+var database *metabase.DB
 
 func TestMain(m *testing.M) {
 	if tmpfile, err := ioutil.TempFile(``, `byteflood`); err == nil {
 		defer os.Remove(tmpfile.Name())
 
-		database = db.NewDatabase()
+		database = metabase.NewDB()
 		database.URI = `sqlite://` + tmpfile.Name()
 		database.Indexer = ``
 
 		if err := database.Initialize(); err == nil {
+			if err := db.SetupSchemata(database); err != nil {
+				panic(err.Error())
+			}
+
 			os.Exit(m.Run())
 		} else {
 			panic(err.Error())

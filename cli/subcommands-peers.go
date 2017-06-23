@@ -8,11 +8,11 @@ import (
 	"text/tabwriter"
 
 	"github.com/ghetzel/byteflood/client"
-	"github.com/ghetzel/byteflood/db"
 	"github.com/ghetzel/byteflood/util"
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
+	"github.com/ghetzel/metabase"
 )
 
 func subcommandsPeers() []cli.Command {
@@ -229,7 +229,7 @@ func subcommandsPeers() []cli.Command {
 											tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 
 											for _, record := range rs.Records {
-												var entry db.Entry
+												var entry metabase.Entry
 												var fileSize string
 
 												if err := record.Populate(&entry, nil); err == nil {

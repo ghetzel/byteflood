@@ -18,6 +18,7 @@ import (
 	"github.com/ghetzel/cli"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/pathutil"
+	"github.com/ghetzel/metabase"
 	"github.com/ghetzel/pivot/dal"
 )
 
@@ -61,11 +62,11 @@ func subcommandsDB() []cli.Command {
 						cli.StringFlag{
 							Name:  `db`,
 							Usage: `Query the named database`,
-							Value: db.MetadataSchema.Name,
+							Value: metabase.MetadataSchema.Name,
 						},
 					},
 					Action: func(c *cli.Context) {
-						if f, err := db.ParseFilter(strings.Join(c.Args(), `/`)); err == nil {
+						if f, err := metabase.ParseFilter(strings.Join(c.Args(), `/`)); err == nil {
 							var rs dal.RecordSet
 
 							if err := db.Metadata.Find(f, &rs); err == nil {
