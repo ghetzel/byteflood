@@ -159,7 +159,7 @@ func (self *Application) Initialize() error {
 		db.ScannedDirectoriesSchema: metabase.Group{},
 		db.SharesSchema:             shares.Share{},
 		db.SubscriptionsSchema:      Subscription{},
-		db.SystemSchema:             metabase.Property{},
+		db.SystemSchema:             db.Property{},
 	} {
 		schema.SetRecordType(recordInstance)
 		schema.NewInstance()

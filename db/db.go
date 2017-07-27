@@ -27,6 +27,7 @@ func SetupSchemata(db *metabase.DB) error {
 	Shares = mapper.NewModel(pivotBackend, SharesSchema)
 	Subscriptions = mapper.NewModel(pivotBackend, SubscriptionsSchema)
 	System = mapper.NewModel(pivotBackend, SystemSchema)
+	Metadata = metabase.Metadata
 
 	Models[`shares`] = Shares
 	Models[`metadata`] = metabase.Metadata

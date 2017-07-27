@@ -143,7 +143,7 @@ func (self *API) handleActionDatabase(w http.ResponseWriter, req *http.Request) 
 		go db.Instance.Scan(payload.DeepScan, payload.Labels...)
 
 	case `cleanup`:
-		go db.Instance.Cleanup()
+		go db.Instance.Cleanup(false)
 
 	default:
 		http.Error(w, ``, http.StatusNotFound)

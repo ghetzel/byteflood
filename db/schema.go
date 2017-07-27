@@ -128,7 +128,7 @@ var AuthorizedPeersSchema = &dal.Collection{
 			Name:     `name`,
 			Type:     dal.StringType,
 			Required: true,
-			Unique:   true,
+			// Unique:   true,
 			Formatter: func(value interface{}, op dal.FieldOperation) (interface{}, error) {
 				return stringutil.Underscore(
 					strings.TrimSpace(

@@ -125,7 +125,7 @@ func setupApplication(assert *require.Assertions, source string, dest string) *A
 	assert.NoError(db.ScannedDirectories.Create(directory))
 	assert.NoError(db.Shares.Create(&shares.Share{
 		ID:         `music`,
-		BaseFilter: `label=music`,
+		BaseFilter: `root_group=music`,
 	}))
 
 	sub := NewSubscription(1, `music`, ``, filepath.Join(dest, `music`))

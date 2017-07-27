@@ -22,7 +22,7 @@ var log = logging.MustGetLogger(`byteflood/shares`)
 
 type Stats struct {
 	FileCount      uint64 `json:"file_count"`
-	DirectoryCount uint64 `json:"directory_count"`
+	DirectoryCount uint64 `json:"group_count"`
 	TotalBytes     uint64 `json:"total_bytes"`
 }
 
@@ -77,7 +77,7 @@ func GetShares(requestingPeer peer.Peer, stats bool, ids ...string) ([]Share, er
 
 func (self *Share) GetQuery(filters ...string) string {
 	if self.BaseFilter == `` {
-		self.BaseFilter = fmt.Sprintf("label%s%s", filter.FieldTermSeparator, stringutil.Underscore(self.ID))
+		self.BaseFilter = fmt.Sprintf("root_group%s%s", filter.FieldTermSeparator, stringutil.Underscore(self.ID))
 	}
 
 	for i, f := range filters {
@@ -151,7 +151,7 @@ func (self *Share) Find(filterString string, limit int, offset int, sort []strin
 		f.Offset = offset
 
 		if len(sort) == 0 {
-			f.Sort = []string{`-directory`, `name`}
+			f.Sort = []string{`-group`, `name`}
 		} else {
 			f.Sort = sort
 		}
@@ -178,7 +178,7 @@ func (self *Share) List(field string, filterString string, limit int, offset int
 		f.Offset = offset
 
 		if len(sort) == 0 {
-			f.Sort = []string{`-directory`, `name`}
+			f.Sort = []string{`-group`, `name`}
 		} else {
 			f.Sort = sort
 		}
@@ -224,7 +224,7 @@ func (self *Share) GetStats() (*Stats, error) {
 					shareStats.TotalBytes = uint64(values[0])
 				case `byteflood.shares.file_count`:
 					shareStats.FileCount = uint64(values[0])
-				case `byteflood.shares.directory_count`:
+				case `byteflood.shares.group_count`:
 					shareStats.DirectoryCount = uint64(values[0])
 				}
 			}
@@ -241,12 +241,12 @@ func (self *Share) GetStats() (*Stats, error) {
 func (self *Share) RefreshShareStats() error {
 	if f, err := metabase.ParseFilter(self.GetQuery()); err == nil {
 		f.Limit = -1
-		f.Fields = []string{`directory`, `size`}
-		f.Sort = []string{`-directory`, `size`}
+		f.Fields = []string{`group`, `size`}
+		f.Sort = []string{`-group`, `size`}
 
 		// file stats
 		if filesFilter, err := f.NewFromMap(map[string]interface{}{
-			`bool:directory`: `false`,
+			`bool:group`: `false`,
 		}); err == nil {
 			if v, err := db.Metadata.Sum(`size`, filesFilter); err == nil {
 				stats.Gauge(`byteflood.shares.total_bytes`, float64(v), map[string]interface{}{
@@ -267,12 +267,12 @@ func (self *Share) RefreshShareStats() error {
 			return err
 		}
 
-		// directory stats
+		// group stats
 		if dirFilter, err := f.NewFromMap(map[string]interface{}{
-			`bool:directory`: `true`,
+			`bool:group`: `true`,
 		}); err == nil {
 			if v, err := db.Metadata.Count(dirFilter); err == nil {
-				stats.Gauge(`byteflood.shares.directory_count`, float64(v), map[string]interface{}{
+				stats.Gauge(`byteflood.shares.group_count`, float64(v), map[string]interface{}{
 					`share`: self.ID,
 				})
 			} else {
@@ -291,7 +291,7 @@ func (self *Share) RefreshShareStats() error {
 func (self *Share) Children(filterString ...string) ([]*metabase.Entry, error) {
 	if f, err := metabase.ParseFilter(self.GetQuery(append(filterString, `parent=root`)...)); err == nil {
 		f.Limit = metabase.MaxChildEntries
-		f.Sort = []string{`-directory`, `name`}
+		f.Sort = []string{`-group`, `name`}
 
 		files := make([]*metabase.Entry, 0)
 

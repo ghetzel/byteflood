@@ -4,12 +4,11 @@ import (
 	"net/http"
 
 	"github.com/ghetzel/byteflood/db"
-	"github.com/ghetzel/metabase"
 	"github.com/husobee/vestigo"
 )
 
 func (self *API) handleGetSystemProperties(w http.ResponseWriter, req *http.Request) {
-	var properties []metabase.Property
+	var properties []db.Property
 
 	if err := db.System.All(&properties); err == nil {
 		Respond(w, properties)
@@ -19,7 +18,7 @@ func (self *API) handleGetSystemProperties(w http.ResponseWriter, req *http.Requ
 }
 
 func (self *API) handleGetSystemProperty(w http.ResponseWriter, req *http.Request) {
-	property := new(metabase.Property)
+	property := new(db.Property)
 
 	if err := db.System.Get(vestigo.Param(req, `id`), property); err == nil {
 		Respond(w, property)
