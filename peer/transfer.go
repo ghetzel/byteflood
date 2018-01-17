@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/satori/go.uuid"
 )
 
@@ -39,7 +40,7 @@ type Transfer struct {
 
 func NewTransfer(peer *RemotePeer, size uint64) *Transfer {
 	return &Transfer{
-		ID:           uuid.NewV4(),
+		ID:           stringutil.UUID(),
 		Peer:         peer,
 		ExpectedSize: size,
 		hasher:       sha256.New(),

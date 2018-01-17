@@ -15,6 +15,7 @@ import (
 	"github.com/ghetzel/byteflood/encryption"
 	"github.com/ghetzel/byteflood/stats"
 	"github.com/ghetzel/byteflood/util"
+	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/metabase"
 	"github.com/jbenet/go-base58"
 	"github.com/orcaman/concurrent-map"
@@ -282,7 +283,7 @@ func (self *RemotePeer) SendMessage(message *Message) (int, error) {
 //
 func (self *RemotePeer) SendMessageChecked(message *Message, timeout time.Duration) (*Message, error) {
 	if uuid.Equal(message.GroupID, uuid.Nil) {
-		message.GroupID = uuid.NewV4()
+		message.GroupID = stringutil.UUID()
 	}
 
 	replyChan := make(chan *Message)
